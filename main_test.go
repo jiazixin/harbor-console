@@ -1522,7 +1522,7 @@ func TestControlRejectsInvalidSecurityBodies(t *testing.T) {
 		{method: http.MethodPut, operation: "system-cve-allowlist", body: `{"expires_at":-1,"items":[]}`},
 		{method: http.MethodPut, operation: "system-cve-allowlist", body: `{"expires_at":1893455999.5,"items":[]}`},
 		{method: http.MethodPut, operation: "system-cve-allowlist", body: `{"expires_at":null,"items":[{"cve_id":"GHSA-invalid"}]}`},
-		{method: http.MethodPut, operation: "project?project=p", body: `{"metadata":{"unknown":"true"}}`},
+		{method: http.MethodPut, operation: "project?project=p", body: `{"metadata":{"unknown":true}}`},
 		{method: http.MethodPut, operation: "project?project=p", body: `{"storage_limit":"1073741824"}`},
 		{method: http.MethodPut, operation: "project?project=p", body: `{"metadata":{"reuse_sys_cve_allowlist":"false"},"cve_allowlist":{"expires_at":null,"items":[{"cve_id":"CVE-2026-1842"},{"cve_id":"CVE-2026-1842"}]}}`},
 		{method: http.MethodPost, operation: "cve-export", body: `{"projects":[1,2],"labels":[]}`},
