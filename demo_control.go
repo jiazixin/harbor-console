@@ -657,6 +657,18 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 		}
 		data = map[string]any{"repo_count": len(repositories), "artifact_count": artifactCount, "project_admin_count": roleCounts[1], "maintainer_count": roleCounts[4], "developer_count": roleCounts[2], "guest_count": roleCounts[3]}
 
+	case "project-deletable":
+		projectName := query.Get("project")
+		if _, found := findMap(state.projects, "name", projectName); !found {
+			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+			break
+		}
+		if len(state.repositories[projectName]) > 0 {
+			data = map[string]any{"deletable": false, "message": "项目仍包含仓库，请先删除仓库"}
+		} else {
+			data = map[string]any{"deletable": true}
+		}
+
 	case "project-scanner":
 		projectName := query.Get("project")
 		if _, found := findMap(state.projects, "name", projectName); !found {

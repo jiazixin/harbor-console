@@ -476,10 +476,11 @@ async function renderProjectDetail(token) {
         providers_error: providersResult.status === "rejected" ? providersResult.reason.message : "",
       };
 	} else if (route.section === "settings") {
-	  const [scannerResult, candidatesResult, proxyRegistryResult] = await Promise.allSettled([
+	  const [scannerResult, candidatesResult, proxyRegistryResult, proxyRegistriesResult] = await Promise.allSettled([
 		controlData("project-scanner", { project: projectName }),
 		controlList("project-scanner-candidates", { project: projectName, page: 1, page_size: 100, sort: "name" }),
 		toNumber(project.registry_id) > 0 ? controlData("registry", { id: project.registry_id }) : Promise.resolve(null),
+		toNumber(project.registry_id) > 0 && isSystemAdmin() ? controlList("registries", { page: 1, page_size: 100, sort: "name" }) : Promise.resolve({ items: [] }),
 	  ]);
 	  collection = {
 		scanner: scannerResult.status === "fulfilled" ? scannerResult.value : null,
@@ -488,6 +489,7 @@ async function renderProjectDetail(token) {
 		candidates_error: candidatesResult.status === "rejected" ? candidatesResult.reason.message : "",
 		proxyRegistry: proxyRegistryResult.status === "fulfilled" ? proxyRegistryResult.value : null,
 		proxy_registry_error: proxyRegistryResult.status === "rejected" ? proxyRegistryResult.reason.message : "",
+		proxyRegistries: proxyRegistriesResult.status === "fulfilled" ? proxyRegistriesResult.value.items : [],
 	  };
     }
     if (token !== state.renderToken || state.currentView !== "project") return;
@@ -938,6 +940,7 @@ function projectSettings(project, collection = {}) {
     : currentScanner.uuid ? `<option value="${escapeAttr(currentScanner.uuid)}" selected>${escapeHTML(currentScanner.name || currentScanner.adapter || currentScanner.uuid)}</option>` : "";
 	const scannerError = collection.scanner_error || collection.candidates_error;
 	const proxyRegistry = asObject(collection.proxyRegistry);
+	const proxyRegistries = asArray(collection.proxyRegistries);
 	const isProxyCache = toNumber(project.registry_id) > 0;
 	const proxySpeed = toNumber(metadata.proxy_speed_kb) || -1;
 	const maxUpstreamConnections = toNumber(metadata.max_upstream_conn) || -1;
@@ -950,6 +953,8 @@ function projectSettings(project, collection = {}) {
 		  ${toggleField("project-public", "项目公开", "允许未登录用户拉取制品", String(metadata.public) === "true")}
 		  ${toggleField("project-auto-scan", "推送后自动扫描", "新制品入库后自动触发漏洞扫描", String(metadata.auto_scan) === "true")}
 		  ${toggleField("project-auto-sbom", "自动生成 SBOM", "新制品入库后生成软件物料清单", String(metadata.auto_sbom_generation) === "true")}
+		  ${toggleField("project-content-trust", "Notary 内容信任", "要求 Notary 签名验证", String(metadata.enable_content_trust) === "true")}
+		  ${toggleField("project-content-trust-cosign", "Cosign 内容信任", "要求 Cosign 签名验证", String(metadata.enable_content_trust_cosign) === "true")}
 		  ${toggleField("project-prevent-vul", "阻止高风险制品拉取", "按下方风险级别阻止拉取", String(metadata.prevent_vul) === "true")}
 		  ${toggleField("project-reuse-allowlist", "继承系统 CVE 白名单", "关闭后使用此项目的独立白名单", reuseSystemAllowlist)}
 		  ${isProxyCache ? toggleField("project-proxy-local-fallback", "上游未找到时使用本地制品", "远端返回未找到时允许读取本地缓存", String(metadata.proxy_cache_local_on_not_found) === "true") : ""}
@@ -957,7 +962,7 @@ function projectSettings(project, collection = {}) {
 		<div class="form-grid two-columns">
 		  <label class="field"><span>漏洞阻止级别</span><select id="project-severity">${severityOptions(metadata.severity)}</select></label>
 		  <label class="field"><span>存储配额（GiB）</span><input id="project-storage-limit" type="number" min="-1" step="1" value="${escapeAttr(limit > 0 ? Math.max(1, Math.round(limit / 1024 ** 3)) : -1)}"><small class="field-help">输入 -1 表示不限制；精确配额也可在项目配额页修改。</small></label>
-		  ${isProxyCache ? `<label class="field"><span>上游带宽限制</span><input value="${escapeAttr(proxySpeed === -1 ? "不限制" : `${formatNumber(proxySpeed)} Kbps`)}" readonly></label><label class="field"><span>上游最大连接数</span><input value="${escapeAttr(maxUpstreamConnections === -1 ? "不限制" : formatNumber(maxUpstreamConnections))}" readonly></label>` : ""}
+		  ${isProxyCache && isSystemAdmin() ? `<label class="field"><span>远端仓库</span><select id="project-proxy-registry">${proxyRegistries.map((registry) => `<option value="${escapeAttr(registry.id)}" ${Number(registry.id) === Number(project.registry_id) ? "selected" : ""}>${escapeHTML(registry.name || `仓库 #${registry.id}`)}</option>`).join("")}</select></label>` : ""}${isProxyCache ? `<label class="field"><span>上游带宽限制（Kbps）</span><input id="project-proxy-speed" type="number" min="-1" step="1" value="${escapeAttr(proxySpeed)}"><small class="field-help">输入 -1 表示不限制。</small></label><label class="field"><span>上游最大连接数</span><input id="project-max-upstream-connections" type="number" min="-1" step="1" value="${escapeAttr(maxUpstreamConnections)}"><small class="field-help">输入 -1 表示不限制。</small></label>` : ""}
 		  <label class="field field-span"><span>项目漏洞扫描器</span><select id="project-scanner" ${scannerOptions ? "" : "disabled"}>${scannerOptions || '<option value="">暂无可用扫描器</option>'}</select><small class="field-help">项目扫描任务将使用此扫描器；未单独配置时 Harbor 返回系统默认扫描器。</small></label>
       </div>
       <section class="project-allowlist-settings">
@@ -988,16 +993,25 @@ async function saveProjectSettings(event) {
     const limitText = document.querySelector("#project-storage-limit").value;
     const reuseSystemAllowlist = document.querySelector("#project-reuse-allowlist").checked;
     const payload = {
-      metadata: {
+		metadata: {
+			...asObject(state.controlProject?.metadata),
         public: String(document.querySelector("#project-public").checked),
         auto_scan: String(document.querySelector("#project-auto-scan").checked),
         auto_sbom_generation: String(document.querySelector("#project-auto-sbom").checked),
         prevent_vul: String(document.querySelector("#project-prevent-vul").checked),
         severity: document.querySelector("#project-severity").value,
 			reuse_sys_cve_allowlist: String(reuseSystemAllowlist),
+			enable_content_trust: String(document.querySelector("#project-content-trust").checked),
+			enable_content_trust_cosign: String(document.querySelector("#project-content-trust-cosign").checked),
 		  },
 		};
-		if (toNumber(state.controlProject?.registry_id) > 0) payload.metadata.proxy_cache_local_on_not_found = String(document.querySelector("#project-proxy-local-fallback")?.checked);
+		if (toNumber(state.controlProject?.registry_id) > 0) {
+			payload.metadata.proxy_cache_local_on_not_found = String(document.querySelector("#project-proxy-local-fallback")?.checked);
+			payload.metadata.proxy_speed_kb = String(proxyLimitValue(document.querySelector("#project-proxy-speed")?.value, "上游带宽限制"));
+			payload.metadata.max_upstream_conn = String(proxyLimitValue(document.querySelector("#project-max-upstream-connections")?.value, "上游最大连接数"));
+			const registry = document.querySelector("#project-proxy-registry");
+			if (registry && isSystemAdmin()) payload.registry_id = Number(registry.value);
+		}
 		if (limitText !== "") {
 		  const limit = Number(limitText);
 		  if (!Number.isInteger(limit) || (limit !== -1 && limit <= 0)) throw new Error("存储配额必须是 -1 或正整数");
@@ -3369,8 +3383,18 @@ function confirmDeleteProjectLabel(id, name) {
   });
 }
 
-function confirmDeleteProject() {
+async function confirmDeleteProject() {
   const project = state.controlProject;
+	try {
+		const result = asObject(await controlData("project-deletable", { project: project.name }));
+		if (result.deletable !== true) {
+			showToast(result.message || "Harbor 当前不允许删除此项目。", true);
+			return;
+		}
+	} catch (error) {
+		showToast(`无法确认项目是否可删除：${error.message}`, true);
+		return;
+	}
   confirmControlDelete("删除项目", `项目 ${project.name} 及其配置将被永久删除。Harbor 会拒绝删除仍含仓库的项目。`, "删除项目", async () => {
     await controlMutation("project", { project: project.name }, "DELETE");
     showToast(`项目 ${project.name} 已删除`);

@@ -80,6 +80,11 @@ var controlSpecs = map[string]controlSpec{
 		path: "/api/v2.0/projects/{project}/summary", params: []controlParam{{name: "project", placeholder: "project"}},
 		methods: methods(method(http.MethodGet, controlMethod{})),
 	},
+	"project-deletable": {
+		path:    "/api/v2.0/projects/{project}/_deletable",
+		params:  []controlParam{{name: "project", placeholder: "project"}},
+		methods: methods(method(http.MethodGet, controlMethod{})),
+	},
 	"project-scanner": {
 		path: "/api/v2.0/projects/{project}/scanner", params: []controlParam{{name: "project", placeholder: "project"}},
 		methods: methods(
@@ -1159,8 +1164,21 @@ func validateProjectMetadata(metadata map[string]any) error {
 		"auto_sbom_generation", "reuse_sys_cve_allowlist", "retention_id", "proxy_speed_kb", "max_upstream_conn",
 		"proxy_cache_local_on_not_found", "proxy_referrer_api",
 	}
-	if err := validateAllowedFields(metadata, allowed...); err != nil {
-		return fmt.Errorf("项目 metadata 无效：%w", err)
+	known := make(map[string]struct{}, len(allowed))
+	for _, field := range allowed {
+		known[field] = struct{}{}
+	}
+	for field, value := range metadata {
+		if _, ok := known[field]; ok {
+			continue
+		}
+		if len(field) == 0 || len(field) > 255 || !regexp.MustCompile(`^[A-Za-z0-9_.-]+$`).MatchString(field) {
+			return fmt.Errorf("项目 metadata.%s 名称无效", field)
+		}
+		text, ok := value.(string)
+		if !ok || len(text) > 65535 || strings.ContainsRune(text, '\x00') {
+			return fmt.Errorf("项目 metadata.%s 必须是长度受限的字符串", field)
+		}
 	}
 	booleanFields := []string{
 		"public", "enable_content_trust", "enable_content_trust_cosign", "prevent_vul", "auto_scan",

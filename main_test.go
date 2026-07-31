@@ -1272,6 +1272,26 @@ func TestControlProjectAuditOperations(t *testing.T) {
 	}
 }
 
+func TestControlProjectDeletableUsesOfficialAPI(t *testing.T) {
+	application, err := newApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := createTestSession(t, application, mockClient(func(request *http.Request) (int, string) {
+		if request.Method != http.MethodGet || request.URL.Path != "/api/v2.0/projects/platform/_deletable" || request.Header.Get("X-Is-Resource-Name") != "true" {
+			t.Fatalf("upstream request = %s %s", request.Method, request.URL.Path)
+		}
+		return http.StatusOK, `{"deletable":false,"message":"contains repositories"}`
+	}), false)
+	request := httptest.NewRequest(http.MethodGet, "/api/control/project-deletable?project=platform", nil)
+	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
+	recorder := httptest.NewRecorder()
+	application.routes().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"deletable":false`) {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestDemoMemberDirectorySearch(t *testing.T) {
 	application, err := newApp()
 	if err != nil {
