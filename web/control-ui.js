@@ -53,7 +53,7 @@ function parseConsoleRoute() {
 	  const scanStatus = ["success", "running", "error", "stopped", "unscanned"].includes(query.get("scan")) ? query.get("scan") : "";
 	  return { view: "repository", project, repository, page, filter, artifactType, tagState, labelID: query.get("label") || "", scanStatus };
     }
-    const section = ["members", "robots", "webhooks", "rules", "retention", "preheat", "settings"].includes(parts[2]) ? parts[2] : "repositories";
+    const section = ["members", "robots", "webhooks", "rules", "retention", "audit", "preheat", "settings"].includes(parts[2]) ? parts[2] : "repositories";
     const projectRepositoryPageSize = [20, 50, 100].includes(Number(query.get("page_size"))) ? Number(query.get("page_size")) : projectRepositoryDefaultPageSize;
     const projectRepositorySort = ["name", "-artifact_count", "-pull_count", "-update_time"].includes(query.get("sort")) ? query.get("sort") : projectRepositoryDefaultSort;
     return { view: "project", project, section, page, filter, projectRepositoryPageSize, projectRepositorySort };
@@ -452,6 +452,17 @@ async function renderProjectDetail(token) {
       } else {
 		collection = { items: [], pagination: { page: 1, page_size: controlPageSize, total: 0 }, policy: null, ...(await metadataResult) };
       }
+	} else if (route.section === "audit") {
+	  const params = { project: projectName, page: route.page, page_size: controlPageSize, sort: "-op_time", q: route.filter ? `resource=~${auditQueryValue(route.filter)}` : "" };
+	  try {
+		collection = { ...(await controlList("project-audit-logs", params)), legacy: false };
+	  } catch (error) {
+		if (error.status !== 404) collection = { items: [], pagination: { page: 1, page_size: controlPageSize, total: 0 }, audit_error: error };
+		else {
+			try { collection = { ...(await controlList("legacy-project-audit-logs", params)), legacy: true }; }
+			catch (legacyError) { collection = { items: [], pagination: { page: 1, page_size: controlPageSize, total: 0 }, audit_error: legacyError, legacy: true }; }
+		}
+	  }
     } else if (route.section === "preheat") {
       const [policiesResult, providersResult] = await Promise.allSettled([
         controlList("preheat-policies", { project: projectName, page: route.page, page_size: controlPageSize, sort: "-update_time", q: route.filter ? `name=~${route.filter}` : "" }),
@@ -511,6 +522,7 @@ function projectTabs(project, selected) {
     ["webhooks", "Webhook", "refresh", "notification-policy", "list"],
     ["rules", "项目规则", "shield", "immutable-tag", "list"],
     ["retention", "Tag 保留", "history", "tag-retention", "read"],
+	["audit", "审计", "history", "audit-log", "list"],
     ["preheat", "P2P 预热", "play", "preheat-policy", "read"],
     ["settings", "项目设置", "settings", "configuration", "read"],
   ].filter((tab) => hasProjectPermission(tab[3], tab[4], state.controlProject?.project_id));
@@ -525,6 +537,7 @@ function projectSectionAllowed(section, projectID) {
 	  webhooks: ["notification-policy", "list"],
 	  rules: ["immutable-tag", "list"],
 	  retention: ["tag-retention", "read"],
+	  audit: ["audit-log", "list"],
 	  preheat: ["preheat-policy", "read"],
 	  settings: ["configuration", "read"],
 	};
@@ -543,6 +556,7 @@ function renderProjectSection(project, route, collection) {
   if (route.section === "webhooks") return `<section class="table-shell"><div class="table-toolbar"><strong>Webhook 策略</strong><div class="toolbar-spacer"></div><button class="button button-small button-primary" type="button" data-action="create-webhook">${icon("plus")}<span>新建 Webhook</span></button></div><div class="table-scroll">${webhookTable(collection.items)}</div>${controlPagination(collection.pagination)}</section>`;
   if (route.section === "rules") return projectRulesSection(collection.items, collection.labels || [], collection.retentionMetadata);
   if (route.section === "retention") return projectRetentionSection(project, collection);
+	if (route.section === "audit") return projectAuditSection(project, collection);
   if (route.section === "preheat") return projectPreheatSection(project, route, collection);
   if (route.section === "settings") return projectSettings(project, collection);
 	const repositoryContent = repositoryViewMode() === "card"
@@ -560,9 +574,21 @@ function bindProjectSection(project, route) {
 		updateRepositoryBatchToolbar();
   }
   if (route.section === "preheat") bindControlSearch("preheat-policy-search", (term) => projectRoute(project.name, "preheat", 1, term));
+	if (route.section === "audit") bindControlSearch("project-audit-search", (term) => projectRoute(project.name, "audit", 1, term));
   const settingsForm = document.querySelector("#project-settings-form");
   settingsForm?.addEventListener("submit", saveProjectSettings);
   if (settingsForm) bindProjectAllowlistEditor(settingsForm);
+}
+
+function projectAuditSection(project, collection) {
+	if (collection.audit_error) {
+		const error = collection.audit_error;
+		const message = error.status === 403 ? "当前账号没有查看此项目审计记录的权限。" : error.status === 404 ? "当前 Harbor 实例不支持项目级审计接口。" : error.message;
+		return `<section class="table-shell"><div class="empty-table permission-table"><span class="cell-icon">${icon(error.status === 403 ? "shield" : "alert")}</span><strong>${error.status === 403 ? "没有访问项目审计的权限" : "项目审计载入失败"}</strong><span>${escapeHTML(message)}</span><button class="button button-small" type="button" data-action="refresh-view">${icon("refresh")}<span>重试</span></button></div></section>`;
+	}
+	const logs = asArray(collection.items);
+	const empty = logs.length ? auditTable(logs, Boolean(state.route?.filter)) : emptyTable("暂无项目审计记录", "当前筛选条件下没有返回项目级审计事件。", "history");
+	return `<section class="table-shell"><div class="table-toolbar">${controlSearchForm("project-audit-search", state.route?.filter || "", "按资源或用户筛选")}<div class="toolbar-spacer"></div>${collection.legacy ? '<span class="badge badge-orange">旧版审计</span>' : '<span class="badge badge-green">扩展审计</span>'}</div><div class="table-scroll audit-table-scroll">${empty}</div>${controlPagination(collection.pagination)}</section>`;
 }
 
 function controlRepositoryTable(repositories, project) {

@@ -2298,6 +2298,35 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 			map[string]any{"event_type": "update"},
 		}
 
+	case "project-audit-logs", "legacy-project-audit-logs":
+		items := mapsFromAny(demoAuditLogs())
+		project := strings.TrimSpace(query.Get("project"))
+		if project != "" {
+			items = filterMaps(items, project+"/", "resource")
+		}
+		if q := query.Get("q"); q != "" {
+			if username := demoQueryString(q, "username"); username != "" {
+				items = filterMaps(items, username, "username")
+			}
+			if resource := demoQueryString(q, "resource"); resource != "" {
+				items = filterMaps(items, resource, "resource")
+			}
+			if operation := demoQueryString(q, "operation"); operation != "" {
+				items = filterMaps(items, operation, "operation")
+			}
+			if result := demoQueryString(q, "op_result"); result != "" {
+				filtered := make([]map[string]any, 0, len(items))
+				for _, item := range items {
+					if item["operation_result"] == (result == "true") {
+						filtered = append(filtered, item)
+					}
+				}
+				items = filtered
+			}
+		}
+		state.writeList(w, items, query)
+		return
+
 	case "registry":
 		index, found := findMapNumber(state.registries, "id", query.Get("id"))
 		if !found {
@@ -2710,6 +2739,7 @@ func demoPermissionMetadata() map[string]any {
 			permission("robot", "read"), permission("robot", "list"), permission("robot", "create"), permission("robot", "delete"),
 		},
 		"project": []any{
+			permission("audit-log", "list"),
 			permission("repository", "read"), permission("repository", "list"), permission("repository", "pull"), permission("repository", "push"), permission("repository", "update"), permission("repository", "delete"),
 			permission("artifact", "read"), permission("artifact", "list"), permission("artifact", "create"), permission("artifact", "delete"),
 			permission("tag", "list"), permission("tag", "create"), permission("tag", "delete"), permission("scan", "read"), permission("scan", "create"), permission("scan", "stop"),

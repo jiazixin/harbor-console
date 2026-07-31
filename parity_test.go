@@ -45,6 +45,7 @@ var harborOperationClasses = func() map[string]harborOperationClass {
 	} {
 		classes[operation] = harborOperationStableAPIOnly
 	}
+	classes["legacy-project-audit-logs"] = harborOperationDeprecatedCompat
 	return classes
 }()
 

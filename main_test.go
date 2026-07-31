@@ -1240,6 +1240,38 @@ func TestControlMemberDirectorySearch(t *testing.T) {
 	}
 }
 
+func TestControlProjectAuditOperations(t *testing.T) {
+	for _, test := range []struct {
+		name, operation, wantPath string
+	}{
+		{name: "extended", operation: "project-audit-logs?project=platform&page=1&page_size=20&sort=-op_time&q=username%3D~release", wantPath: "/api/v2.0/projects/platform/auditlog-exts"},
+		{name: "legacy", operation: "legacy-project-audit-logs?project=platform&page=1&page_size=20&sort=-op_time&q=username%3D~release", wantPath: "/api/v2.0/projects/platform/logs"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			application, err := newApp()
+			if err != nil {
+				t.Fatal(err)
+			}
+			current := createTestSession(t, application, mockClient(func(request *http.Request) (int, string) {
+				if request.Method != http.MethodGet || request.URL.Path != test.wantPath || request.URL.Query().Get("q") != "username=~release" {
+					t.Fatalf("upstream request = %s %s?%s", request.Method, request.URL.Path, request.URL.RawQuery)
+				}
+				if request.Header.Get("X-Is-Resource-Name") != "true" {
+					t.Fatal("project resource name header was not forwarded")
+				}
+				return http.StatusOK, `[]`
+			}), false)
+			request := httptest.NewRequest(http.MethodGet, "/api/control/"+test.operation, nil)
+			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
+			recorder := httptest.NewRecorder()
+			application.routes().ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+}
+
 func TestDemoMemberDirectorySearch(t *testing.T) {
 	application, err := newApp()
 	if err != nil {

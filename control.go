@@ -304,6 +304,20 @@ var controlSpecs = map[string]controlSpec{
 		path:    "/api/v2.0/auditlog-exts/events",
 		methods: methods(method(http.MethodGet, controlMethod{})),
 	},
+	"project-audit-logs": {
+		path:         "/api/v2.0/projects/{project}/auditlog-exts",
+		params:       []controlParam{{name: "project", placeholder: "project"}},
+		allowedQuery: []string{"q", "page", "page_size", "sort"},
+		methods:      methods(method(http.MethodGet, controlMethod{list: true})),
+	},
+	// legacy-project-audit-logs only supports an explicit 404 fallback from
+	// project-audit-logs for Harbor instances without the extended endpoint.
+	"legacy-project-audit-logs": {
+		path:         "/api/v2.0/projects/{project}/logs",
+		params:       []controlParam{{name: "project", placeholder: "project"}},
+		allowedQuery: []string{"q", "page", "page_size", "sort"},
+		methods:      methods(method(http.MethodGet, controlMethod{list: true})),
+	},
 	"labels": {
 		path: "/api/v2.0/labels", allowedQuery: []string{"q", "page", "page_size", "sort", "name", "scope", "project_id"},
 		methods: methods(
