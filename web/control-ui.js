@@ -433,21 +433,24 @@ async function renderProjectDetail(token) {
       ]);
       collection = { ...webhooks, events };
     } else if (route.section === "rules") {
-      const [rules, labels] = await Promise.all([
+      const [rules, labels, retentionMetadata] = await Promise.all([
         controlList("immutable-rules", { project: projectName, page: 1, page_size: 100, sort: "priority" }),
         controlList("labels", { scope: "p", project_id: project.project_id, page: 1, page_size: 100, sort: "name" }),
+		controlData("retention-metadatas").catch((error) => ({ load_error: error.message })),
       ]);
-      collection = { ...rules, labels: labels.items };
+	  collection = { ...rules, labels: labels.items, retentionMetadata };
     } else if (route.section === "retention") {
       const retentionID = toNumber(asObject(project.metadata).retention_id);
+	  const metadataResult = controlData("retention-metadatas").then((metadata) => ({ metadata })).catch((error) => ({ metadata_error: error.message }));
       if (retentionID > 0) {
-        const [policy, executions] = await Promise.all([
+        const [policy, executions, metadata] = await Promise.all([
           controlData("retention", { id: retentionID }),
           controlList("retention-executions", { id: retentionID, page: route.page, page_size: controlPageSize }),
+		  metadataResult,
         ]);
-        collection = { ...executions, policy };
+		collection = { ...executions, policy, ...metadata };
       } else {
-        collection = { items: [], pagination: { page: 1, page_size: controlPageSize, total: 0 }, policy: null };
+		collection = { items: [], pagination: { page: 1, page_size: controlPageSize, total: 0 }, policy: null, ...(await metadataResult) };
       }
     } else if (route.section === "preheat") {
       const [policiesResult, providersResult] = await Promise.allSettled([
@@ -538,7 +541,7 @@ function renderProjectSection(project, route, collection) {
   }
   if (route.section === "robots") return `<section class="table-shell"><div class="table-toolbar"><strong>项目机器人账号</strong><div class="toolbar-spacer"></div><button class="button button-small button-primary" type="button" data-action="create-project-robot">${icon("plus")}<span>新建机器人账号</span></button></div><div class="table-scroll">${robotTable(collection.items)}</div>${controlPagination(collection.pagination)}</section>`;
   if (route.section === "webhooks") return `<section class="table-shell"><div class="table-toolbar"><strong>Webhook 策略</strong><div class="toolbar-spacer"></div><button class="button button-small button-primary" type="button" data-action="create-webhook">${icon("plus")}<span>新建 Webhook</span></button></div><div class="table-scroll">${webhookTable(collection.items)}</div>${controlPagination(collection.pagination)}</section>`;
-  if (route.section === "rules") return projectRulesSection(collection.items, collection.labels || []);
+  if (route.section === "rules") return projectRulesSection(collection.items, collection.labels || [], collection.retentionMetadata);
   if (route.section === "retention") return projectRetentionSection(project, collection);
   if (route.section === "preheat") return projectPreheatSection(project, route, collection);
   if (route.section === "settings") return projectSettings(project, collection);
@@ -816,14 +819,19 @@ function webhookTable(webhooks) {
   }).join("")}</tbody></table>`;
 }
 
-function projectRulesSection(rules, labels) {
-  return `<div class="rules-layout"><section><div class="section-heading"><div><h2>不可变 Tag 规则</h2><p>${formatNumber(rules.length)} 条规则</p></div><button class="button button-small button-primary" type="button" data-action="create-immutable-rule">${icon("plus")}<span>新建规则</span></button></div><div class="table-shell"><div class="table-scroll">${immutableRuleTable(rules)}</div></div></section><section><div class="section-heading"><div><h2>项目标签</h2><p>${formatNumber(labels.length)} 个标签</p></div><button class="button button-small button-primary" type="button" data-action="create-project-label">${icon("plus")}<span>新建标签</span></button></div><div class="table-shell"><div class="table-scroll">${projectLabelTable(labels)}</div></div></section></div>`;
+function projectRulesSection(rules, labels, retentionMetadata) {
+  const metadataAvailable = !asObject(retentionMetadata).load_error && Object.keys(asObject(retentionMetadata)).length > 0;
+  const help = metadataAvailable ? "" : `<p class="section-notice warning-notice">${escapeHTML(asObject(retentionMetadata).load_error || "当前 Harbor 实例未提供 selector metadata，不可变规则编辑已禁用。")}</p>`;
+  return `<div class="rules-layout"><section><div class="section-heading"><div><h2>不可变 Tag 规则</h2><p>${formatNumber(rules.length)} 条规则</p></div><button class="button button-small button-primary" type="button" data-action="create-immutable-rule" ${metadataAvailable ? "" : "disabled"}>${icon("plus")}<span>新建规则</span></button></div>${help}<div class="table-shell"><div class="table-scroll">${immutableRuleTable(rules)}</div></div></section><section><div class="section-heading"><div><h2>项目标签</h2><p>${formatNumber(labels.length)} 个标签</p></div><button class="button button-small button-primary" type="button" data-action="create-project-label">${icon("plus")}<span>新建标签</span></button></div><div class="table-shell"><div class="table-scroll">${projectLabelTable(labels)}</div></div></section></div>`;
 }
 
 function projectRetentionSection(project, collection) {
   const policy = collection.policy ? asObject(collection.policy) : null;
+	const metadataAvailable = Object.keys(asObject(collection.metadata)).length > 0;
+	const editorDisabled = metadataAvailable ? "" : "disabled";
+	const editorHelp = metadataAvailable ? "" : `<p class="section-notice warning-notice">${escapeHTML(collection.metadata_error || "当前 Harbor 实例未提供 Retention metadata，规则仍可查看但已禁用危险编辑。")}</p>`;
   if (!policy?.id) {
-    return `<section class="table-shell retention-empty"><div class="table-toolbar"><strong>Tag 保留策略</strong><div class="toolbar-spacer"></div><button class="button button-small button-primary" type="button" data-action="create-retention-policy">${icon("plus")}<span>创建策略</span></button></div>${emptyTable("尚未配置 Tag 保留", "创建策略后，Harbor 会按规则自动清理不再需要的 Tag。", "history")}</section>`;
+    return `<section class="table-shell retention-empty"><div class="table-toolbar"><strong>Tag 保留策略</strong><div class="toolbar-spacer"></div><button class="button button-small button-primary" type="button" data-action="create-retention-policy" ${editorDisabled}>${icon("plus")}<span>创建策略</span></button></div>${editorHelp}${emptyTable("尚未配置 Tag 保留", "创建策略后，Harbor 会按规则自动清理不再需要的 Tag。", "history")}</section>`;
   }
   const rules = asArray(policy.rules);
   const trigger = asObject(policy.trigger);
@@ -834,17 +842,17 @@ function projectRetentionSection(project, collection) {
       <div class="retention-summary-head"><div><span class="eyebrow">策略 #${escapeHTML(policy.id)}</span><h2>Tag 保留策略</h2><p>规则按${policy.algorithm === "and" ? "全部匹配" : "任意匹配"}方式执行</p></div><div class="page-actions"><button class="button button-small" type="button" data-action="run-retention" data-dry-run="true">${icon("play")}<span>仅演练</span></button><button class="button button-small button-primary" type="button" data-action="run-retention" data-dry-run="false">${icon("play")}<span>正式执行</span></button><button class="icon-button" type="button" data-action="edit-retention-schedule" title="编辑执行计划" aria-label="编辑执行计划">${icon("settings")}</button><button class="icon-button danger-icon" type="button" data-action="delete-retention-policy" title="删除 Tag 保留策略" aria-label="删除 Tag 保留策略">${icon("trash")}</button></div></div>
       <dl class="retention-facts"><div><dt>规则数量</dt><dd>${formatNumber(rules.length)} 条</dd></div><div><dt>执行计划</dt><dd>${settings.cron ? "定时执行" : "仅手动"}</dd></div><div><dt>Cron</dt><dd class="mono">${escapeHTML(settings.cron || "未配置")}</dd></div><div><dt>最近更新</dt><dd>${formatDate(policy.update_time || policy.creation_time)}</dd></div></dl>
     </section>
-    <section class="table-shell"><div class="table-toolbar"><strong>保留规则</strong><div class="toolbar-spacer"></div><button class="button button-small button-primary" type="button" data-action="add-retention-rule">${icon("plus")}<span>添加规则</span></button></div><div class="table-scroll">${retentionRuleTable(rules)}</div></section>
+    <section class="table-shell"><div class="table-toolbar"><strong>保留规则</strong><div class="toolbar-spacer"></div><button class="button button-small button-primary" type="button" data-action="add-retention-rule" ${editorDisabled}>${icon("plus")}<span>添加规则</span></button></div>${editorHelp}<div class="table-scroll">${retentionRuleTable(rules, metadataAvailable)}</div></section>
     <section class="table-shell"><div class="table-toolbar"><strong>执行历史</strong><div class="toolbar-spacer"></div><span class="muted">${formatNumber(collection.pagination?.total || executions.length)} 次执行</span></div><div class="table-scroll">${retentionExecutionTable(executions, policy.id)}</div>${controlPagination(collection.pagination)}</section>
   </div>`;
 }
 
-function retentionRuleTable(rules) {
+function retentionRuleTable(rules, editable = true) {
   if (!rules.length) return emptyTable("暂无保留规则", "策略至少需要一条启用或停用的保留规则。", "history");
   return `<table><thead><tr><th>保留条件</th><th>仓库范围</th><th>Tag 范围</th><th>状态</th><th></th></tr></thead><tbody>${rules.map((rule, index) => {
     const repository = asArray(asObject(rule.scope_selectors).repository)[0] || {};
     const tag = asArray(rule.tag_selectors)[0] || {};
-    return `<tr><td><div class="cell-stack"><strong>${escapeHTML(retentionTemplateLabel(rule.template))}</strong><small>${escapeHTML(retentionRuleParameter(rule))}</small></div></td><td><code>${escapeHTML(repository.pattern || "**")}</code></td><td><code>${escapeHTML(tag.pattern || "**")}</code></td><td>${rule.disabled ? '<span class="badge">已停用</span>' : '<span class="badge badge-green">已启用</span>'}</td><td><div class="row-actions"><button class="icon-button" type="button" data-action="edit-retention-rule" data-index="${index}" title="编辑保留规则" aria-label="编辑保留规则">${icon("edit")}</button><button class="icon-button danger-icon" type="button" data-action="delete-retention-rule" data-index="${index}" title="删除保留规则" aria-label="删除保留规则">${icon("trash")}</button></div></td></tr>`;
+    return `<tr><td><div class="cell-stack"><strong>${escapeHTML(retentionTemplateLabel(rule.template))}</strong><small>${escapeHTML(retentionRuleParameter(rule))}</small></div></td><td><code>${escapeHTML(repository.pattern || "**")}</code></td><td><code>${escapeHTML(tag.pattern || "**")}</code></td><td>${rule.disabled ? '<span class="badge">已停用</span>' : '<span class="badge badge-green">已启用</span>'}</td><td><div class="row-actions"><button class="icon-button" type="button" data-action="edit-retention-rule" data-index="${index}" title="编辑保留规则" aria-label="编辑保留规则" ${editable ? "" : "disabled"}>${icon("edit")}</button><button class="icon-button danger-icon" type="button" data-action="delete-retention-rule" data-index="${index}" title="删除保留规则" aria-label="删除保留规则" ${editable ? "" : "disabled"}>${icon("trash")}</button></div></td></tr>`;
   }).join("")}</tbody></table>`;
 }
 
@@ -2953,13 +2961,32 @@ function downloadWebhookTaskLog() {
 function showImmutableRuleDialog(rule = null) {
   const repositorySelector = asArray(asObject(rule?.scope_selectors).repository)[0] || {};
   const tagSelector = asArray(rule?.tag_selectors)[0] || {};
+	const metadata = asObject(state.controlProjectCollection?.retentionMetadata);
+	if (!Object.keys(metadata).length || metadata.load_error) {
+		showToast(metadata.load_error || "Harbor 未提供 selector metadata，无法安全编辑规则。", true);
+		return;
+	}
+	const selectorOptions = (items, selected, fallback) => (items.length ? items : fallback).map((value) => `<option value="${escapeAttr(value)}" ${value === selected ? "selected" : ""}>${escapeHTML(value)}</option>`).join("");
+	const repositoryDecorations = asArray(asObject(asArray(metadata.scope_selectors)[0]).decorations);
+	const tagDecorations = asArray(asObject(asArray(metadata.tag_selectors)[0]).decorations);
   openControlDialog({
     title: rule ? "编辑不可变 Tag 规则" : "新建不可变 Tag 规则",
     subtitle: state.route.project,
     submitLabel: rule ? "保存规则" : "创建规则",
-    content: `<div class="form-grid"><label class="field"><span>仓库匹配</span><input name="repository_pattern" required value="${escapeAttr(repositorySelector.pattern || "**")}" placeholder="例如 release/**"></label><label class="field"><span>Tag 匹配</span><input name="tag_pattern" required value="${escapeAttr(tagSelector.pattern || "release-*")}" placeholder="例如 v*"></label><label class="check-row"><input name="disabled" type="checkbox" ${rule?.disabled ? "checked" : ""}><span><strong>暂时停用规则</strong><small>保留规则但不限制 Tag</small></span></label></div>`,
+    content: `<div class="form-grid"><label class="field"><span>仓库条件</span><select name="repository_decoration">${selectorOptions(repositoryDecorations, repositorySelector.decoration || "repoMatches", ["repoMatches", "repoExcludes"])}</select></label><label class="field"><span>仓库匹配</span><input name="repository_pattern" required value="${escapeAttr(repositorySelector.pattern || "**")}" placeholder="例如 release/**"></label><label class="field"><span>Tag 条件</span><select name="tag_decoration">${selectorOptions(tagDecorations, tagSelector.decoration || "matches", ["matches", "excludes"])}</select></label><label class="field"><span>Tag 匹配</span><input name="tag_pattern" required value="${escapeAttr(tagSelector.pattern || "release-*")}" placeholder="例如 v*"></label><label class="check-row"><input name="disabled" type="checkbox" ${rule?.disabled ? "checked" : ""}><span><strong>暂时停用规则</strong><small>保留规则但不限制 Tag</small></span></label></div>`,
     onSubmit: async (formData) => {
-      const payload = { disabled: formData.has("disabled"), action: "immutable", template: "immutable_template", params: {}, tag_selectors: [{ kind: "doublestar", decoration: "matches", pattern: String(formData.get("tag_pattern") || "").trim() }], scope_selectors: { repository: [{ kind: "doublestar", decoration: "repoMatches", pattern: String(formData.get("repository_pattern") || "").trim() }] } };
+	  const payload = rule ? JSON.parse(JSON.stringify(rule)) : { action: "immutable", template: "immutable_template", params: {} };
+	  const repository = { ...asObject(asArray(asObject(payload.scope_selectors).repository)[0]) };
+	  const tag = { ...asObject(asArray(payload.tag_selectors)[0]) };
+	  payload.disabled = formData.has("disabled");
+	  repository.kind = "doublestar";
+	  repository.decoration = String(formData.get("repository_decoration") || "repoMatches");
+	  repository.pattern = String(formData.get("repository_pattern") || "").trim();
+	  tag.kind = "doublestar";
+	  tag.decoration = String(formData.get("tag_decoration") || "matches");
+	  tag.pattern = String(formData.get("tag_pattern") || "").trim();
+	  payload.tag_selectors = [tag];
+	  payload.scope_selectors = { ...asObject(payload.scope_selectors), repository: [repository] };
       await controlMutation(rule ? "immutable-rule" : "immutable-rules", rule ? { project: state.route.project, id: rule.id } : { project: state.route.project }, rule ? "PUT" : "POST", payload);
       closeControlDialog();
       showToast(rule ? "不可变规则已更新" : "不可变规则已创建");
@@ -2985,15 +3012,20 @@ function retentionPolicyPayload(policy, rules = asArray(policy.rules), algorithm
   };
 }
 
-function retentionTemplateOptions(selected = "latestPushedK") {
-  const options = [
+function retentionEditorMetadata() {
+  return asObject(state.controlProjectCollection?.metadata);
+}
+
+function retentionTemplateOptions(selected = "latestPushedK", metadata = retentionEditorMetadata()) {
+  const fallback = [
     ["latestPushedK", "保留最近推送的制品"],
     ["latestPulledN", "保留最近拉取的制品"],
     ["nDaysSinceLastPush", "保留最近推送天数内的制品"],
     ["nDaysSinceLastPull", "保留最近拉取天数内的制品"],
     ["always", "永久保留全部匹配制品"],
   ];
-  return options.map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`).join("");
+  const templates = asArray(metadata.templates).map((template) => [String(template.rule_template || ""), String(template.display_text || template.rule_template || "")]).filter(([value]) => value);
+  return (templates.length ? templates : fallback).map(([value, label]) => `<option value="${escapeAttr(value)}" ${value === selected ? "selected" : ""}>${escapeHTML(label)}</option>`).join("");
 }
 
 function retentionRuleAmount(rule) {
@@ -3004,29 +3036,46 @@ function retentionRuleAmount(rule) {
 function retentionRuleFromForm(formData, existing = null) {
   const template = String(formData.get("template") || "latestPushedK");
   const amount = Math.max(1, Number(formData.get("amount")) || 1);
-  const rule = {
-    priority: toNumber(existing?.priority) || 1,
-    disabled: formData.has("disabled"),
-    action: "retain",
-    template,
-    params: template === "always" ? {} : { [template]: amount },
-    tag_selectors: [{ kind: "doublestar", decoration: "matches", pattern: String(formData.get("tag_pattern") || "").trim() }],
-    scope_selectors: { repository: [{ kind: "doublestar", decoration: "repoMatches", pattern: String(formData.get("repository_pattern") || "").trim() }] },
-  };
-  if (existing?.id !== undefined) rule.id = existing.id;
+  const rule = existing ? JSON.parse(JSON.stringify(existing)) : {};
+  const repository = { ...asObject(asArray(asObject(rule.scope_selectors).repository)[0]) };
+  const tag = { ...asObject(asArray(rule.tag_selectors)[0]) };
+  rule.priority = toNumber(existing?.priority) || 1;
+  rule.disabled = formData.has("disabled");
+  rule.action = "retain";
+  rule.template = template;
+  rule.params = { ...asObject(rule.params) };
+  if (template === "always") delete rule.params[template];
+  else rule.params[template] = amount;
+  repository.kind = "doublestar";
+  repository.decoration = String(formData.get("repository_decoration") || "repoMatches");
+  repository.pattern = String(formData.get("repository_pattern") || "").trim();
+  tag.kind = "doublestar";
+  tag.decoration = String(formData.get("tag_decoration") || "matches");
+  tag.pattern = String(formData.get("tag_pattern") || "").trim();
+  tag.extras = { ...asObject(tag.extras) };
+  if (formData.has("untagged")) tag.extras.untagged = true;
+  else delete tag.extras.untagged;
+  if (!Object.keys(tag.extras).length) delete tag.extras;
+  rule.tag_selectors = [tag];
+  rule.scope_selectors = { ...asObject(rule.scope_selectors), repository: [repository] };
   return rule;
 }
 
-function retentionRuleFields(rule = null, includeSchedule = false) {
+function retentionRuleFields(rule = null, includeSchedule = false, metadata = retentionEditorMetadata()) {
   const repository = asArray(asObject(rule?.scope_selectors).repository)[0] || {};
   const tag = asArray(rule?.tag_selectors)[0] || {};
+  const repositoryDecorations = asArray(asObject(asArray(metadata.scope_selectors)[0]).decorations);
+  const tagDecorations = asArray(asObject(asArray(metadata.tag_selectors)[0]).decorations);
+  const selectOptions = (items, selected, fallback) => (items.length ? items : fallback).map((value) => `<option value="${escapeAttr(value)}" ${value === selected ? "selected" : ""}>${escapeHTML(value)}</option>`).join("");
   return `<div class="form-grid two-columns">
-    <label class="field field-span"><span>保留条件</span><select name="template">${retentionTemplateOptions(rule?.template)}</select></label>
+    <label class="field field-span"><span>保留条件</span><select name="template">${retentionTemplateOptions(rule?.template, metadata)}</select></label>
     <label class="field"><span>数量或天数</span><input name="amount" type="number" min="1" max="1000000" step="1" required value="${escapeAttr(retentionRuleAmount(rule))}"></label>
+    <label class="field"><span>仓库条件</span><select name="repository_decoration">${selectOptions(repositoryDecorations, repository.decoration || "repoMatches", ["repoMatches", "repoExcludes"])}</select></label>
     <label class="field"><span>仓库匹配</span><input name="repository_pattern" required maxlength="1024" value="${escapeAttr(repository.pattern || "**")}" placeholder="例如 release/**"></label>
-    <label class="field field-span"><span>Tag 匹配</span><input name="tag_pattern" required maxlength="1024" value="${escapeAttr(tag.pattern || "**")}" placeholder="例如 v*"></label>
+    <label class="field"><span>Tag 条件</span><select name="tag_decoration">${selectOptions(tagDecorations, tag.decoration || "matches", ["matches", "excludes"])}</select></label>
+    <label class="field"><span>Tag 匹配</span><input name="tag_pattern" required maxlength="1024" value="${escapeAttr(tag.pattern || "**")}" placeholder="例如 v*"></label>
     ${includeSchedule ? '<label class="field field-span"><span>执行计划 Cron</span><input name="cron" maxlength="255" value="0 0 2 * * *" placeholder="留空表示仅手动执行"><small class="field-help">Harbor 使用含秒字段的 Cron 表达式。</small></label>' : ""}
-  </div><label class="check-row"><input name="disabled" type="checkbox" ${rule?.disabled ? "checked" : ""}><span><strong>暂时停用规则</strong><small>保留规则配置，但执行时跳过</small></span></label>`;
+  </div><label class="check-row"><input name="untagged" type="checkbox" ${asObject(tag.extras).untagged ? "checked" : ""}><span><strong>包含无 Tag 制品</strong><small>将未标记制品纳入该规则</small></span></label><label class="check-row"><input name="disabled" type="checkbox" ${rule?.disabled ? "checked" : ""}><span><strong>暂时停用规则</strong><small>保留规则配置，但执行时跳过</small></span></label>`;
 }
 
 function showCreateRetentionPolicyDialog() {

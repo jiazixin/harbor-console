@@ -43,3 +43,18 @@ test("replication and audit filter actions share the aligned toolbar layout", ()
   assert.match(controlSource, /filter-toolbar-actions/);
   assert.match(styles, /\.filter-toolbar-actions \.button\s*\{[^}]*min-height:\s*36px/s);
 });
+
+test("retention editing uses Harbor metadata and preserves existing rule fields", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../web/control-ui.js"), "utf8");
+  const start = source.indexOf("function retentionRuleFromForm");
+  const end = source.indexOf("\nfunction retentionRuleFields", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const implementation = source.slice(start, end);
+  assert.match(source, /controlData\("retention-metadatas"/);
+  assert.match(implementation, /JSON\.parse\(JSON\.stringify\(existing\)\)/);
+  assert.match(implementation, /repository_decoration/);
+  assert.match(implementation, /tag_decoration/);
+  assert.match(implementation, /tag\.extras\.untagged = true/);
+  assert.match(source, /metadataAvailable \? "" : "disabled"/);
+});

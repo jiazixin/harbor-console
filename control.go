@@ -555,6 +555,10 @@ var controlSpecs = map[string]controlSpec{
 			method(http.MethodDelete, controlMethod{}),
 		),
 	},
+	"retention-metadatas": {
+		path:    "/api/v2.0/retentions/metadatas",
+		methods: methods(method(http.MethodGet, controlMethod{})),
+	},
 	"retention-executions": {
 		path: "/api/v2.0/retentions/{id}/executions", params: []controlParam{{name: "id", placeholder: "id", numeric: true}},
 		allowedQuery: []string{"page", "page_size"},
@@ -2124,10 +2128,41 @@ func validateRetentionRule(rule map[string]any) error {
 	if !ok || len(repositories) == 0 || len(repositories) > 32 {
 		return errors.New("repository 范围必须包含 1 到 32 个选择器")
 	}
-	if err := validateImmutableSelectors(tags, "Tag"); err != nil {
+	if err := validateRetentionSelectors(tags, "Tag", []string{"matches", "excludes"}); err != nil {
 		return err
 	}
-	return validateImmutableSelectors(repositories, "仓库")
+	return validateRetentionSelectors(repositories, "仓库", []string{"repoMatches", "repoExcludes"})
+}
+
+func validateRetentionSelectors(selectors []any, label string, decorations []string) error {
+	for _, rawSelector := range selectors {
+		selector, ok := rawSelector.(map[string]any)
+		if !ok {
+			return fmt.Errorf("%s 选择器必须是 JSON 对象", label)
+		}
+		if stringValue(selector["kind"]) != "doublestar" {
+			return fmt.Errorf("%s 选择器 kind 必须是 doublestar", label)
+		}
+		if !slicesContain(decorations, stringValue(selector["decoration"])) {
+			return fmt.Errorf("%s 选择器 decoration 不受 Harbor 官方 API 支持", label)
+		}
+		pattern, _ := selector["pattern"].(string)
+		if strings.TrimSpace(pattern) == "" || len(pattern) > 1024 || strings.ContainsAny(pattern, "\r\n\x00") {
+			return fmt.Errorf("%s 匹配规则不能为空或超过 1024 个字符", label)
+		}
+		if extras, exists := selector["extras"]; exists {
+			values, ok := extras.(map[string]any)
+			if !ok {
+				return fmt.Errorf("%s 选择器 extras 必须是 JSON 对象", label)
+			}
+			if untagged, exists := values["untagged"]; exists {
+				if _, ok := untagged.(bool); !ok {
+					return fmt.Errorf("%s 选择器 extras.untagged 必须是布尔值", label)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func validateRetentionExecution(body map[string]any) error {

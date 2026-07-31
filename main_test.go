@@ -1166,6 +1166,94 @@ func TestControlProjectScannerAndRetentionOperationsUseOfficialAPI(t *testing.T)
 	}
 }
 
+func TestControlRetentionMetadataUsesOfficialAPI(t *testing.T) {
+	application, err := newApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := mockClient(func(request *http.Request) (int, string) {
+		if request.Method != http.MethodGet || request.URL.Path != "/api/v2.0/retentions/metadatas" {
+			t.Fatalf("upstream request = %s %s", request.Method, request.URL.Path)
+		}
+		return http.StatusOK, `{"templates":[{"rule_template":"latestPushedK"}],"scope_selectors":[{"kind":"doublestar","decorations":["repoMatches","repoExcludes"]}],"tag_selectors":[{"kind":"doublestar","decorations":["matches","excludes"]}]}`
+	})
+	current := createTestSession(t, application, client, false)
+	request := httptest.NewRequest(http.MethodGet, "/api/control/retention-metadatas", nil)
+	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
+	recorder := httptest.NewRecorder()
+	application.routes().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestDemoRetentionRuleRoundTrip(t *testing.T) {
+	application, err := newApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := application.routes()
+	login := httptest.NewRecorder()
+	handler.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/demo", strings.NewReader("{}")))
+	cookie := login.Result().Cookies()[0]
+	request := func(method, target, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(method, target, strings.NewReader(body))
+		req.AddCookie(cookie)
+		if method != http.MethodGet {
+			req.Host = "console.test"
+			req.Header.Set("Origin", "http://console.test")
+		}
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, req)
+		return recorder
+	}
+
+	metadata := request(http.MethodGet, "/api/control/retention-metadatas", "")
+	if metadata.Code != http.StatusOK {
+		t.Fatalf("metadata status = %d, body = %s", metadata.Code, metadata.Body.String())
+	}
+	current := request(http.MethodGet, "/api/control/retention?id=31", "")
+	if current.Code != http.StatusOK {
+		t.Fatalf("retention status = %d, body = %s", current.Code, current.Body.String())
+	}
+	var envelope struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(current.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	rules, _ := envelope.Data["rules"].([]any)
+	rule, _ := rules[0].(map[string]any)
+	params, _ := rule["params"].(map[string]any)
+	params["latestPushedK"] = float64(20)
+	body, err := json.Marshal(envelope.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated := request(http.MethodPut, "/api/control/retention?id=31", string(body))
+	if updated.Code != http.StatusOK {
+		t.Fatalf("retention update status = %d, body = %s", updated.Code, updated.Body.String())
+	}
+	var updatedEnvelope struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(updated.Body.Bytes(), &updatedEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	updatedRules, _ := updatedEnvelope.Data["rules"].([]any)
+	updatedRule, _ := updatedRules[0].(map[string]any)
+	tags, _ := updatedRule["tag_selectors"].([]any)
+	tag, _ := tags[0].(map[string]any)
+	scopes, _ := updatedRule["scope_selectors"].(map[string]any)
+	repositories, _ := scopes["repository"].([]any)
+	repository, _ := repositories[0].(map[string]any)
+	extras, _ := tag["extras"].(map[string]any)
+	if repository["decoration"] != "repoExcludes" || tag["decoration"] != "excludes" || extras["untagged"] != true || updatedRule["future_field"] != "preserve-me" {
+		t.Fatalf("retention rule semantics were not preserved: %#v", updatedRule)
+	}
+}
+
 func TestControlSecurityOperationsUseOfficialAPI(t *testing.T) {
 	allowlistBody := `{"expires_at":null,"items":[{"cve_id":"CVE-2026-1842"}]}`
 	exportBody := `{"projects":[1],"labels":[],"repositories":"platform/**","cveIds":"{CVE-2026-1842,CVE-2026-0917}","tags":"release-*"}`
@@ -1856,6 +1944,8 @@ func TestControlRejectsInvalidScannerAndRetentionBodies(t *testing.T) {
 		{name: "scanner uuid", method: http.MethodPut, operation: "project-scanner?project=platform", body: `{"uuid":"not-a-uuid"}`},
 		{name: "retention missing rules", method: http.MethodPost, operation: "retentions", body: `{"algorithm":"or","rules":[],"trigger":{"kind":"Schedule","settings":{}},"scope":{"level":"project","ref":1}}`},
 		{name: "retention wrong scope", method: http.MethodPost, operation: "retentions", body: `{"algorithm":"or","rules":[{"action":"retain","template":"latestPushedK","params":{"latestPushedK":10},"tag_selectors":[{"pattern":"**"}],"scope_selectors":{"repository":[{"pattern":"**"}]}}],"trigger":{"kind":"Schedule","settings":{}},"scope":{"level":"system","ref":1}}`},
+		{name: "retention unknown tag decoration", method: http.MethodPost, operation: "retentions", body: `{"algorithm":"or","rules":[{"action":"retain","template":"latestPushedK","params":{"latestPushedK":10},"tag_selectors":[{"kind":"doublestar","decoration":"unknown","pattern":"**"}],"scope_selectors":{"repository":[{"kind":"doublestar","decoration":"repoMatches","pattern":"**"}]}}],"trigger":{"kind":"Schedule","settings":{}},"scope":{"level":"project","ref":1}}`},
+		{name: "retention untagged must be boolean", method: http.MethodPost, operation: "retentions", body: `{"algorithm":"or","rules":[{"action":"retain","template":"latestPushedK","params":{"latestPushedK":10},"tag_selectors":[{"kind":"doublestar","decoration":"matches","pattern":"**","extras":{"untagged":"true"}}],"scope_selectors":{"repository":[{"kind":"doublestar","decoration":"repoMatches","pattern":"**"}]}}],"trigger":{"kind":"Schedule","settings":{}},"scope":{"level":"project","ref":1}}`},
 		{name: "retention execution dry run type", method: http.MethodPost, operation: "retention-executions?id=7", body: `{"dry_run":"yes"}`},
 		{name: "retention execution action", method: http.MethodPatch, operation: "retention-execution?id=7&eid=12", body: `{"action":"delete"}`},
 	}

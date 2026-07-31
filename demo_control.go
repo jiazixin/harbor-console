@@ -20,6 +20,7 @@ type demoState struct {
 	members            map[string][]map[string]any
 	projectScanners    map[string]string
 	retentions         []map[string]any
+	retentionMetadata  map[string]any
 	retentionRuns      map[int64][]map[string]any
 	retentionTasks     map[int64][]map[string]any
 	retentionLogs      map[string]string
@@ -96,7 +97,18 @@ func newDemoState() *demoState {
 		members:         make(map[string][]map[string]any),
 		projectScanners: make(map[string]string),
 		retentions: []map[string]any{
-			{"id": 31, "algorithm": "or", "rules": []any{map[string]any{"id": 1, "priority": 1, "disabled": false, "action": "retain", "template": "latestPushedK", "params": map[string]any{"latestPushedK": 10}, "tag_selectors": []any{map[string]any{"kind": "doublestar", "decoration": "matches", "pattern": "**"}}, "scope_selectors": map[string]any{"repository": []any{map[string]any{"kind": "doublestar", "decoration": "repoMatches", "pattern": "**"}}}}}, "trigger": map[string]any{"kind": "Schedule", "settings": map[string]any{"cron": "0 0 2 * * *"}}, "scope": map[string]any{"level": "project", "ref": 1}, "creation_time": "2026-03-18T08:00:00Z", "update_time": "2026-07-20T02:00:00Z"},
+			{"id": 31, "algorithm": "or", "rules": []any{map[string]any{"id": 1, "priority": 1, "disabled": false, "action": "retain", "template": "latestPushedK", "params": map[string]any{"latestPushedK": 10}, "tag_selectors": []any{map[string]any{"kind": "doublestar", "decoration": "excludes", "pattern": "scratch-*", "extras": map[string]any{"untagged": true, "future_extra": "preserve-me"}}}, "scope_selectors": map[string]any{"repository": []any{map[string]any{"kind": "doublestar", "decoration": "repoExcludes", "pattern": "sandbox/**"}}}, "future_field": "preserve-me"}}, "trigger": map[string]any{"kind": "Schedule", "settings": map[string]any{"cron": "0 0 2 * * *"}}, "scope": map[string]any{"level": "project", "ref": 1}, "creation_time": "2026-03-18T08:00:00Z", "update_time": "2026-07-20T02:00:00Z"},
+		},
+		retentionMetadata: map[string]any{
+			"templates": []any{
+				map[string]any{"rule_template": "latestPushedK", "display_text": "保留最近推送的制品", "action": "retain", "params": []any{map[string]any{"type": "int", "unit": "count", "required": true}}},
+				map[string]any{"rule_template": "latestPulledN", "display_text": "保留最近拉取的制品", "action": "retain", "params": []any{map[string]any{"type": "int", "unit": "count", "required": true}}},
+				map[string]any{"rule_template": "nDaysSinceLastPush", "display_text": "保留最近推送天数内的制品", "action": "retain", "params": []any{map[string]any{"type": "int", "unit": "day", "required": true}}},
+				map[string]any{"rule_template": "nDaysSinceLastPull", "display_text": "保留最近拉取天数内的制品", "action": "retain", "params": []any{map[string]any{"type": "int", "unit": "day", "required": true}}},
+				map[string]any{"rule_template": "always", "display_text": "永久保留全部匹配制品", "action": "retain", "params": []any{}},
+			},
+			"scope_selectors": []any{map[string]any{"kind": "doublestar", "decorations": []any{"repoMatches", "repoExcludes"}}},
+			"tag_selectors":   []any{map[string]any{"kind": "doublestar", "decorations": []any{"matches", "excludes"}}},
 		},
 		retentionRuns: map[int64][]map[string]any{
 			31: {{"id": 71, "policy_id": 31, "status": "Succeed", "trigger": "Manual", "dry_run": true, "start_time": "2026-07-27T02:00:00Z", "end_time": "2026-07-27T02:00:18Z"}},
@@ -1706,6 +1718,9 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 		state.retentionRuns[state.nextRetentionID] = []map[string]any{}
 		metadata["retention_id"] = strconv.FormatInt(state.nextRetentionID, 10)
 		status, data = http.StatusCreated, policy
+
+	case "retention-metadatas":
+		data = cloneMap(state.retentionMetadata)
 
 	case "retention":
 		index, found := findMapNumber(state.retentions, "id", query.Get("id"))
