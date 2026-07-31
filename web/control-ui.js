@@ -12,6 +12,7 @@ const replicationExecutionDefaultSort = "-start_time";
 const projectRepositoryDefaultPageSize = 50;
 const projectRepositoryDefaultSort = "-update_time";
 const securityDefaultPageSize = 50;
+const artifactIconCache = new Map();
 const artifactAdditionTabs = {
   sbom: { addition: "sbom", label: "SBOM", icon: "shield" },
   license: { addition: "license", label: "许可证", icon: "check" },
@@ -1065,6 +1066,7 @@ async function renderRepositoryDetail(token) {
 	  controlList("labels", { scope: "p", project_id: project.project_id, page: 1, page_size: 100, sort: "name" }).catch(() => ({ items: [] })),
 	  controlList("labels", { scope: "g", page: 1, page_size: 100, sort: "name" }).catch(() => ({ items: [] })),
 	]);
+	await loadArtifactIcons(artifacts.items);
     if (token !== state.renderToken || state.currentView !== "repository") return;
 	prepareArtifactSelection(route);
 	state.controlProject = project;
@@ -1172,7 +1174,7 @@ function controlArtifactTable(artifacts, project, repository) {
   if (!artifacts.length) return emptyTable("暂无制品", "向该仓库推送镜像后会显示在这里。", "package");
 	const selection = state.artifactSelection || new Set();
 	const allSelected = artifacts.every((artifactItem) => selection.has(artifactItem.digest));
-  return `<table class="artifact-select-table"><thead><tr><th class="selection-cell"><input type="checkbox" data-action="select-all-artifacts" ${allSelected ? "checked" : ""} aria-label="选择当前页全部制品"></th><th>Tag / 摘要</th><th>架构</th><th>扫描状态</th><th>最高风险</th><th>大小</th><th>拉取时间</th><th>推送时间</th><th></th></tr></thead><tbody>${artifacts.map((artifactItem) => {
+  return `<table class="artifact-select-table"><thead><tr><th class="selection-cell"><input type="checkbox" data-action="select-all-artifacts" ${allSelected ? "checked" : ""} aria-label="选择当前页全部制品"></th><th>Tag / 摘要</th><th>架构</th><th>签名</th><th>注释</th><th>扫描状态</th><th>最高风险</th><th>大小</th><th>拉取时间</th><th>推送时间</th><th></th></tr></thead><tbody>${artifacts.map((artifactItem) => {
     const scan = artifactScan(artifactItem);
     const tags = asArray(artifactItem.tags);
     const labels = asArray(artifactItem.labels);
@@ -1180,8 +1182,8 @@ function controlArtifactTable(artifacts, project, repository) {
 	const selected = selection.has(artifactItem.digest);
     return `<tr class="clickable-row ${selected ? "selected-row" : ""}" data-action="control-open-artifact" data-project="${escapeAttr(project)}" data-repository="${escapeAttr(repository)}" data-reference="${escapeAttr(artifactItem.digest)}">
 	  <td class="selection-cell"><input type="checkbox" data-action="select-artifact" data-digest="${escapeAttr(artifactItem.digest)}" ${selected ? "checked" : ""} aria-label="选择 ${escapeAttr(title)}"></td>
-      <td><div class="cell-title"><span class="cell-icon">${icon("package")}</span><span class="cell-stack"><strong>${escapeHTML(title)}</strong><small class="mono" title="${escapeAttr(artifactItem.digest)}">${escapeHTML(shortDigest(artifactItem.digest))}${tags.length > 1 ? ` · ${tags.length} 个 Tag` : ""}</small>${labels.length ? `<span class="artifact-row-labels">${labels.slice(0, 2).map(artifactLabelChip).join("")}${labels.length > 2 ? `<span class="badge">+${labels.length - 2}</span>` : ""}</span>` : ""}</span></div></td>
-      <td>${artifactArchitectureCell(artifactItem)}</td><td>${statusBadge(scan.status)}</td><td>${severityBadge(scan.severity)}</td><td>${formatBytes(artifactItem.size)}</td><td>${formatDate(artifactItem.pull_time)}</td><td>${formatDate(artifactItem.push_time)}</td><td>${icon("chevron")}</td>
+      <td><div class="cell-title">${artifactIconMarkup(artifactItem)}<span class="cell-stack"><strong>${escapeHTML(title)}</strong><small class="mono" title="${escapeAttr(artifactItem.digest)}">${escapeHTML(shortDigest(artifactItem.digest))}${tags.length > 1 ? ` · ${tags.length} 个 Tag` : ""}</small>${labels.length ? `<span class="artifact-row-labels">${labels.slice(0, 2).map(artifactLabelChip).join("")}${labels.length > 2 ? `<span class="badge">+${labels.length - 2}</span>` : ""}</span>` : ""}</span></div></td>
+      <td>${artifactArchitectureCell(artifactItem)}</td><td>${artifactSignatureBadge(artifactItem)}</td><td>${artifactAnnotationSummary(artifactItem, project, repository)}</td><td>${statusBadge(scan.status)}</td><td>${severityBadge(scan.severity)}</td><td>${formatBytes(artifactItem.size)}</td><td>${formatDate(artifactItem.pull_time)}</td><td>${formatDate(artifactItem.push_time)}</td><td>${icon("chevron")}</td>
     </tr>`;
   }).join("")}</tbody></table>`;
 }
@@ -1192,6 +1194,7 @@ async function renderArtifactDetail(token) {
   mainContent.innerHTML = `${pageHeader("制品详情", shortDigest(route.reference), refreshButton(), breadcrumb)}${demoBanner()}<section class="table-shell">${loadingRows()}</section>`;
   try {
     const artifactItem = await controlData("artifact", { project: route.project, repository: route.repository, reference: route.reference, with_tag: true, with_label: true, with_scan_overview: true, with_sbom_overview: true, with_accessory: true, with_immutable_status: true });
+	await loadArtifactIcons([artifactItem]);
     let secondary = null;
     if (route.tab === "tags") secondary = await controlList("artifact-tags", { project: route.project, repository: route.repository, reference: route.reference, page: route.page, page_size: controlPageSize, sort: "-push_time", with_immutable_status: true });
     if (route.tab === "labels") secondary = await loadArtifactLabels(route, artifactItem);
@@ -1295,15 +1298,85 @@ function artifactAccessoriesSection(collection = {}) {
 
 function accessoryTypeLabel(value) {
   const type = String(value || "").toLowerCase();
-  if (type.includes("signature") || type.includes("cosign")) return "制品签名";
+  if (type.includes("cosign") || type.includes("notation")) return "制品签名";
   if (type.includes("sbom")) return "软件物料清单";
   if (type.includes("attestation")) return "证明材料";
   return "关联制品";
 }
 
 function accessoryIcon(value) {
-  return /signature|cosign|attestation/i.test(String(value || "")) ? "shield" : "database";
+  return /cosign|notation|attestation/i.test(String(value || "")) ? "shield" : "database";
 }
+
+function artifactSignatureState(artifactItem) {
+  if (!Array.isArray(artifactItem?.accessories)) return "unknown";
+  return asArray(artifactItem.accessories).some((accessory) => /cosign|notation/i.test(String(accessory?.type || accessory?.artifact_type || accessory?.media_type || ""))) ? "signed" : "unsigned";
+}
+
+function artifactSignatureBadge(artifactItem) {
+  const stateName = artifactSignatureState(artifactItem);
+  const labels = { signed: "已签名", unsigned: "未签名", unknown: "未知" };
+  const classes = { signed: "badge-green", unsigned: "badge-orange", unknown: "" };
+  return `<span class="badge ${classes[stateName]}">${escapeHTML(labels[stateName])}</span>`;
+}
+
+function artifactAnnotationSummary(artifactItem, project, repository) {
+  const entries = Object.entries(asObject(artifactItem.annotations));
+  if (!entries.length) return '<span class="muted">-</span>';
+  const [key, value] = entries[0];
+  const href = artifactRoute(project, repository, artifactItem.digest);
+  return `<div class="artifact-annotation-summary"><code title="${escapeAttr(`${key}: ${value}`)}">${escapeHTML(`${key}: ${value}`)}</code><a href="${escapeAttr(href)}">${entries.length > 1 ? `+${entries.length - 1} 查看全部` : "查看全部"}</a></div>`;
+}
+
+function artifactAnnotationsSection(artifactItem) {
+  const entries = Object.entries(asObject(artifactItem.annotations));
+  if (!entries.length) return "";
+  return `<section class="panel artifact-annotations-panel"><div class="panel-head"><div><h2>注释</h2><p>${formatNumber(entries.length)} 项 OCI annotations</p></div></div><dl class="definition-list artifact-annotations-list">${entries.map(([key, value]) => `<div><dt><code>${escapeHTML(key)}</code></dt><dd><code>${escapeHTML(String(value))}</code><button class="icon-button" type="button" data-action="copy-value" data-value="${escapeAttr(String(value))}" title="复制" aria-label="复制">${icon("copy")}</button></dd></div>`).join("")}</dl></section>`;
+}
+
+function artifactIconDataURL(iconPayload) {
+  const contentType = String(iconPayload?.["content-type"] || "").toLowerCase();
+  const content = String(iconPayload?.content || "").trim();
+  if (!["image/png", "image/jpeg", "image/gif", "image/webp"].includes(contentType) || !/^[A-Za-z0-9+/]+={0,2}$/.test(content) || content.length % 4 !== 0) return "";
+  try {
+    if (!atob(content).length) return "";
+  } catch {
+    return "";
+  }
+  return `data:${contentType};base64,${content}`;
+}
+
+function artifactIconCacheKey(digest) {
+  return `${state.session?.connection_id || "current"}:${digest}`;
+}
+
+async function loadArtifactIcon(digest) {
+  if (!digest) return "";
+  const key = artifactIconCacheKey(digest);
+  if (artifactIconCache.has(key)) return artifactIconCache.get(key);
+  const request = controlData("artifact-icon", { digest }).then(artifactIconDataURL).catch(() => "");
+  artifactIconCache.set(key, request);
+  const dataURL = await request;
+  artifactIconCache.set(key, dataURL);
+  return dataURL;
+}
+
+async function loadArtifactIcons(artifacts) {
+  const digests = [...new Set(asArray(artifacts).map((artifactItem) => String(artifactItem?.icon || "")).filter(Boolean))];
+  const workers = Array.from({ length: Math.min(4, digests.length) }, async () => {
+    while (digests.length) await loadArtifactIcon(digests.pop());
+  });
+  await Promise.all(workers);
+}
+
+function artifactIconMarkup(artifactItem) {
+  const iconDigest = String(artifactItem?.icon || "");
+  const dataURL = iconDigest ? artifactIconCache.get(artifactIconCacheKey(iconDigest)) : "";
+  if (typeof dataURL === "string" && dataURL) return `<span class="artifact-icon"><img src="${escapeAttr(dataURL)}" alt="${escapeAttr(artifactItem.type || "Artifact")}" loading="lazy"></span>`;
+  return `<span class="cell-icon">${icon("package")}</span>`;
+}
+
+window.clearArtifactIconCache = () => artifactIconCache.clear();
 
 function normalizeArtifactAddition(raw) {
   if (typeof raw !== "string") return raw;
@@ -1350,7 +1423,6 @@ function renderArtifactAdditionContent(tab, data) {
 function artifactOverview(artifactItem, route) {
   const tags = asArray(artifactItem.tags);
   const pulls = tags.length ? tags.map((tag) => ({ tag: tag.name, command: artifactPullCommand(route.project, route.repository, tag.name, false) })) : [{ tag: "按摘要拉取", command: artifactPullCommand(route.project, route.repository, artifactItem.digest, true) }];
-  const annotations = asObject(artifactItem.annotations);
   return `<div class="detail-columns">
     <section class="panel command-panel"><div class="panel-head"><div><h2>拉取命令</h2><p>当前使用 ${escapeHTML(commandRuntime())}</p></div>${icon("terminal")}</div>${pulls.map((item) => `<div class="command-row"><span class="badge">${escapeHTML(item.tag)}</span><code>${escapeHTML(item.command)}</code><button class="icon-button" type="button" data-action="copy-value" data-value="${escapeAttr(item.command)}" title="复制拉取命令" aria-label="复制拉取命令">${icon("copy")}</button></div>`).join("")}</section>
     <section class="panel"><div class="panel-head"><div><h2>制品信息</h2><p>${escapeHTML(artifactItem.type || artifactItem.artifact_type || "镜像")}</p></div></div><dl class="definition-list">
@@ -1358,9 +1430,9 @@ function artifactOverview(artifactItem, route) {
       ${definitionRow("制品大小", formatBytes(artifactItem.size))}
       ${definitionRow("最近拉取", formatDate(artifactItem.pull_time))}
       ${definitionRow("架构", artifactArchitectureSummary(artifactItem))}
-      ${Object.keys(annotations).slice(0, 3).map((key) => definitionRow(key, annotations[key])).join("")}
+      ${definitionRow("签名", artifactSignatureState(artifactItem) === "signed" ? "已签名" : artifactSignatureState(artifactItem) === "unsigned" ? "未签名" : "未知")}
     </dl></section>
-  </div>${artifactPlatformSection(artifactItem)}`;
+  </div>${artifactAnnotationsSection(artifactItem)}${artifactPlatformSection(artifactItem)}`;
 }
 
 function artifactPlatformSection(artifactItem) {

@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const demoArtifactIconDigest = "sha256:75d8e7440af4f5d4d9a67f8d9237fd08e9e2713ae34c73d369e1f2a5c7051a12"
+
 func demoDashboard() map[string]any {
 	return map[string]any{
 		"mode": "demo",
@@ -118,6 +120,13 @@ func demoArtifacts(project, repository string) []any {
 		artifact("sha256:b4604fe30f9785345f61cb34209c2aa3053b67e24dd321caec892820646d9911", "v3.17.8", 181837281, "2026-07-12T08:48:00Z", 0, 2, 8, 21, 47),
 	}
 	multiArchitecture := artifacts[0].(map[string]any)
+	multiArchitecture["icon"] = demoArtifactIconDigest
+	multiArchitecture["annotations"] = map[string]any{
+		"org.opencontainers.image.source":        "https://git.example.internal/platform/gateway",
+		"org.opencontainers.image.revision":      "5d4a8a79fc3f",
+		"org.opencontainers.image.version":       "v3.18.4",
+		"org.opencontainers.image.documentation": "https://docs.example.internal/gateway/releases/v3.18.4",
+	}
 	multiArchitecture["manifest_media_type"] = "application/vnd.oci.image.index.v1+json"
 	multiArchitecture["extra_attrs"] = map[string]any{}
 	multiArchitecture["references"] = []any{

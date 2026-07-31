@@ -58,3 +58,19 @@ test("retention editing uses Harbor metadata and preserves existing rule fields"
   assert.match(implementation, /tag\.extras\.untagged = true/);
   assert.match(source, /metadataAvailable \? "" : "disabled"/);
 });
+
+test("artifact icon rendering admits only valid raster data URLs", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../web/control-ui.js"), "utf8");
+  const start = source.indexOf("function artifactIconDataURL");
+  const end = source.indexOf("\nfunction artifactIconCacheKey", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const implementation = source.slice(start, end);
+  assert.match(implementation, /image\/png/);
+  assert.match(implementation, /image\/jpeg/);
+  assert.match(implementation, /image\/gif/);
+  assert.match(implementation, /image\/webp/);
+  assert.doesNotMatch(implementation, /image\/svg\+xml/);
+  assert.match(implementation, /base64/);
+  assert.match(implementation, /atob\(/);
+});

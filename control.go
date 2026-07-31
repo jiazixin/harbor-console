@@ -193,6 +193,11 @@ var controlSpecs = map[string]controlSpec{
 		allowedQuery: []string{"q", "page", "page_size", "sort"},
 		methods:      methods(method(http.MethodGet, controlMethod{list: true})),
 	},
+	"artifact-icon": {
+		path:    "/api/v2.0/icons/{digest}",
+		params:  []controlParam{{name: "digest", placeholder: "digest"}},
+		methods: methods(method(http.MethodGet, controlMethod{})),
+	},
 	"artifact-addition": {
 		path: "/api/v2.0/projects/{project}/repositories/{repository}/artifacts/{reference}/additions/{addition}",
 		params: []controlParam{

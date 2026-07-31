@@ -2483,6 +2483,7 @@ function confirmRemoveInstance(id) {
 async function activateCurrentInstance(message) {
 	resetOperations();
   state.cache.clear();
+	window.clearArtifactIconCache?.();
   state.dashboard = null;
   state.selectedProject = "";
   state.selectedRepository = "";

@@ -395,7 +395,13 @@ func newDemoState() *demoState {
 	if artifacts := state.artifacts["platform/gateway"]; len(artifacts) > 0 {
 		artifacts[0]["labels"] = []any{cloneMap(state.labels[0]), cloneMap(state.labels[2])}
 		artifacts[0]["sbom_overview"] = map[string]any{"application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0": map[string]any{"scan_status": "Success", "report_id": "demo-sbom-1001", "duration": 8}}
-		artifacts[0]["accessories"] = []any{map[string]any{"id": 7001, "artifact_id": 7101, "subject_artifact_id": 1001, "subject_artifact_digest": artifacts[0]["digest"], "subject_artifact_repo": "platform/gateway", "size": 28419, "digest": "sha256:713832a739f26bd20c82cebbf72f6bf97f0fc023908470350d563235063ca541", "type": "signature.cosign", "creation_time": "2026-07-28T06:43:00Z"}}
+		artifacts[0]["accessories"] = []any{
+			map[string]any{"id": 7001, "artifact_id": 7101, "subject_artifact_id": 1001, "subject_artifact_digest": artifacts[0]["digest"], "subject_artifact_repo": "platform/gateway", "size": 28419, "digest": "sha256:713832a739f26bd20c82cebbf72f6bf97f0fc023908470350d563235063ca541", "type": "signature.cosign", "creation_time": "2026-07-28T06:43:00Z"},
+			map[string]any{"id": 7002, "artifact_id": 7102, "subject_artifact_id": 1001, "subject_artifact_digest": artifacts[0]["digest"], "subject_artifact_repo": "platform/gateway", "size": 19812, "digest": "sha256:4da7d3d4f71d0518d51bd1f9c20c3c510db4e36ea6d671e244c43aa4ac41cf95", "type": "signature.notation", "creation_time": "2026-07-28T06:44:00Z"},
+		}
+	}
+	if artifacts := state.artifacts["platform/gateway"]; len(artifacts) > 2 {
+		artifacts[2]["accessories"] = []any{}
 	}
 	state.immutableRules["platform"] = []map[string]any{
 		{"id": 41, "priority": 0, "disabled": false, "action": "immutable", "template": "immutable_template", "params": map[string]any{}, "tag_selectors": []any{map[string]any{"kind": "doublestar", "decoration": "matches", "pattern": "release-*"}}, "scope_selectors": map[string]any{"repository": []any{map[string]any{"kind": "doublestar", "decoration": "repoMatches", "pattern": "**"}}}},
@@ -958,6 +964,13 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 		accessories, _ := state.artifacts[repositoryName][artifactIndex]["accessories"].([]any)
 		state.writeListAny(w, accessories, query)
 		return
+
+	case "artifact-icon":
+		if query.Get("digest") != demoArtifactIconDigest {
+			errStatus, errMessage = http.StatusNotFound, "制品图标不存在"
+			break
+		}
+		data = map[string]any{"content-type": "image/png", "content": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL07wAAAABJRU5ErkJggg=="}
 
 	case "artifact-addition":
 		repositoryName := query.Get("repository")

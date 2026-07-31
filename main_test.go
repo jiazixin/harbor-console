@@ -888,6 +888,62 @@ func TestControlArtifactMetadataOperationsUseOfficialAPI(t *testing.T) {
 	}
 }
 
+func TestControlArtifactIconUsesOfficialAPI(t *testing.T) {
+	application, err := newApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := mockClient(func(request *http.Request) (int, string) {
+		if request.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", request.Method)
+		}
+		if got, want := request.URL.EscapedPath(), "/api/v2.0/icons/sha256:icon%2Fdigest"; got != want {
+			t.Fatalf("path = %q, want %q", got, want)
+		}
+		return http.StatusOK, `{"content-type":"image/png","content":"iVBORw0KGgo="}`
+	})
+	current := createTestSession(t, application, client, false)
+	request := httptest.NewRequest(http.MethodGet, "/api/control/artifact-icon?digest="+url.QueryEscape("sha256:icon/digest"), nil)
+	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
+	recorder := httptest.NewRecorder()
+	application.routes().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"content-type":"image/png"`) {
+		t.Fatalf("icon response = %s", recorder.Body.String())
+	}
+}
+
+func TestDemoArtifactIconAndMetadata(t *testing.T) {
+	application, err := newApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := application.routes()
+	login := httptest.NewRecorder()
+	handler.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/demo", strings.NewReader("{}")))
+	cookie := login.Result().Cookies()[0]
+
+	icon := httptest.NewRecorder()
+	iconRequest := httptest.NewRequest(http.MethodGet, "/api/control/artifact-icon?digest="+url.QueryEscape(demoArtifactIconDigest), nil)
+	iconRequest.AddCookie(cookie)
+	handler.ServeHTTP(icon, iconRequest)
+	if icon.Code != http.StatusOK || !strings.Contains(icon.Body.String(), `"content-type":"image/png"`) || !strings.Contains(icon.Body.String(), `"content":"iVBORw0KGgo`) {
+		t.Fatalf("demo icon response = %d %s", icon.Code, icon.Body.String())
+	}
+
+	artifact := httptest.NewRecorder()
+	artifactRequest := httptest.NewRequest(http.MethodGet, "/api/control/artifact?project=platform&repository=platform%2Fgateway&reference="+url.QueryEscape("sha256:41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4")+"&with_accessory=true", nil)
+	artifactRequest.AddCookie(cookie)
+	handler.ServeHTTP(artifact, artifactRequest)
+	for _, expected := range []string{`"icon":"` + demoArtifactIconDigest, `"signature.cosign"`, `"signature.notation"`, `"org.opencontainers.image.source"`} {
+		if !strings.Contains(artifact.Body.String(), expected) {
+			t.Fatalf("demo artifact is missing %q: %s", expected, artifact.Body.String())
+		}
+	}
+}
+
 func TestControlArtifactMetadataRejectsUnsafeParameters(t *testing.T) {
 	application, err := newApp()
 	if err != nil {
