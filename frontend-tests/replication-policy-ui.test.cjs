@@ -16,8 +16,8 @@ test("replication policies use a heading count and support ID and update-time so
   assert.match(implementation, /replication-policy-heading/);
   assert.match(implementation, /section-count/);
   assert.match(implementation, /策略编号/);
-  assert.match(implementation, /value="-update_time"[^>]*>最近更新/);
-  assert.match(implementation, /value="update_time"[^>]*>最早更新/);
+  assert.match(implementation, /value="-update_time"[^>]*>\$\{translateUI\("最近更新"\)\}/);
+  assert.match(implementation, /value="update_time"[^>]*>\$\{translateUI\("最早更新"\)\}/);
   assert.doesNotMatch(implementation, /toolbar-spacer"><\/div><span class="muted"/);
 });
 

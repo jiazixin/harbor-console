@@ -391,7 +391,12 @@ function authModeLabel(value) {
     oidc_auth: "OIDC 认证",
     uaa_auth: "UAA 认证",
   };
-  return labels[value] || escapeHTML(value || "未知");
+  return translateUI(labels[value] || value || "未知");
+}
+
+function usersManagedByAuthModeLabel(value) {
+  const mode = authModeLabel(value);
+  return currentLocale() === "en-US" ? `Users are managed by ${mode}` : `用户由 ${mode} 管理`;
 }
 
 function operationLabel(value) {

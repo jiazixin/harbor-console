@@ -122,7 +122,7 @@ function adminUsersSection(route, collection) {
     ? `<button class="button button-small button-primary" type="button" data-action="create-admin-user">${icon("plus")}<span>新建本地用户</span></button>`
     : mode === "ldap_auth"
       ? `<button class="button button-small button-primary" type="button" data-action="import-ldap-users">${icon("upload")}<span>导入 LDAP 用户</span></button>`
-      : `<span class="toolbar-note">用户由 ${escapeHTML(authModeLabel(mode))} 管理</span>`;
+      : `<span class="toolbar-note">${escapeHTML(usersManagedByAuthModeLabel(mode))}</span>`;
   return `<section class="table-shell"><div class="table-toolbar">${controlSearchForm("admin-user-search", route.filter, "按用户名搜索")}<div class="toolbar-spacer"></div>${action}</div><div class="table-scroll">${adminUsersTable(collection.items, mode)}</div>${controlPagination(collection.pagination)}</section>`;
 }
 
