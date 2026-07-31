@@ -1531,6 +1531,10 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 		state.users = append(state.users, user)
 		status, data = http.StatusCreated, user
 
+	case "users-search":
+		state.writeList(w, filterMaps(state.users, query.Get("username"), "username"), query)
+		return
+
 	case "user":
 		index, found := findMapNumber(state.users, "user_id", query.Get("id"))
 		if !found {
@@ -1592,6 +1596,10 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 		group["id"] = state.nextGroupID
 		state.userGroups = append(state.userGroups, group)
 		status, data = http.StatusCreated, group
+
+	case "user-groups-search":
+		state.writeList(w, filterMaps(state.userGroups, query.Get("groupname"), "group_name"), query)
+		return
 
 	case "user-group":
 		index, found := findMapNumber(state.userGroups, "id", query.Get("id"))

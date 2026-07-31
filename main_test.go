@@ -1187,6 +1187,83 @@ func TestControlRetentionMetadataUsesOfficialAPI(t *testing.T) {
 	}
 }
 
+func TestControlMemberDirectorySearch(t *testing.T) {
+	for _, test := range []struct {
+		name, operation, wantPath, wantQuery string
+	}{
+		{name: "users", operation: "users-search?username=release&page=1&page_size=20", wantPath: "/api/v2.0/users/search", wantQuery: "page=1&page_size=20&username=release"},
+		{name: "groups", operation: "user-groups-search?groupname=platform&page=1&page_size=20", wantPath: "/api/v2.0/usergroups/search", wantQuery: "groupname=platform&page=1&page_size=20"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			application, err := newApp()
+			if err != nil {
+				t.Fatal(err)
+			}
+			current := createTestSession(t, application, mockClient(func(request *http.Request) (int, string) {
+				if request.Method != http.MethodGet || request.URL.Path != test.wantPath || request.URL.RawQuery != test.wantQuery {
+					t.Fatalf("upstream request = %s %s?%s", request.Method, request.URL.Path, request.URL.RawQuery)
+				}
+				return http.StatusOK, `[]`
+			}), false)
+			request := httptest.NewRequest(http.MethodGet, "/api/control/"+test.operation, nil)
+			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
+			recorder := httptest.NewRecorder()
+			application.routes().ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+
+	for _, operation := range []string{
+		"users-search?username=%20%20",
+		"users-search?username=release&unexpected=true",
+		"user-groups-search?groupname=" + strings.Repeat("a", 256),
+	} {
+		t.Run("invalid_"+operation[:strings.IndexByte(operation, '?')], func(t *testing.T) {
+			application, err := newApp()
+			if err != nil {
+				t.Fatal(err)
+			}
+			current := createTestSession(t, application, mockClient(func(*http.Request) (int, string) {
+				t.Fatal("invalid directory query reached Harbor")
+				return http.StatusInternalServerError, "{}"
+			}), false)
+			request := httptest.NewRequest(http.MethodGet, "/api/control/"+operation, nil)
+			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
+			recorder := httptest.NewRecorder()
+			application.routes().ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body = %s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+}
+
+func TestDemoMemberDirectorySearch(t *testing.T) {
+	application, err := newApp()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := createTestSession(t, application, http.DefaultClient, true)
+	request := func(path string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
+		recorder := httptest.NewRecorder()
+		application.routes().ServeHTTP(recorder, req)
+		return recorder
+	}
+	users := request("/api/control/users-search?username=RELEASE&page=1&page_size=1")
+	if users.Code != http.StatusOK || !strings.Contains(users.Body.String(), `"username":"release-engineer"`) || !strings.Contains(users.Body.String(), `"total":1`) {
+		t.Fatalf("unexpected demo user search: %d %s", users.Code, users.Body.String())
+	}
+	groups := request("/api/control/user-groups-search?groupname=PLATFORM&page=1&page_size=20")
+	if groups.Code != http.StatusOK || !strings.Contains(groups.Body.String(), `"group_name":"platform-ops"`) {
+		t.Fatalf("unexpected demo group search: %d %s", groups.Code, groups.Body.String())
+	}
+}
+
 func TestDemoRetentionRuleRoundTrip(t *testing.T) {
 	application, err := newApp()
 	if err != nil {

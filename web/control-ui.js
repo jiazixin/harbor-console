@@ -2558,12 +2558,14 @@ async function showCreateProjectDialog() {
 
 function showAddMemberDialog() {
   state.memberGroupCandidates = [];
+	state.memberUserCandidates = [];
+	state.memberDirectoryRequest = 0;
   openControlDialog({
     title: "添加项目成员",
     subtitle: state.route.project,
     submitLabel: "添加成员",
     dialogClass: "control-dialog-large",
-    content: `<div class="member-type-switch" role="group" aria-label="成员类型"><label><input name="member_type" type="radio" value="user" checked><span>${icon("users")}<b>Harbor 用户</b><small>添加已经存在的用户账号</small></span></label><label><input name="member_type" type="radio" value="group"><span>${icon("users")}<b>用户组</b><small>从身份目录选择用户组</small></span></label></div><div class="member-directory-panel" data-member-panel="user"><label class="field"><span>Harbor 用户名</span><input name="username" required maxlength="255" autocomplete="off" placeholder="输入已存在的用户"></label></div><div class="member-directory-panel" data-member-panel="group" hidden><div class="directory-search"><label class="field"><span>用户组名称</span><input id="member-group-query" type="search" maxlength="255" autocomplete="off" placeholder="搜索用户组"></label><button id="member-group-search" class="button button-small" type="button">${icon("search")}<span>搜索目录</span></button></div><div id="member-group-results" class="directory-results"><div class="directory-state compact">${icon("search")}<div><strong>搜索可用用户组</strong><span>结果来自 Harbor 官方目录接口。</span></div></div></div></div><label class="field member-role-field"><span>项目角色</span><select name="role_id">${roleOptions(2)}</select></label>`,
+    content: `<div class="member-type-switch" role="group" aria-label="成员类型"><label><input name="member_type" type="radio" value="user" checked><span>${icon("users")}<b>Harbor 用户</b><small>从目录搜索并选择用户账号</small></span></label><label><input name="member_type" type="radio" value="group"><span>${icon("users")}<b>用户组</b><small>从身份目录选择用户组</small></span></label></div><div class="member-directory-panel" data-member-panel="user"><div class="directory-search"><label class="field"><span>Harbor 用户名</span><input id="member-user-query" type="search" maxlength="255" autocomplete="off" placeholder="搜索用户"></label><button id="member-user-search" class="button button-small" type="button">${icon("search")}<span>搜索目录</span></button></div><div id="member-user-results" class="directory-results"><div class="directory-state compact">${icon("search")}<div><strong>搜索可用用户</strong><span>结果来自 Harbor 官方目录接口。</span></div></div></div></div><div class="member-directory-panel" data-member-panel="group" hidden><div class="directory-search"><label class="field"><span>用户组名称</span><input id="member-group-query" type="search" maxlength="255" autocomplete="off" placeholder="搜索用户组"></label><button id="member-group-search" class="button button-small" type="button">${icon("search")}<span>搜索目录</span></button></div><div id="member-group-results" class="directory-results"><div class="directory-state compact">${icon("search")}<div><strong>搜索可用用户组</strong><span>结果来自 Harbor 官方目录接口。</span></div></div></div></div><label class="field member-role-field"><span>项目角色</span><select name="role_id">${roleOptions(2)}</select></label>`,
     onSubmit: async (formData, form) => {
       const roleID = Number(formData.get("role_id"));
       const memberType = String(formData.get("member_type") || "user");
@@ -2574,7 +2576,10 @@ function showAddMemberDialog() {
         if (!group) throw new Error("请选择一个用户组");
         payload = { role_id: roleID, member_group: { group_name: String(group.group_name || ""), group_type: Number(group.group_type || 1), ldap_group_dn: String(group.ldap_group_dn || "") } };
       } else {
-        payload = { role_id: roleID, member_user: { username: String(formData.get("username") || "").trim() } };
+		const selected = form.querySelector('[name="member_user_index"]:checked');
+		const user = state.memberUserCandidates?.[Number(selected?.value)];
+		if (!user) throw new Error("请选择一个 Harbor 用户");
+		payload = { role_id: roleID, member_user: { username: String(user.username || "").trim() } };
       }
       await controlMutation("project-members", { project: state.route.project }, "POST", payload);
       closeControlDialog();
@@ -2586,13 +2591,26 @@ function showAddMemberDialog() {
   const syncType = () => {
     const type = String(new FormData(form).get("member_type") || "user");
     form.querySelectorAll("[data-member-panel]").forEach((panel) => { panel.hidden = panel.dataset.memberPanel !== type; });
-    const username = form.elements.namedItem("username");
-    if (username) username.required = type === "user";
   };
   form?.querySelectorAll('[name="member_type"]').forEach((input) => input.addEventListener("change", syncType));
+	const userInput = form?.querySelector("#member-user-query");
   const groupInput = form?.querySelector("#member-group-query");
-  const searchGroups = () => loadProjectMemberGroups(String(groupInput?.value || "").trim());
+	let userTimer;
+	let groupTimer;
+	const scheduleSearch = (input, search, timerName) => {
+		clearTimeout(timerName === "user" ? userTimer : groupTimer);
+		const term = String(input?.value || "").trim();
+		if (term.length < 1) return;
+		const timer = window.setTimeout(() => search(term), 320);
+		if (timerName === "user") userTimer = timer;
+		else groupTimer = timer;
+	};
+	const searchUsers = () => loadProjectMemberUsers(String(userInput?.value || "").trim());
+	const searchGroups = () => loadProjectMemberGroups(String(groupInput?.value || "").trim());
+	form?.querySelector("#member-user-search")?.addEventListener("click", searchUsers);
   form?.querySelector("#member-group-search")?.addEventListener("click", searchGroups);
+	userInput?.addEventListener("input", () => scheduleSearch(userInput, loadProjectMemberUsers, "user"));
+	groupInput?.addEventListener("input", () => scheduleSearch(groupInput, loadProjectMemberGroups, "group"));
   groupInput?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
@@ -2601,21 +2619,47 @@ function showAddMemberDialog() {
   syncType();
 }
 
+function projectMemberAlreadyExists(name) {
+	return asArray(state.controlProjectItems).some((member) => String(member.entity_name || "").toLowerCase() === String(name || "").toLowerCase());
+}
+
+async function loadProjectMemberUsers(term) {
+	const output = document.querySelector("#member-user-results");
+	if (!output || !term) return;
+	const requestID = ++state.memberDirectoryRequest;
+	output.innerHTML = `<div class="dialog-loading"><span class="spinner"></span><span>正在搜索用户...</span></div>`;
+	try {
+		const result = await controlList("users-search", { username: term, page: 1, page_size: 20 });
+		if (requestID !== state.memberDirectoryRequest || !document.body.contains(output)) return;
+		state.memberUserCandidates = result.items.filter((user) => !projectMemberAlreadyExists(user.username));
+		output.innerHTML = projectMemberUserResults(state.memberUserCandidates);
+	} catch (error) {
+		if (requestID !== state.memberDirectoryRequest || !document.body.contains(output)) return;
+		output.innerHTML = `<div class="directory-state directory-state-error">${icon("alert")}<div><strong>用户搜索失败</strong><span>${escapeHTML(error.message)}</span></div></div>`;
+	}
+}
+
 async function loadProjectMemberGroups(term) {
   const output = document.querySelector("#member-group-results");
   if (!output) return;
   output.innerHTML = `<div class="dialog-loading"><span class="spinner"></span><span>正在搜索用户组...</span></div>`;
-  try {
+	const requestID = ++state.memberDirectoryRequest;
+	try {
     const result = accountAuthMode() === "ldap_auth"
-      ? await controlList("ldap-groups-search", { groupname: term })
-      : await controlList("user-groups", { page: 1, page_size: 100, group_name: term });
-    if (!document.body.contains(output)) return;
-    state.memberGroupCandidates = result.items;
-    output.innerHTML = projectMemberGroupResults(result.items);
+		? await controlList("ldap-groups-search", { groupname: term })
+		: await controlList("user-groups-search", { groupname: term, page: 1, page_size: 20 });
+	if (requestID !== state.memberDirectoryRequest || !document.body.contains(output)) return;
+	state.memberGroupCandidates = result.items.filter((group) => !projectMemberAlreadyExists(group.group_name || group.ldap_group_dn));
+    output.innerHTML = projectMemberGroupResults(state.memberGroupCandidates);
   } catch (error) {
-    if (!document.body.contains(output)) return;
+	if (requestID !== state.memberDirectoryRequest || !document.body.contains(output)) return;
     output.innerHTML = `<div class="directory-state directory-state-error">${icon("alert")}<div><strong>用户组搜索失败</strong><span>${escapeHTML(error.message)}</span></div></div>`;
   }
+}
+
+function projectMemberUserResults(users) {
+	if (!users.length) return `<div class="directory-state">${icon("users")}<div><strong>没有可添加的用户</strong><span>调整名称，或该用户已经是项目成员。</span></div></div>`;
+	return `<div class="directory-result-head"><span>可用用户</span><span>${formatNumber(users.length)} 个结果</span></div><div class="directory-selection-list">${users.map((user, index) => `<label class="directory-selection-row"><input name="member_user_index" type="radio" value="${index}"><span class="cell-icon">${icon("user")}</span><span class="cell-stack"><strong>${escapeHTML(user.username || "-")}</strong><small>${escapeHTML(user.realname || user.email || "-")}</small></span></label>`).join("")}</div>`;
 }
 
 function projectMemberGroupResults(groups) {

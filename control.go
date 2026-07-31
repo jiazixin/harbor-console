@@ -737,6 +737,18 @@ var controlSpecs = map[string]controlSpec{
 		allowedQuery: []string{"username"},
 		methods:      methods(method(http.MethodGet, controlMethod{list: true})),
 	},
+	"users-search": {
+		path:          "/api/v2.0/users/search",
+		allowedQuery:  []string{"username", "page", "page_size"},
+		validateQuery: validateRequiredDirectorySearchQuery("username"),
+		methods:       methods(method(http.MethodGet, controlMethod{list: true})),
+	},
+	"user-groups-search": {
+		path:          "/api/v2.0/usergroups/search",
+		allowedQuery:  []string{"groupname", "page", "page_size"},
+		validateQuery: validateRequiredDirectorySearchQuery("groupname"),
+		methods:       methods(method(http.MethodGet, controlMethod{list: true})),
+	},
 	"ldap-users-import": {
 		path:    "/api/v2.0/ldap/users/import",
 		methods: methods(method(http.MethodPost, controlMethod{bodyRequired: true, validate: validateLDAPUserImport})),
@@ -773,6 +785,10 @@ func (a *app) handleControl(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		w.Header().Set("Allow", allowedMethodHeader(spec.methods))
 		writeError(w, http.StatusMethodNotAllowed, "操作方法不受支持", "该资源不允许使用 "+r.Method)
+		return
+	}
+	if err := validateControlQueryKeys(spec, r.URL.Query()); err != nil {
+		writeError(w, http.StatusBadRequest, "查询参数无效", err.Error())
 		return
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead && !sameOrigin(r) {
@@ -835,6 +851,22 @@ func (a *app) handleControl(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeControlResponse(w, response, methodConfig, query)
+}
+
+func validateControlQueryKeys(spec controlSpec, input url.Values) error {
+	allowed := make(map[string]struct{}, len(spec.params)+len(spec.allowedQuery))
+	for _, parameter := range spec.params {
+		allowed[parameter.name] = struct{}{}
+	}
+	for _, key := range spec.allowedQuery {
+		allowed[key] = struct{}{}
+	}
+	for key := range input {
+		if _, ok := allowed[key]; !ok {
+			return fmt.Errorf("%s 不在该操作的允许参数中", key)
+		}
+	}
+	return nil
 }
 
 func (a *app) requireCurrentUserID(r *http.Request, current *session, requestedID string) error {
@@ -937,6 +969,17 @@ func positiveQueryInt(raw string, fallback, maximum int) (int, error) {
 		return 0, fmt.Errorf("必须是 1 到 %d 之间的整数", maximum)
 	}
 	return value, nil
+}
+
+func validateRequiredDirectorySearchQuery(key string) func(url.Values) error {
+	return func(query url.Values) error {
+		term := strings.TrimSpace(query.Get(key))
+		if term == "" || len(term) > 255 || strings.ContainsAny(term, "\r\n\x00") {
+			return fmt.Errorf("%s 必须是 1 到 255 个字符的单行搜索词", key)
+		}
+		query.Set(key, term)
+		return nil
+	}
 }
 
 func validateCurrentPermissionsQuery(query url.Values) error {
