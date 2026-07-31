@@ -25,6 +25,7 @@ type controlParam struct {
 type controlMethod struct {
 	list         bool
 	raw          bool
+	head         bool
 	bodyRequired bool
 	bodyOptional bool
 	validate     func(map[string]any) error
@@ -65,8 +66,17 @@ var controlSpecs = map[string]controlSpec{
 		path: "/api/v2.0/projects", allowedQuery: []string{"q", "page", "page_size", "sort", "name", "public", "owner", "with_detail"},
 		methods: methods(
 			method(http.MethodGet, controlMethod{list: true}),
+			method(http.MethodHead, controlMethod{head: true}),
 			method(http.MethodPost, controlMethod{bodyRequired: true, validate: validateProjectCreate}),
 		),
+	},
+	"internal-config": {
+		path:    "/api/v2.0/internalconfig",
+		methods: methods(method(http.MethodGet, controlMethod{})),
+	},
+	"ping": {
+		path:    "/api/v2.0/ping",
+		methods: methods(method(http.MethodGet, controlMethod{})),
 	},
 	"project": {
 		path: "/api/v2.0/projects/{project}", params: []controlParam{{name: "project", placeholder: "project"}},
@@ -112,6 +122,39 @@ var controlSpecs = map[string]controlSpec{
 			method(http.MethodPut, controlMethod{bodyRequired: true, validate: validateMemberRole}),
 			method(http.MethodDelete, controlMethod{}),
 		),
+	},
+	"project-member-detail": {
+		path:    "/api/v2.0/projects/{project}/members/{member}",
+		params:  []controlParam{{name: "project", placeholder: "project"}, {name: "member", placeholder: "member", numeric: true}},
+		methods: methods(method(http.MethodGet, controlMethod{})),
+	},
+	"project-artifacts": {
+		path:         "/api/v2.0/projects/{project}/artifacts",
+		params:       []controlParam{{name: "project", placeholder: "project"}},
+		allowedQuery: []string{"q", "page", "page_size", "sort", "with_tag", "with_label", "with_scan_overview", "with_sbom_overview", "with_accessory"},
+		methods:      methods(method(http.MethodGet, controlMethod{list: true})),
+	},
+	"project-metadatas": {
+		path:   "/api/v2.0/projects/{project}/metadatas/",
+		params: []controlParam{{name: "project", placeholder: "project"}},
+		methods: methods(
+			method(http.MethodGet, controlMethod{}),
+			method(http.MethodPost, controlMethod{bodyRequired: true, validate: validateProjectMetadataWrite}),
+		),
+	},
+	"project-metadata": {
+		path:   "/api/v2.0/projects/{project}/metadatas/{meta}",
+		params: []controlParam{{name: "project", placeholder: "project"}, {name: "meta", placeholder: "meta", allowed: nil}},
+		methods: methods(
+			method(http.MethodGet, controlMethod{}),
+			method(http.MethodPut, controlMethod{bodyRequired: true, validate: validateProjectMetadataWrite}),
+			method(http.MethodDelete, controlMethod{}),
+		),
+	},
+	"all-repositories": {
+		path:         "/api/v2.0/repositories",
+		allowedQuery: []string{"q", "page", "page_size", "sort"},
+		methods:      methods(method(http.MethodGet, controlMethod{list: true})),
 	},
 	"repositories": {
 		path: "/api/v2.0/projects/{project}/repositories", params: []controlParam{{name: "project", placeholder: "project"}},
@@ -310,6 +353,12 @@ var controlSpecs = map[string]controlSpec{
 		allowedQuery: []string{"q", "page", "page_size", "sort"},
 		methods:      methods(method(http.MethodGet, controlMethod{list: true})),
 	},
+	// Deprecated in Harbor v2.15.2; new UI uses auditlog-exts.
+	"legacy-audit-logs": {
+		path:         "/api/v2.0/audit-logs",
+		allowedQuery: []string{"q", "page", "page_size", "sort"},
+		methods:      methods(method(http.MethodGet, controlMethod{list: true})),
+	},
 	"audit-log-events": {
 		path:    "/api/v2.0/auditlog-exts/events",
 		methods: methods(method(http.MethodGet, controlMethod{})),
@@ -450,6 +499,19 @@ var controlSpecs = map[string]controlSpec{
 	},
 	"webhook-events": {
 		path: "/api/v2.0/projects/{project}/webhook/events", params: []controlParam{{name: "project", placeholder: "project"}},
+		methods: methods(method(http.MethodGet, controlMethod{})),
+	},
+	// Deprecated in Harbor v2.15.2; new UI uses policy executions instead.
+	"legacy-webhook-jobs": {
+		path:         "/api/v2.0/projects/{project}/webhook/jobs",
+		params:       []controlParam{{name: "project", placeholder: "project"}},
+		allowedQuery: []string{"page", "page_size", "sort"},
+		methods:      methods(method(http.MethodGet, controlMethod{list: true})),
+	},
+	// Deprecated in Harbor v2.15.2; new UI uses policy executions instead.
+	"legacy-webhook-last-trigger": {
+		path:    "/api/v2.0/projects/{project}/webhook/lasttrigger",
+		params:  []controlParam{{name: "project", placeholder: "project"}},
 		methods: methods(method(http.MethodGet, controlMethod{})),
 	},
 	"webhook-executions": {
@@ -692,6 +754,11 @@ var controlSpecs = map[string]controlSpec{
 		path:    "/api/v2.0/scans/all/metrics",
 		methods: methods(method(http.MethodGet, controlMethod{})),
 	},
+	// Deprecated in Harbor v2.15.2; new UI uses scan-all-metrics.
+	"legacy-scan-schedule-metrics": {
+		path:    "/api/v2.0/scans/schedule/metrics",
+		methods: methods(method(http.MethodGet, controlMethod{})),
+	},
 	"scan-all-schedule": {
 		path: "/api/v2.0/system/scanAll/schedule",
 		methods: methods(
@@ -873,6 +940,10 @@ func (a *app) handleControl(w http.ResponseWriter, r *http.Request) {
 				a.logger.Warn("updated Harbor credential but failed to refresh local session", "session_id", current.ID, "error", err)
 			}
 		}
+	}
+	if methodConfig.head {
+		w.WriteHeader(response.StatusCode)
+		return
 	}
 	writeControlResponse(w, response, methodConfig, query)
 }
@@ -1216,6 +1287,17 @@ func validateProjectMetadata(metadata map[string]any) error {
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func validateProjectMetadataWrite(body map[string]any) error {
+	if err := validateAllowedFields(body, "key", "value"); err != nil {
+		return err
+	}
+	value, ok := body["value"].(string)
+	if !ok || len(value) > 4096 {
+		return errors.New("metadata value 必须是不超过 4096 字符的字符串")
 	}
 	return nil
 }

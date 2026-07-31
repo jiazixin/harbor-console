@@ -535,7 +535,17 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 	var errMessage string
 
 	switch operation {
+	case "internal-config":
+		data = map[string]any{"auth_mode": "oidc_auth", "external_url": "https://harbor.demo.local", "read_only": false}
+
+	case "ping":
+		data = map[string]any{"status": "healthy"}
+
 	case "projects":
+		if method == http.MethodHead {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		if method == http.MethodGet {
 			items := filterMaps(state.projects, query.Get("name"), "name")
 			items = filterMaps(items, query.Get("owner"), "owner_name")
@@ -766,6 +776,78 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 		} else {
 			state.members[projectName] = append(state.members[projectName][:index], state.members[projectName][index+1:]...)
 		}
+
+	case "project-member-detail":
+		projectName := query.Get("project")
+		index, found := findMapNumber(state.members[projectName], "id", query.Get("member"))
+		if !found {
+			errStatus, errMessage = http.StatusNotFound, "项目成员不存在"
+			break
+		}
+		data = state.members[projectName][index]
+
+	case "project-artifacts":
+		projectName := query.Get("project")
+		items := make([]map[string]any, 0)
+		for repositoryName, artifacts := range state.artifacts {
+			if strings.HasPrefix(repositoryName, projectName+"/") {
+				items = append(items, demoVisibleArtifacts(artifacts)...)
+			}
+		}
+		state.writeList(w, items, query)
+		return
+
+	case "project-metadatas":
+		projectName := query.Get("project")
+		index, found := findMap(state.projects, "name", projectName)
+		if !found {
+			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+			break
+		}
+		metadata, _ := state.projects[index]["metadata"].(map[string]any)
+		if method == http.MethodGet {
+			data = metadata
+			break
+		}
+		key := strings.TrimSpace(stringValue(body["key"]))
+		value := stringValue(body["value"])
+		if key == "" {
+			errStatus, errMessage = http.StatusBadRequest, "metadata key 不能为空"
+			break
+		}
+		metadata[key] = value
+		data = metadata
+
+	case "project-metadata":
+		projectName := query.Get("project")
+		index, found := findMap(state.projects, "name", projectName)
+		if !found {
+			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+			break
+		}
+		metadata, _ := state.projects[index]["metadata"].(map[string]any)
+		key := query.Get("meta")
+		if method == http.MethodGet {
+			value, exists := metadata[key]
+			if !exists {
+				errStatus, errMessage = http.StatusNotFound, "metadata 不存在"
+				break
+			}
+			data = map[string]any{"value": value}
+		} else if method == http.MethodPut {
+			metadata[key] = body["value"]
+			data = map[string]any{"value": metadata[key]}
+		} else {
+			delete(metadata, key)
+		}
+
+	case "all-repositories":
+		items := make([]map[string]any, 0)
+		for _, repositories := range state.repositories {
+			items = append(items, repositories...)
+		}
+		state.writeList(w, items, query)
+		return
 
 	case "repositories":
 		projectName := query.Get("project")
@@ -1468,6 +1550,17 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 	case "webhook-events":
 		data = map[string]any{"event_type": []any{"PUSH_ARTIFACT", "PULL_ARTIFACT", "DELETE_ARTIFACT", "SCANNING_COMPLETED", "SCANNING_FAILED", "QUOTA_EXCEED", "TAG_RETENTION"}, "notify_type": []any{"http"}, "payload_formats": []any{map[string]any{"notify_type": "http", "formats": []any{"Default", "CloudEvents"}}}}
 
+	case "legacy-webhook-jobs":
+		items := make([]map[string]any, 0)
+		for _, executions := range state.webhookExecutions {
+			items = append(items, executions...)
+		}
+		state.writeList(w, items, query)
+		return
+
+	case "legacy-webhook-last-trigger":
+		data = map[string]any{"status": "Success", "trigger_time": "2026-07-28T06:42:00Z"}
+
 	case "webhook-executions":
 		projectName := query.Get("project")
 		if _, found := findMapNumber(state.webhooks[projectName], "id", query.Get("id")); !found {
@@ -2015,7 +2108,7 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 	case "jobservice-schedule-status":
 		data = map[string]any{"paused": state.jobSchedulePaused}
 
-	case "scan-all-metrics":
+	case "scan-all-metrics", "legacy-scan-schedule-metrics":
 		data = state.scanMetrics
 
 	case "scan-all-schedule":
@@ -2286,7 +2379,7 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 	case "permissions":
 		data = demoPermissionMetadata()
 
-	case "audit-logs":
+	case "audit-logs", "legacy-audit-logs":
 		items := mapsFromAny(demoAuditLogs())
 		if q := query.Get("q"); q != "" {
 			if username := demoQueryString(q, "username"); username != "" {

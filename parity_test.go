@@ -32,20 +32,35 @@ var harborOperationClasses = func() map[string]harborOperationClass {
 		classes[operation] = harborOperationPortal
 	}
 	for _, operation := range []string{
+		"all-repositories",
 		"cve-export-download",
+		"internal-config",
 		"jobservice-pools",
 		"jobservice-queues",
 		"jobservice-schedule-status",
 		"jobservice-schedules",
 		"jobservice-workers",
 		"purge-history",
+		"ping",
+		"project-artifacts",
+		"project-member-detail",
+		"project-metadata",
+		"project-metadatas",
 		"scan-all-metrics",
 		"system-root-certificate",
 		"user-cli-secret",
 	} {
 		classes[operation] = harborOperationStableAPIOnly
 	}
-	classes["legacy-project-audit-logs"] = harborOperationDeprecatedCompat
+	for _, operation := range []string{
+		"legacy-audit-logs",
+		"legacy-project-audit-logs",
+		"legacy-scan-schedule-metrics",
+		"legacy-webhook-jobs",
+		"legacy-webhook-last-trigger",
+	} {
+		classes[operation] = harborOperationDeprecatedCompat
+	}
 	return classes
 }()
 
