@@ -134,6 +134,9 @@ func demoArtifacts(project, repository string) []any {
 		map[string]any{"parent_id": 1001, "child_id": 1003, "child_digest": "sha256:cf2df80ad906b495d13f65e450bfdbe64962b0b567886143a3200dd2b2b46861", "platform": map[string]any{"os": "linux", "architecture": "arm64", "variant": "v8"}},
 		map[string]any{"parent_id": 1001, "child_id": 1004, "child_digest": "sha256:8f6b16ca32b11c525188e7005b2cf5766faf575ec55a95a302542b4c3226a608", "platform": map[string]any{"os": "linux", "architecture": "ppc64le"}},
 	}
+	chart := artifacts[3].(map[string]any)
+	chart["type"] = "CHART"
+	chart["media_type"] = "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
 	return artifacts
 }
 

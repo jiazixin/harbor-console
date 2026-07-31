@@ -1422,7 +1422,8 @@ function renderArtifactAdditionContent(tab, data) {
 
 function artifactOverview(artifactItem, route) {
   const tags = asArray(artifactItem.tags);
-  const pulls = tags.length ? tags.map((tag) => ({ tag: tag.name, command: artifactPullCommand(route.project, route.repository, tag.name, false) })) : [{ tag: "按摘要拉取", command: artifactPullCommand(route.project, route.repository, artifactItem.digest, true) }];
+  const instanceHost = safeURL(state.session.instance_url)?.host || String(state.session.instance_url).replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const pulls = tags.length ? tags.map((tag) => ({ tag: tag.name, command: artifactPullCommand({ instanceHost, project: route.project, repository: route.repository, artifact: artifactItem, tag: tag.name, runtime: commandRuntime() }) })) : [{ tag: "按摘要拉取", command: artifactPullCommand({ instanceHost, project: route.project, repository: route.repository, artifact: artifactItem, digest: artifactItem.digest, runtime: commandRuntime() }) }];
   return `<div class="detail-columns">
     <section class="panel command-panel"><div class="panel-head"><div><h2>拉取命令</h2><p>当前使用 ${escapeHTML(commandRuntime())}</p></div>${icon("terminal")}</div>${pulls.map((item) => `<div class="command-row"><span class="badge">${escapeHTML(item.tag)}</span><code>${escapeHTML(item.command)}</code><button class="icon-button" type="button" data-action="copy-value" data-value="${escapeAttr(item.command)}" title="复制拉取命令" aria-label="复制拉取命令">${icon("copy")}</button></div>`).join("")}</section>
     <section class="panel"><div class="panel-head"><div><h2>制品信息</h2><p>${escapeHTML(artifactItem.type || artifactItem.artifact_type || "镜像")}</p></div></div><dl class="definition-list">
@@ -1454,10 +1455,17 @@ function artifactPlatformSection(artifactItem) {
   </section>`;
 }
 
-function artifactPullCommand(project, repository, reference, digest) {
-  const host = safeURL(state.session.instance_url)?.host || String(state.session.instance_url).replace(/^https?:\/\//, "").replace(/\/$/, "");
+function artifactPullCommand({ instanceHost, project, repository, artifact, tag = "", digest = "", runtime = "docker" }) {
+  const host = String(instanceHost || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
   const fullName = fullRepositoryName(project, repository);
-  return `${commandRuntime()} pull ${host}/${fullName}${digest ? "@" : ":"}${reference}`;
+  const type = String(artifact?.type || artifact?.artifact_type || "UNKNOWN").toUpperCase();
+  if (type === "CHART") {
+    if (tag) return `helm pull oci://${host}/${fullName} --version ${tag}`;
+    return "Helm OCI artifacts require a version tag; pull by digest is unavailable.";
+  }
+  const selectedRuntime = ["docker", "podman", "nerdctl"].includes(runtime) ? runtime : "docker";
+  const reference = tag || digest;
+  return `${selectedRuntime} pull ${host}/${fullName}${tag ? ":" : "@"}${reference}`;
 }
 
 function fullRepositoryName(project, repository) {
@@ -1468,7 +1476,8 @@ function fullRepositoryName(project, repository) {
 function artifactTagTable(tags, artifactItem) {
   if (!tags.length) return emptyTable("没有 Tag", "该制品当前只能通过摘要引用。", "tag");
   return `<table><thead><tr><th>Tag</th><th>不可变</th><th>推送时间</th><th>最近拉取</th><th>拉取命令</th><th></th></tr></thead><tbody>${tags.map((tag) => {
-    const command = artifactPullCommand(state.route.project, state.route.repository, tag.name, false);
+	const instanceHost = safeURL(state.session.instance_url)?.host || String(state.session.instance_url).replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const command = artifactPullCommand({ instanceHost, project: state.route.project, repository: state.route.repository, artifact: artifactItem, tag: tag.name, runtime: commandRuntime() });
     return `<tr><td><div class="cell-title"><span class="cell-icon">${icon("tag")}</span><strong>${escapeHTML(tag.name)}</strong></div></td><td>${tag.immutable ? '<span class="badge badge-orange">不可变</span>' : '<span class="badge">可变</span>'}</td><td>${formatDate(tag.push_time)}</td><td>${formatDate(tag.pull_time)}</td><td><button class="button button-small" type="button" data-action="copy-value" data-value="${escapeAttr(command)}">${icon("copy")}<span>复制</span></button></td><td><button class="icon-button danger-icon" type="button" data-action="delete-artifact-tag" data-tag="${escapeAttr(tag.name)}" ${tag.immutable ? "disabled" : ""} title="删除 Tag" aria-label="删除 Tag">${icon("trash")}</button></td></tr>`;
   }).join("")}</tbody></table>`;
 }
