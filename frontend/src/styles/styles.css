@@ -1,0 +1,43 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --surface-subtle: #f1f1f2;
+  --surface-raised: #ffffff;
+  --ink: #171717;
+  --ink-soft: #55555b;
+  --ink-faint: #7b7b82;
+  --line: #dedee2;
+  --line-strong: #c8c8ce;
+  --orange: #f48120;
+  --orange-strong: #d96708;
+  --orange-soft: #fff1e3;
+  --green: #168352;
+  --green-soft: #e9f6ef;
+  --red: #c73a3a;
+  --red-soft: #fcecec;
+  --amber: #9a6700;
+  --amber-soft: #fff7d6;
+  --blue: #3569a8;
+  --blue-soft: #edf4fb;
+  --sidebar-width: 248px;
+  --topbar-height: 60px;
+  --shadow: 0 10px 30px rgba(22, 22, 22, 0.09);
+  --motion-instant: 120ms;
+  --motion-fast: 160ms;
+  --motion-standard: 220ms;
+  --motion-content: 280ms;
+  --motion-global: 320ms;
+  --motion-stagger: 16ms;
+  --motion-distance-small: 2px;
+  --motion-distance-medium: 6px;
+  --motion-linear: linear;
+  --font-body:
+    "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    sans-serif;
+  --font-mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", monospace;
+  --font-weight-toolbar-search: 650;
+  --space-control-compact: 4px;
+  --space-control: 8px;
+  --space-control-group: 16px;
+}

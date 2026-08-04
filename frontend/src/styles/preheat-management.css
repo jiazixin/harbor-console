@@ -1,0 +1,139 @@
+.preheat-provider-band {
+  min-height: 94px;
+  display: grid;
+  grid-template-columns: minmax(190px, 0.38fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--orange);
+  border-radius: 5px;
+  background: var(--surface);
+}
+
+.preheat-provider-band h2,
+.preheat-missing-provider h2 {
+  margin: 3px 0 0;
+  color: var(--ink);
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.preheat-provider-list {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preheat-provider-badge {
+  min-width: 156px;
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-subtle);
+}
+
+.preheat-provider-badge > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.preheat-provider-badge strong,
+.preheat-provider-badge small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preheat-provider-badge strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.preheat-provider-badge small {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.preheat-project-layout {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.preheat-warning {
+  margin: 0;
+}
+
+.preheat-missing-provider {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--orange);
+  border-radius: 5px;
+  background: var(--surface-subtle);
+}
+
+.preheat-missing-provider p {
+  margin: 4px 0 0;
+  color: var(--ink-faint);
+  font-size: 10px;
+}
+
+.preheat-filter-list {
+  min-width: 170px;
+  max-width: 360px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.preheat-filter-list .badge {
+  max-width: 100%;
+  gap: 4px;
+}
+
+.preheat-filter-list .badge b {
+  flex: 0 0 auto;
+  color: var(--ink);
+}
+
+.execution-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.success-text {
+  color: var(--green) !important;
+}
+
+.danger-text {
+  color: var(--red) !important;
+}
+
+.dialog-loading {
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--ink-faint);
+  font-size: 11px;
+}

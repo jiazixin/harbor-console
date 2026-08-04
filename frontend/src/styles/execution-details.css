@@ -1,0 +1,131 @@
+.execution-summary {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface-subtle);
+}
+
+.execution-summary-head {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.execution-summary-head > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--ink-faint);
+  font-size: 10px;
+}
+
+.execution-stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding: 14px 0;
+}
+
+.execution-stats > div {
+  min-width: 0;
+  padding: 0 12px;
+  border-left: 1px solid var(--line);
+}
+
+.execution-stats > div:first-child {
+  border-left: 0;
+}
+
+.execution-stats dt {
+  color: var(--ink-faint);
+  font-size: 9px;
+}
+
+.execution-stats dd {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.replication-task-section {
+  margin-top: 20px;
+}
+
+.replication-task-table {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+
+.replication-task-table table {
+  min-width: 960px;
+}
+
+.replication-resource {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replication-log-view {
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: #15171a;
+}
+
+.replication-log-view:focus {
+  outline: none;
+}
+
+.replication-log-view header {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #35383d;
+  background: #202328;
+}
+
+.replication-log-view h3 {
+  margin: 0;
+  color: #f6f7f8;
+  font-size: 12px;
+}
+
+.replication-log-view p {
+  margin: 2px 0 0;
+  color: #9da3ad;
+  font-size: 9px;
+}
+
+.log-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.log-view-actions > span {
+  margin-right: 4px;
+  color: #9da3ad;
+  font-size: 9px;
+}
+
+.replication-log-view .icon-button {
+  color: #e7e9ed;
+  border-color: #41454c;
+  background: #282c32;
+}
+
+.replication-log-view .structured-log-view {
+  min-height: 210px;
+  max-height: 330px;
+}

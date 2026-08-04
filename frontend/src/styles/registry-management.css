@@ -1,0 +1,72 @@
+.registry-adapter-grid {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.registry-adapter-grid .field small,
+.registry-fixed-endpoint + small {
+  color: var(--ink-faint);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.registry-fixed-endpoint,
+.registry-adapter-grid input[readonly] {
+  color: var(--ink-soft);
+  background: var(--surface-subtle);
+}
+
+.credential-file-input {
+  min-height: 126px;
+}
+
+.registry-insecure-row {
+  margin-top: 12px !important;
+}
+
+.registry-dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.control-dialog-error,
+.destructive-message,
+.info-banner {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+  padding: 9px 11px;
+  border-left: 3px solid var(--red);
+  background: var(--red-soft);
+  color: var(--red);
+  font-size: 11px;
+}
+
+.info-banner {
+  border-left-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.info-banner .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.destructive-message .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.button-spinner {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+}

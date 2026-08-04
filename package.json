@@ -1,0 +1,44 @@
+{
+  "name": "harbor-console-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "React web client for the embedded Harbor Console",
+  "scripts": {
+    "build": "vite build --config frontend/vite.config.mts",
+    "dev": "vite --config frontend/vite.config.mts",
+    "format": "prettier --write \"frontend/**/*.{ts,tsx,mts,js,cjs,css,html}\" \"scripts/**/*.mjs\" package.json",
+    "format:check": "prettier --check \"frontend/**/*.{ts,tsx,mts,js,cjs,css,html}\" \"scripts/**/*.mjs\" package.json",
+    "lint": "eslint frontend/src frontend/e2e frontend/*.config.mts",
+    "typecheck": "tsc --project frontend/tsconfig.json --noEmit",
+    "audit": "npm audit --audit-level=high",
+    "check": "npm run format:check && npm run lint && npm run typecheck && node --check scripts/check-whitespace.mjs",
+    "test:contracts": "node --test frontend/tests/*.test.cjs",
+    "test:components": "vitest run --config frontend/vite.config.mts",
+    "test:browser": "playwright test --config frontend/playwright.config.mts",
+    "test": "npm run test:contracts && npm run test:components"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^6.0.5",
+    "eslint": "^10.8.0",
+    "jsdom": "^30.0.1",
+    "prettier": "3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}
