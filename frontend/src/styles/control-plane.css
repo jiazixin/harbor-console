@@ -1,22 +1,4 @@
 /* Harbor control plane */
-textarea {
-  width: 100%;
-  padding: 10px 12px;
-  resize: vertical;
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
-  outline: 0;
-  background: var(--surface);
-  color: inherit;
-  font: inherit;
-  letter-spacing: 0;
-}
-
-textarea:focus {
-  border-color: var(--orange);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange) 18%, transparent);
-}
-
 .clickable-row {
   cursor: pointer;
 }
@@ -37,7 +19,7 @@ textarea:focus {
   color: var(--red);
 }
 
-.danger-icon:hover {
+.danger-icon:not(:disabled):hover {
   border-color: color-mix(in srgb, var(--red) 35%, var(--line));
   background: var(--red-soft);
   color: var(--red);
@@ -76,9 +58,102 @@ textarea:focus {
   font-size: 11px;
 }
 
-.pagination-buttons span {
+.pagination-summary,
+.pagination-buttons {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination-summary > span {
+  white-space: nowrap;
+}
+
+.pagination-page-size {
+  width: 116px;
+  height: var(--control-height-compact);
+  flex: 0 0 auto;
+}
+
+.pagination-page-size .unified-select-trigger {
+  font-size: 11px;
+}
+
+.pagination-page-control {
+  position: relative;
+  min-height: 32px;
   min-width: 90px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pagination-page-label {
+  min-width: 90px;
+  height: 32px;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
   text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pagination-page-label:hover {
+  background: transparent;
+  color: inherit;
+  outline: 0;
+}
+
+.pagination-page-jump {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 2px;
+  width: 36px;
+  height: 28px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: transparent;
+}
+
+.pagination-page-jump:focus-within {
+  background: transparent;
+}
+
+.pagination-page-jump input {
+  width: 34px;
+  height: 28px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  appearance: none;
+  background: transparent;
+  color: var(--orange-strong);
+  box-shadow: none;
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  text-shadow: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.pagination-page-jump input:focus {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: 0;
 }
 
 .breadcrumb a {
@@ -127,8 +202,8 @@ textarea:focus {
   font-size: 12px;
   font-weight: 650;
   transition:
-    border-color var(--motion-standard) var(--motion-linear),
-    color var(--motion-fast) var(--motion-linear);
+    border-color var(--motion-standard) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .resource-tabs a:hover {
@@ -158,7 +233,7 @@ textarea:focus {
 .retention-summary {
   border: 1px solid var(--line);
   border-left: 3px solid var(--orange);
-  border-radius: 6px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
@@ -184,7 +259,7 @@ textarea:focus {
 .retention-summary p {
   margin: 3px 0 0;
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .retention-facts {
@@ -208,7 +283,7 @@ textarea:focus {
 .retention-facts dt {
   margin-bottom: 5px;
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -251,7 +326,7 @@ textarea:focus {
 .settings-form,
 .danger-zone {
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
@@ -296,7 +371,7 @@ textarea:focus {
 
 .toggle-setting small {
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -321,7 +396,7 @@ textarea:focus {
   flex: 0 0 auto;
   border-radius: 10px;
   background: var(--line-strong);
-  transition: background var(--motion-standard) var(--motion-linear);
+  transition: background var(--motion-standard) var(--motion-ease);
 }
 
 .toggle-setting i::after {
@@ -333,7 +408,7 @@ textarea:focus {
   height: 13px;
   border-radius: 50%;
   background: #fff;
-  transition: transform var(--motion-standard) var(--motion-linear);
+  transition: transform var(--motion-standard) var(--motion-ease);
 }
 
 .toggle-setting input:checked + i {
@@ -369,12 +444,12 @@ textarea:focus {
 
 .compound-input input {
   min-width: 0;
-  border-radius: 4px 0 0 4px;
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
 }
 
 .compound-input select {
   border-left: 0;
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
   background: var(--surface-subtle);
 }
 
@@ -392,7 +467,7 @@ textarea:focus {
 
 .control-dialog.create-project-dialog,
 .control-dialog.create-project-dialog form {
-  max-height: min(790px, calc(100vh - 36px));
+  max-height: min(790px, calc(100dvh - 36px));
 }
 
 .create-project-dialog .control-dialog-body {
@@ -432,6 +507,16 @@ textarea:focus {
 .dialog-pagination > div {
   display: flex;
   gap: 8px;
+}
+
+.dialog-pagination .pagination-page-control {
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.dialog-pagination .pagination-page-label {
+  min-width: 0;
+  white-space: normal;
 }
 
 .compact-field {
@@ -490,7 +575,7 @@ textarea:focus {
 .project-mode-summary small {
   overflow: hidden;
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -514,7 +599,7 @@ textarea:focus {
 
 .field-help {
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 500;
   line-height: 1.5;
 }
@@ -547,5 +632,5 @@ textarea:focus {
   margin: 2px 0 0;
   color: var(--ink-faint);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
 }

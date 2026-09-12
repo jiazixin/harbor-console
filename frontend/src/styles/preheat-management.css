@@ -8,7 +8,7 @@
   padding: 16px 18px;
   border: 1px solid var(--line);
   border-left: 3px solid var(--orange);
-  border-radius: 5px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
 }
 
@@ -37,7 +37,7 @@
   gap: 9px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: var(--surface-subtle);
 }
 
@@ -62,7 +62,7 @@
 .preheat-provider-badge small {
   color: var(--ink-faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .preheat-project-layout {
@@ -84,14 +84,14 @@
   padding: 14px 16px;
   border: 1px solid var(--line);
   border-left: 3px solid var(--orange);
-  border-radius: 5px;
+  border-radius: var(--radius-panel);
   background: var(--surface-subtle);
 }
 
 .preheat-missing-provider p {
   margin: 4px 0 0;
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .preheat-filter-list {
@@ -117,7 +117,7 @@
   align-items: center;
   gap: 7px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .success-text {

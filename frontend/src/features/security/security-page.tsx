@@ -1,3 +1,4 @@
+import { ContentTransition } from "../../components/content-transition";
 import {
   type FormEvent,
   useCallback,
@@ -22,6 +23,7 @@ import type {
   SecurityVulnerability,
 } from "../../app/models";
 import { Pagination } from "../../components/data-table";
+import { EmptyState } from "../../components/empty-state";
 import { ToolbarSearchForm } from "../../components/toolbar-search-form";
 import {
   DemoBanner,
@@ -110,27 +112,6 @@ function vulnerabilityQuery(
   );
   add("project_id", project?.project_id);
   return clauses.join(",");
-}
-
-function EmptyTable({
-  title,
-  description,
-  icon,
-}: {
-  title: string;
-  description: string;
-  icon: "database" | "package" | "shield";
-}) {
-  const { t } = useLocale();
-  return (
-    <div className="empty-table">
-      <Icon name={icon} />
-      <div>
-        <strong>{t(title)}</strong>
-        <span>{t(description)}</span>
-      </div>
-    </div>
-  );
 }
 
 function artifactTarget(
@@ -355,7 +336,7 @@ function SecurityOverview({
                 </tbody>
               </table>
             ) : (
-              <EmptyTable
+              <EmptyState
                 title="没有高风险 CVE"
                 description="当前汇总没有返回危险漏洞。"
                 icon="shield"
@@ -422,7 +403,7 @@ function SecurityOverview({
                 </tbody>
               </table>
             ) : (
-              <EmptyTable
+              <EmptyState
                 title="没有危险制品"
                 description="当前汇总没有返回高风险制品。"
                 icon="package"
@@ -464,7 +445,7 @@ function VulnerabilitiesSection({
   projects: ProjectSummary[];
   navigate: (path: string) => void;
 }) {
-  const { locale, t } = useLocale();
+  const { t } = useLocale();
   const values = Object.fromEntries(
     [
       "cve",
@@ -601,33 +582,9 @@ function VulnerabilitiesSection({
             onClick={() => navigate(securityPath("vulnerabilities"))}
           >
             <Icon name="x" />
-            <span>{t("清除")}</span>
+            <span>{t("取消筛选")}</span>
           </button>
         ) : null}
-        <label className="toolbar-field security-page-size">
-          <span>{t("每页")}</span>
-          <UnifiedSelect
-            ariaLabel={t("每页条数")}
-            className="toolbar-select"
-            value={String(collection.pagination.page_size)}
-            options={[20, 50, 100].map((pageSize) => ({
-              value: String(pageSize),
-              label:
-                locale === "en-US"
-                  ? `${formatNumber(pageSize, locale)} entries`
-                  : `${formatNumber(pageSize, locale)} 条`,
-            }))}
-            onChange={(pageSize) =>
-              navigate(
-                securityPath("vulnerabilities", {
-                  ...values,
-                  page: 1,
-                  page_size: Number(pageSize),
-                }),
-              )
-            }
-          />
-        </label>
       </form>
       <div className="table-scroll">
         {collection.items.length ? (
@@ -711,7 +668,7 @@ function VulnerabilitiesSection({
             </tbody>
           </table>
         ) : (
-          <EmptyTable
+          <EmptyState
             title="没有匹配的漏洞"
             description="更换筛选条件，或确认制品已经完成漏洞扫描。"
             icon="shield"
@@ -726,6 +683,16 @@ function VulnerabilitiesSection({
               ...values,
               page,
               page_size: collection.pagination.page_size,
+            }),
+          )
+        }
+        pageSizeOptions={[20, 50, 100]}
+        onPageSizeChange={(pageSize) =>
+          navigate(
+            securityPath("vulnerabilities", {
+              ...values,
+              page: 1,
+              page_size: pageSize,
             }),
           )
         }
@@ -821,7 +788,7 @@ function ScannersSection({
                 <th>{t("地址")}</th>
                 <th>{t("健康状态")}</th>
                 <th>{t("能力")}</th>
-                <th>{t("最近更新")}</th>
+                <th className="table-cell-time">{t("最近更新")}</th>
                 <th />
               </tr>
             </thead>
@@ -866,7 +833,7 @@ function ScannersSection({
                       <span className="badge badge-blue">{t("已注册")}</span>
                     )}
                   </td>
-                  <td>
+                  <td className="table-cell-time">
                     {formatDate(
                       scanner.update_time ?? scanner.create_time,
                       locale,
@@ -934,7 +901,7 @@ function ScannersSection({
             </tbody>
           </table>
         ) : (
-          <EmptyTable
+          <EmptyState
             title="暂无扫描器"
             description="注册兼容 Harbor Scanner Adapter API 的扫描器。"
             icon="shield"
@@ -949,6 +916,16 @@ function ScannersSection({
               filter,
               page,
               page_size: collection.pagination.page_size,
+            }),
+          )
+        }
+        pageSizeOptions={[20, 50, 100]}
+        onPageSizeChange={(pageSize) =>
+          navigate(
+            securityPath("scanners", {
+              filter,
+              page: 1,
+              page_size: pageSize,
             }),
           )
         }
@@ -1020,9 +997,9 @@ function ExportsSection({
                   <th>{t("发起人")}</th>
                   <th>{t("触发方式")}</th>
                   <th>{t("状态")}</th>
-                  <th>{t("开始时间")}</th>
-                  <th>{t("结束时间")}</th>
-                  <th>{t("耗时")}</th>
+                  <th className="table-cell-time">{t("开始时间")}</th>
+                  <th className="table-cell-time">{t("结束时间")}</th>
+                  <th className="table-cell-time">{t("耗时")}</th>
                   <th />
                 </tr>
               </thead>
@@ -1044,9 +1021,13 @@ function ExportsSection({
                       <td>
                         <StatusBadge status={execution.status} />
                       </td>
-                      <td>{formatDate(execution.start_time, locale)}</td>
-                      <td>{formatDate(execution.end_time, locale)}</td>
-                      <td>
+                      <td className="table-cell-time">
+                        {formatDate(execution.start_time, locale)}
+                      </td>
+                      <td className="table-cell-time">
+                        {formatDate(execution.end_time, locale)}
+                      </td>
+                      <td className="table-cell-time">
                         {formatDuration(
                           execution.start_time,
                           execution.end_time,
@@ -1086,7 +1067,7 @@ function ExportsSection({
               </tbody>
             </table>
           ) : (
-            <EmptyTable
+            <EmptyState
               title="暂无导出记录"
               description="创建导出任务后，执行状态和下载入口会显示在这里。"
               icon="database"
@@ -1317,70 +1298,72 @@ export function SecurityPage({
       />
       {demo ? <DemoBanner /> : null}
       <SecurityTabs selected={section} />
-      {error ? (
-        <section className="security-module-state" role="alert">
-          <span className="state-icon">
-            <Icon name="alert" />
-          </span>
-          <div>
-            <h2>{t("安全模块载入失败")}</h2>
-            <p>{error}</p>
-          </div>
-          <button
-            className="button button-small"
-            type="button"
-            onClick={reload}
-          >
-            <Icon name="refresh" />
-            <span>{t("重新尝试")}</span>
-          </button>
-        </section>
-      ) : null}
-      {!data && !error ? (
-        <section className="table-shell">
-          <div className="loading-state">
+      <ContentTransition mode={section}>
+        {error ? (
+          <section className="security-module-state" role="alert">
+            <span className="state-icon">
+              <Icon name="alert" />
+            </span>
             <div>
-              <span className="spinner" />
+              <h2>{t("安全模块载入失败")}</h2>
+              <p>{error}</p>
             </div>
-          </div>
-        </section>
-      ) : null}
-      {data?.section === "overview" ? (
-        <SecurityOverview
-          summary={data.summary}
-          totalArtifacts={totalArtifacts}
-          projects={projects}
-        />
-      ) : null}
-      {data?.section === "scanners" ? (
-        <ScannersSection
-          route={route}
-          collection={data.scanners}
-          navigate={navigate}
-          onAction={onAction}
-          onNotice={onNotice}
-          onReload={reload}
-        />
-      ) : null}
-      {data?.section === "vulnerabilities" ? (
-        <VulnerabilitiesSection
-          route={route}
-          collection={data.vulnerabilities}
-          projects={projects}
-          navigate={navigate}
-        />
-      ) : null}
-      {data?.section === "exports" ? (
-        <ExportsSection
-          executions={data.executions}
-          projects={projects}
-          onAction={onAction}
-          onNotice={onNotice}
-        />
-      ) : null}
-      {data?.section === "allowlist" ? (
-        <AllowlistSection allowlist={data.allowlist} onAction={onAction} />
-      ) : null}
+            <button
+              className="button button-small"
+              type="button"
+              onClick={reload}
+            >
+              <Icon name="refresh" />
+              <span>{t("重新尝试")}</span>
+            </button>
+          </section>
+        ) : null}
+        {!data && !error ? (
+          <section className="table-shell">
+            <div className="loading-state">
+              <div>
+                <span className="spinner" />
+              </div>
+            </div>
+          </section>
+        ) : null}
+        {data?.section === "overview" ? (
+          <SecurityOverview
+            summary={data.summary}
+            totalArtifacts={totalArtifacts}
+            projects={projects}
+          />
+        ) : null}
+        {data?.section === "scanners" ? (
+          <ScannersSection
+            route={route}
+            collection={data.scanners}
+            navigate={navigate}
+            onAction={onAction}
+            onNotice={onNotice}
+            onReload={reload}
+          />
+        ) : null}
+        {data?.section === "vulnerabilities" ? (
+          <VulnerabilitiesSection
+            route={route}
+            collection={data.vulnerabilities}
+            projects={projects}
+            navigate={navigate}
+          />
+        ) : null}
+        {data?.section === "exports" ? (
+          <ExportsSection
+            executions={data.executions}
+            projects={projects}
+            onAction={onAction}
+            onNotice={onNotice}
+          />
+        ) : null}
+        {data?.section === "allowlist" ? (
+          <AllowlistSection allowlist={data.allowlist} onAction={onAction} />
+        ) : null}
+      </ContentTransition>
     </>
   );
 }

@@ -16,7 +16,7 @@
   overflow: auto;
   margin-top: 14px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-panel);
   background: var(--surface-subtle);
 }
 
@@ -29,7 +29,7 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -126,7 +126,7 @@
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-panel);
   cursor: pointer;
 }
 
@@ -153,7 +153,7 @@
 
 .member-type-switch small {
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .member-directory-panel {
@@ -176,7 +176,7 @@
   gap: 12px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-panel);
   background: var(--surface-subtle);
 }
 
@@ -191,7 +191,7 @@
 
 .scanner-metadata-summary p {
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .scanner-capability-list {
@@ -203,7 +203,7 @@
 .scanner-capability {
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-panel);
 }
 
 .scanner-capability header {
@@ -213,7 +213,7 @@
 
 .scanner-capability header code {
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .scanner-capability dl {
@@ -233,7 +233,7 @@
 .scanner-capability dt,
 .scanner-property-list dt {
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .scanner-capability dd,
@@ -250,14 +250,14 @@
 .scanner-mime-list code,
 .scanner-property-list dd {
   overflow-wrap: anywhere;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .scanner-property-list {
   overflow: hidden;
   margin: 10px 0 0;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-panel);
 }
 
 .scanner-property-list > div:first-child {
@@ -268,7 +268,7 @@
   display: grid;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-panel);
   background: var(--surface-subtle);
 }
 
@@ -288,7 +288,7 @@
 
 .credential-result span {
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -306,7 +306,7 @@
   margin: 18px 0 0;
   padding: 12px 14px 2px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-panel);
 }
 
 .event-selector legend {
@@ -329,7 +329,7 @@
   overflow: hidden;
   color: var(--ink-faint);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -360,7 +360,7 @@
   overflow: hidden;
   padding: 0;
   border: 2px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: #fff;
   box-shadow:
@@ -413,10 +413,10 @@
   margin-top: 3px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: var(--surface-subtle);
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .global-label-custom-color input[type="color"] {
@@ -427,5 +427,5 @@
 
 .global-label-custom-color code {
   color: var(--ink);
-  font-size: 10px;
+  font-size: 11px;
 }

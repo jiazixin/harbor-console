@@ -1,3 +1,4 @@
+import { ContentTransition } from "../../components/content-transition";
 import {
   type MouseEvent,
   useCallback,
@@ -6,7 +7,7 @@ import {
   useState,
 } from "react";
 
-import { controlApi } from "../../app/api-client";
+import { loadAllControlItems } from "../../app/api-client";
 import { formatDate, formatNumber } from "../../app/formatters";
 import type { ConsoleRoute } from "../../app/hash-router";
 import { useLocale } from "../../app/locale-context";
@@ -17,24 +18,32 @@ import type {
   Session,
 } from "../../app/models";
 import { loadPreferences, savePreferences } from "../../app/preferences";
-import { Pagination } from "../../components/data-table";
+import {
+  createSortValues,
+  Pagination,
+  SortableHeader,
+  StableTableColumns,
+} from "../../components/data-table";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
-import { ToolbarSearchForm } from "../../components/toolbar-search-form";
 import {
   DemoBanner,
   PageHeader,
   RefreshButton,
+  SectionHeading,
   StatCell,
 } from "../../components/page-elements";
 import { UnifiedSelect } from "../../components/unified-select";
 import { ViewModeToggle } from "../../components/view-mode-toggle";
+import { compareRepositories, repositoryTimestamp } from "./repository-sorting";
 
 const defaultPageSize = 50;
 const defaultSort = "-artifact_count";
-const validSorts = new Set([
-  "-artifact_count",
-  "-pull_count",
-  "-update_time",
+const validSorts = createSortValues([
+  "artifact_count",
+  "pull_count",
+  "update_time",
+  "creation_time",
   "name",
 ]);
 
@@ -55,11 +64,6 @@ type RepositoryData = {
 
 function numberValue(value: number | undefined): number {
   return Number.isFinite(value) ? Number(value) : 0;
-}
-
-function timestamp(value: string | undefined): number {
-  const parsed = new Date(value ?? "").getTime();
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function displayRepositoryName(project: string, repository: string): string {
@@ -106,27 +110,15 @@ async function loadProjectRepositories(
   project: string,
   signal: AbortSignal,
 ): Promise<RepositoryAsset[]> {
-  const items: RepositoryAsset[] = [];
-  for (let page = 1; page <= 100; page += 1) {
-    const collection = await controlApi.list<RepositorySummary>(
-      "repositories",
-      { project, page, page_size: 100, sort: "name" },
-      signal,
-    );
-    items.push(
-      ...collection.items.map((repository) => ({
-        ...repository,
-        project_name: project,
-      })),
-    );
-    if (
-      items.length >= collection.pagination.total ||
-      collection.items.length < 100
-    ) {
-      break;
-    }
-  }
-  return items;
+  const items = await loadAllControlItems<RepositorySummary>(
+    "repositories",
+    { project, sort: "name" },
+    signal,
+  );
+  return items.map((repository) => ({
+    ...repository,
+    project_name: project,
+  }));
 }
 
 async function loadRepositories(
@@ -135,46 +127,33 @@ async function loadRepositories(
 ): Promise<RepositoryData> {
   const repositories: RepositoryAsset[] = [];
   const failures: string[] = [];
-  for (let offset = 0; offset < projects.length; offset += 4) {
-    const batch = projects.slice(offset, offset + 4);
-    const settled = await Promise.allSettled(
-      batch.map((project) => loadProjectRepositories(project.name, signal)),
-    );
-    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-    settled.forEach((result, index) => {
-      if (result.status === "fulfilled") {
-        repositories.push(...result.value);
-        return;
+  let nextProject = 0;
+  const workerCount = Math.min(4, projects.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextProject < projects.length) {
+      if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+      const project = projects[nextProject];
+      nextProject += 1;
+      try {
+        repositories.push(
+          ...(await loadProjectRepositories(project.name, signal)),
+        );
+      } catch (loadError) {
+        if (
+          loadError instanceof DOMException &&
+          loadError.name === "AbortError"
+        ) {
+          throw loadError;
+        }
+        failures.push(
+          `${project.name}: ${loadError instanceof Error ? loadError.message : String(loadError)}`,
+        );
       }
-      failures.push(
-        `${batch[index]?.name ?? "-"}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
-      );
-    });
-  }
+    }
+  });
+  await Promise.all(workers);
   if (!repositories.length && failures.length) throw new Error(failures[0]);
   return { repositories, failures };
-}
-
-function compareRepositories(
-  left: RepositoryAsset,
-  right: RepositoryAsset,
-  sort: string,
-  locale: string,
-): number {
-  const descending = sort.startsWith("-");
-  let comparison: number;
-  if (sort === "-update_time") {
-    comparison = timestamp(left.update_time) - timestamp(right.update_time);
-  } else if (sort === "-artifact_count") {
-    comparison =
-      numberValue(left.artifact_count) - numberValue(right.artifact_count);
-  } else if (sort === "-pull_count") {
-    comparison = numberValue(left.pull_count) - numberValue(right.pull_count);
-  } else {
-    comparison = left.name.localeCompare(right.name, locale);
-  }
-  if (comparison) return descending ? -comparison : comparison;
-  return left.project_name.localeCompare(right.project_name, locale);
 }
 
 export function RepositoriesPage({
@@ -282,7 +261,7 @@ export function RepositoriesPage({
   const repositories = data?.repositories ?? [];
   const latestUpdate = repositories.reduce<string | undefined>(
     (latest, repository) =>
-      timestamp(repository.update_time) > timestamp(latest)
+      repositoryTimestamp(repository.update_time) > repositoryTimestamp(latest)
         ? repository.update_time
         : latest,
     undefined,
@@ -323,11 +302,14 @@ export function RepositoriesPage({
       label: project.name,
     })),
   ];
+  const hasActiveFilters = Boolean(routeState.query || routeState.project);
+  const initialLoading = loading && !data;
+  const statisticsUnavailable = Boolean(error) && !data;
 
   return (
     <>
       <PageHeader
-        title="镜像资产"
+        title="镜像仓库"
         subtitle={t("跨项目浏览全部镜像仓库、制品规模与拉取活动")}
         actions={
           <RefreshButton
@@ -349,260 +331,340 @@ export function RepositoriesPage({
           </span>
         </div>
       ) : null}
-      {data ? (
-        <section
-          className="overview-stats repository-asset-stats"
-          aria-label={t("镜像资产统计")}
-        >
-          <StatCell
-            label={t("镜像仓库")}
-            value={formatNumber(repositories.length, locale)}
-            foot={`${formatNumber(projects.length, locale)} ${t("个项目")}`}
-            icon="package"
-          />
-          <StatCell
-            label={t("制品总数")}
-            value={formatNumber(
-              repositories.reduce(
-                (sum, repository) =>
-                  sum + numberValue(repository.artifact_count),
-                0,
-              ),
-              locale,
-            )}
-            foot={t("跨项目统计")}
-            icon="database"
-          />
-          <StatCell
-            label={t("累计拉取")}
-            value={formatNumber(
-              repositories.reduce(
-                (sum, repository) => sum + numberValue(repository.pull_count),
-                0,
-              ),
-              locale,
-            )}
-            foot={t("Harbor 记录值")}
-            icon="history"
-          />
-          <StatCell
-            label={t("最近推送")}
-            value={formatDate(latestUpdate, locale, false)}
-            foot={t("仓库更新时间")}
-            icon="upload"
-          />
-        </section>
-      ) : null}
+      <section
+        className="overview-stats repository-asset-stats"
+        aria-label={t("镜像仓库统计")}
+        aria-busy={initialLoading}
+      >
+        <StatCell
+          label={t("镜像仓库")}
+          value={data ? formatNumber(repositories.length, locale) : "-"}
+          foot={
+            initialLoading
+              ? t("正在载入")
+              : statisticsUnavailable
+                ? t("统计不可用")
+                : `${formatNumber(projects.length, locale)} ${t("个项目")}`
+          }
+          icon="package"
+        />
+        <StatCell
+          label={t("制品总数")}
+          value={
+            data
+              ? formatNumber(
+                  repositories.reduce(
+                    (sum, repository) =>
+                      sum + numberValue(repository.artifact_count),
+                    0,
+                  ),
+                  locale,
+                )
+              : "-"
+          }
+          foot={
+            initialLoading
+              ? t("正在载入")
+              : statisticsUnavailable
+                ? t("统计不可用")
+                : t("跨项目统计")
+          }
+          icon="database"
+        />
+        <StatCell
+          label={t("累计拉取")}
+          value={
+            data
+              ? formatNumber(
+                  repositories.reduce(
+                    (sum, repository) =>
+                      sum + numberValue(repository.pull_count),
+                    0,
+                  ),
+                  locale,
+                )
+              : "-"
+          }
+          foot={
+            initialLoading
+              ? t("正在载入")
+              : statisticsUnavailable
+                ? t("统计不可用")
+                : t("Harbor 记录值")
+          }
+          icon="history"
+        />
+        <StatCell
+          label={t("最近更新")}
+          value={data ? formatDate(latestUpdate, locale, false) : "-"}
+          foot={
+            initialLoading
+              ? t("正在载入")
+              : statisticsUnavailable
+                ? t("统计不可用")
+                : t("Harbor 仓库更新时间")
+          }
+          icon="upload"
+        />
+      </section>
+      <SectionHeading
+        title="镜像仓库"
+        total={data ? pagination.total : undefined}
+        zhUnit="个"
+        enUnit="repositories"
+        loading={loading && !data}
+        error={Boolean(error)}
+      />
       <section className="table-shell">
-        <div className="table-toolbar repository-asset-toolbar">
-          <ToolbarSearchForm
-            name="q"
-            placeholder="搜索项目或仓库"
-            value={query}
-            onChange={setQuery}
-            onSubmit={submitFilters}
-          />
-          <div className="toolbar-spacer" />
-          <label className="toolbar-field">
-            <span>{t("项目")}</span>
-            <UnifiedSelect
-              ariaLabel={t("项目")}
-              className="toolbar-select"
-              value={routeState.project}
-              options={projectOptions}
-              onChange={(project) => updateRoute({ page: 1, project })}
-            />
-          </label>
-          <label className="toolbar-field">
-            <span>{t("排序")}</span>
-            <UnifiedSelect
-              ariaLabel={t("排序")}
-              className="toolbar-select"
-              value={routeState.sort}
-              options={[
-                { value: "-artifact_count", label: t("制品最多") },
-                { value: "-pull_count", label: t("拉取最多") },
-                { value: "-update_time", label: t("最近推送") },
-                { value: "name", label: t("名称") },
-              ]}
-              onChange={(sort) => updateRoute({ page: 1, sort })}
-            />
-          </label>
-          <label className="toolbar-field">
-            <span>{t("每页")}</span>
-            <UnifiedSelect
-              ariaLabel={t("每页条数")}
-              className="toolbar-select"
-              value={String(routeState.pageSize)}
-              options={[20, 50, 100].map((pageSize) => ({
-                value: String(pageSize),
-                label: `${String(pageSize)} ${t("条")}`,
-              }))}
-              onChange={(pageSize) =>
-                updateRoute({ page: 1, pageSize: Number(pageSize) })
-              }
-            />
-          </label>
-          <ViewModeToggle
-            value={preferences.repositoryView}
-            ariaLabel={t("仓库展示方式")}
-            listLabel={t("列表视图")}
-            cardLabel={t("卡片视图")}
-            onChange={setViewMode}
-          />
-        </div>
-        {loading ? (
-          <div className="route-loading" role="status">
-            <span className="spinner spinner-small" />
-          </div>
-        ) : error ? (
-          <div className="empty-table" role="alert">
-            <strong>{t("镜像仓库载入失败")}</strong>
-            <span>{error}</span>
-          </div>
-        ) : !visible.length ? (
-          <div className="empty-table">
-            <span className="state-icon">
-              <Icon name="package" />
-            </span>
-            <strong>{t("没有匹配的镜像仓库")}</strong>
-            <span>{t("调整项目或搜索条件后重试。")}</span>
-          </div>
-        ) : preferences.repositoryView === "card" ? (
-          <div className="repository-card-grid repository-asset-card-grid">
-            {visible.map((repository) => (
-              <article
-                key={`${repository.project_name}-${String(repository.id ?? repository.name)}`}
-                className="repository-card"
+        <form
+          className="table-toolbar repository-asset-toolbar"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitFilters(query.trim());
+          }}
+        >
+          <div className="repository-asset-toolbar-primary">
+            <div className="toolbar-search">
+              <Icon name="search" />
+              <input
+                name="q"
+                type="search"
+                maxLength={255}
+                value={query}
+                placeholder={t("搜索项目或仓库")}
+                aria-label={t("搜索项目或仓库")}
+                onChange={(event) => setQuery(event.currentTarget.value)}
+              />
+            </div>
+            <label className="toolbar-field">
+              <span>{t("项目")}</span>
+              <UnifiedSelect
+                ariaLabel={t("项目")}
+                className="toolbar-select"
+                value={routeState.project}
+                options={projectOptions}
+                onChange={(project) => updateRoute({ page: 1, project })}
+              />
+            </label>
+            <button
+              className="button button-small button-primary"
+              type="submit"
+            >
+              <Icon name="search" />
+              <span>{t("筛选")}</span>
+            </button>
+            {hasActiveFilters ? (
+              <button
+                className="button button-small"
+                type="button"
+                onClick={() => updateRoute({ page: 1, query: "", project: "" })}
               >
-                <header>
-                  <Icon name="package" />
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          `projects/${encodeURIComponent(repository.project_name)}/repositories/${encodeURIComponent(repository.name)}/artifacts`,
-                        )
-                      }
-                    >
-                      {displayRepositoryName(
-                        repository.project_name,
-                        repository.name,
-                      )}
-                    </button>
-                    <a
-                      href={`#/projects/${encodeURIComponent(repository.project_name)}/repositories`}
-                    >
-                      {repository.project_name}
-                    </a>
-                  </div>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title={t("推送指引")}
-                    aria-label={t("查看推送指引")}
-                    onClick={() =>
-                      onShowPushCommand(
-                        repository.project_name,
-                        repository.name,
-                      )
-                    }
-                  >
-                    <Icon name="upload" />
-                  </button>
-                </header>
-                <p>
-                  {repository.description?.trim()
-                    ? repository.description
-                    : t("暂无仓库描述")}
-                </p>
-                <dl>
-                  <div>
-                    <dt>{t("制品")}</dt>
-                    <dd>{formatNumber(repository.artifact_count, locale)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("累计拉取")}</dt>
-                    <dd>{formatNumber(repository.pull_count, locale)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t("最近推送")}</dt>
-                    <dd>{formatDate(repository.update_time, locale)}</dd>
-                  </div>
-                </dl>
-              </article>
-            ))}
+                {t("取消筛选")}
+              </button>
+            ) : null}
           </div>
-        ) : (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("仓库")}</th>
-                  <th>{t("项目")}</th>
-                  <th>{t("制品数")}</th>
-                  <th>{t("拉取次数")}</th>
-                  <th>{t("创建时间")}</th>
-                  <th>{t("最近推送")}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((repository) => (
-                  <tr
-                    key={`${repository.project_name}-${String(repository.id ?? repository.name)}`}
-                    className="clickable-row"
-                    onClick={(event) => openRepository(event, repository)}
-                  >
-                    <td>
-                      <div className="cell-title">
-                        <span className="cell-icon">
-                          <Icon name="package" />
-                        </span>
-                        <span className="cell-stack">
-                          <strong>
-                            {displayRepositoryName(
-                              repository.project_name,
-                              repository.name,
-                            )}
-                          </strong>
-                          <small className="mono">
-                            #{repository.id ?? "-"}
-                          </small>
-                        </span>
-                      </div>
-                    </td>
-                    <td>
+          <div className="repository-asset-toolbar-actions">
+            <ViewModeToggle
+              value={preferences.repositoryView}
+              ariaLabel={t("仓库展示方式")}
+              listLabel={t("列表视图")}
+              cardLabel={t("卡片视图")}
+              onChange={setViewMode}
+            />
+          </div>
+        </form>
+        <ContentTransition mode={preferences.repositoryView}>
+          {loading && !data ? (
+            <div className="route-loading" role="status">
+              <span className="spinner spinner-small" />
+            </div>
+          ) : error ? (
+            <div className="empty-table" role="alert">
+              <strong>{t("镜像仓库载入失败")}</strong>
+              <span>{error}</span>
+            </div>
+          ) : !visible.length ? (
+            <EmptyState
+              title="没有匹配的镜像仓库"
+              description="调整项目或搜索条件后重试。"
+              icon="package"
+            />
+          ) : preferences.repositoryView === "card" ? (
+            <div className="repository-card-grid repository-asset-card-grid">
+              {visible.map((repository) => (
+                <article
+                  key={`${repository.project_name}-${String(repository.id ?? repository.name)}`}
+                  className="repository-card"
+                >
+                  <header>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            `projects/${encodeURIComponent(repository.project_name)}/repositories/${encodeURIComponent(repository.name)}/artifacts`,
+                          )
+                        }
+                      >
+                        {displayRepositoryName(
+                          repository.project_name,
+                          repository.name,
+                        )}
+                      </button>
                       <a
                         href={`#/projects/${encodeURIComponent(repository.project_name)}/repositories`}
                       >
                         {repository.project_name}
                       </a>
-                    </td>
-                    <td className="mono repository-metric-count">
-                      {formatNumber(repository.artifact_count, locale)}
-                    </td>
-                    <td className="mono repository-metric-count">
-                      {formatNumber(repository.pull_count, locale)}
-                    </td>
-                    <td>{formatDate(repository.creation_time, locale)}</td>
-                    <td>{formatDate(repository.update_time, locale)}</td>
-                    <td>
-                      <Icon name="chevron" />
-                    </td>
+                    </div>
+                    <button
+                      className="icon-button"
+                      type="button"
+                      title={t("推送指引")}
+                      aria-label={t("查看推送指引")}
+                      onClick={() =>
+                        onShowPushCommand(
+                          repository.project_name,
+                          repository.name,
+                        )
+                      }
+                    >
+                      <Icon name="upload" />
+                    </button>
+                  </header>
+                  <p>
+                    {repository.description?.trim()
+                      ? repository.description
+                      : t("暂无仓库描述")}
+                  </p>
+                  <dl>
+                    <div>
+                      <dt>{t("制品")}</dt>
+                      <dd>{formatNumber(repository.artifact_count, locale)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t("累计拉取")}</dt>
+                      <dd>{formatNumber(repository.pull_count, locale)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t("最近更新")}</dt>
+                      <dd>{formatDate(repository.update_time, locale)}</dd>
+                    </div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="table-scroll">
+              <table className="data-table-stable repository-asset-table">
+                <StableTableColumns
+                  widths={["28%", "16%", "11%", "11%", "14%", "16%", "44px"]}
+                />
+                <thead>
+                  <tr>
+                    <SortableHeader
+                      label="仓库"
+                      field="name"
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
+                    />
+                    <th>{t("项目")}</th>
+                    <SortableHeader
+                      label="制品数"
+                      field="artifact_count"
+                      className="table-cell-number"
+                      descendingFirst
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
+                    />
+                    <SortableHeader
+                      label="拉取次数"
+                      field="pull_count"
+                      className="table-cell-number"
+                      descendingFirst
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
+                    />
+                    <SortableHeader
+                      label="创建时间"
+                      field="creation_time"
+                      className="table-cell-time"
+                      descendingFirst
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
+                    />
+                    <SortableHeader
+                      label="最近更新"
+                      field="update_time"
+                      className="table-cell-time"
+                      descendingFirst
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
+                    />
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {!loading && !error ? (
-          <Pagination
-            pagination={pagination}
-            onPageChange={(nextPage) => updateRoute({ page: nextPage })}
-          />
-        ) : null}
+                </thead>
+                <tbody>
+                  {visible.map((repository) => (
+                    <tr
+                      key={`${repository.project_name}-${String(repository.id ?? repository.name)}`}
+                      className="clickable-row"
+                      onClick={(event) => openRepository(event, repository)}
+                    >
+                      <td>
+                        <div className="cell-title">
+                          <span className="cell-stack">
+                            <strong>
+                              {displayRepositoryName(
+                                repository.project_name,
+                                repository.name,
+                              )}
+                            </strong>
+                            <small className="mono">
+                              #{repository.id ?? "-"}
+                            </small>
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <a
+                          href={`#/projects/${encodeURIComponent(repository.project_name)}/repositories`}
+                        >
+                          {repository.project_name}
+                        </a>
+                      </td>
+                      <td className="mono table-cell-number repository-metric-count">
+                        {formatNumber(repository.artifact_count, locale)}
+                      </td>
+                      <td className="mono table-cell-number repository-metric-count">
+                        {formatNumber(repository.pull_count, locale)}
+                      </td>
+                      <td className="table-cell-time">
+                        {formatDate(repository.creation_time, locale)}
+                      </td>
+                      <td className="table-cell-time">
+                        {formatDate(repository.update_time, locale)}
+                      </td>
+                      <td>
+                        <Icon name="chevron" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!loading && !error ? (
+            <Pagination
+              pagination={pagination}
+              onPageChange={(nextPage) => updateRoute({ page: nextPage })}
+              pageSizeOptions={[20, 50, 100]}
+              onPageSizeChange={(pageSize) =>
+                updateRoute({ page: 1, pageSize })
+              }
+            />
+          ) : null}
+        </ContentTransition>
       </section>
     </>
   );

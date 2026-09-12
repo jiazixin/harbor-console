@@ -35,7 +35,7 @@ Harbor Console 目前通过 Harbor Basic Auth 访问上游。OIDC 用户可以�
 
 ## 环境要求
 
-- Go 1.26.5 或更高版本
+- Go 1.26.6 或更高版本
 - Node.js 22 或更高版本，用于前端检查
 - Docker 或其他 OCI 镜像构建工具
 

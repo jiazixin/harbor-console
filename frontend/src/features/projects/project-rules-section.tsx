@@ -201,7 +201,7 @@ export function ProjectRulesSection({
                   <tr>
                     <th>{t("标签")}</th>
                     <th>{t("描述")}</th>
-                    <th>{t("最近更新")}</th>
+                    <th className="table-cell-time">{t("最近更新")}</th>
                     <th />
                   </tr>
                 </thead>

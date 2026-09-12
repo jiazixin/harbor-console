@@ -91,12 +91,12 @@ describe("security page", () => {
     );
 
     expect(screen.getByRole("button", { name: "每页条数" })).toHaveTextContent(
-      "50 条",
+      "每页 50 条",
     );
     expect(screen.getByText("第 0-0 项，共 0 项")).toBeVisible();
   });
 
-  it("changes vulnerability page size from the legacy toolbar control", async () => {
+  it("changes vulnerability page size from the shared pagination footer", async () => {
     vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [],
       pagination: { page: 1, page_size: 50, total: 0 },
@@ -109,7 +109,7 @@ describe("security page", () => {
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "每页条数" }));
-    fireEvent.click(screen.getByRole("option", { name: "20 条" }));
+    fireEvent.click(screen.getByRole("option", { name: "每页 20 条" }));
     expect(navigate).toHaveBeenCalledWith(
       "security/vulnerabilities?project=platform&severity=Critical&page=1&page_size=20",
     );

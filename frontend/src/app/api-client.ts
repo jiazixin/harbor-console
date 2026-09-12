@@ -122,6 +122,32 @@ export const controlApi = {
     }),
 };
 
+export async function loadAllControlItems<T>(
+  operation: string,
+  parameters: Record<string, QueryValue> = {},
+  signal?: AbortSignal,
+): Promise<T[]> {
+  const items: T[] = [];
+  let page = 1;
+
+  for (;;) {
+    const collection = await controlApi.list<T>(
+      operation,
+      { ...parameters, page, page_size: 100 },
+      signal,
+    );
+    items.push(...collection.items);
+
+    if (
+      collection.items.length === 0 ||
+      items.length >= collection.pagination.total
+    ) {
+      return items;
+    }
+    page += 1;
+  }
+}
+
 export const sessionApi = {
   current: (signal?: AbortSignal) =>
     request<Session>("/api/session", { signal }),

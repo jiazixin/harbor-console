@@ -117,9 +117,12 @@ describe("audit page", () => {
     expect(navigate).toHaveBeenCalledWith("audit?username=release-engineer");
 
     fireEvent.click(screen.getByRole("button", { name: "每页条数" }));
-    fireEvent.click(screen.getByRole("option", { name: "20 条" }));
+    fireEvent.click(screen.getByRole("option", { name: "每页 20 条" }));
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith("audit?page_size=20"),
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "按时间升序排序" }));
+    expect(navigate).toHaveBeenCalledWith("audit?sort=op_time");
   });
 });

@@ -74,7 +74,7 @@
 .policy-group-heading p {
   margin: 0;
   color: var(--ink-faint);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -110,7 +110,7 @@
 
 .policy-form-section .field > small {
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -118,7 +118,7 @@
   min-height: 58px;
   padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: var(--surface-subtle);
 }
 
@@ -132,7 +132,7 @@
 .policy-field-label,
 .policy-flow-preview > span {
   color: var(--ink-soft);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -172,11 +172,11 @@
   gap: 2px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: var(--surface-subtle);
   transition:
-    border-color var(--motion-fast) var(--motion-linear),
-    background var(--motion-fast) var(--motion-linear);
+    border-color var(--motion-fast) var(--motion-ease),
+    background var(--motion-fast) var(--motion-ease);
 }
 
 .policy-choice-grid label:hover > span {
@@ -201,7 +201,7 @@
 
 .policy-choice-grid small {
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.4;
 }
 
@@ -223,7 +223,7 @@
   gap: 8px;
   padding: 0 11px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: var(--surface-subtle);
   color: var(--ink-soft);
   text-align: center;
@@ -232,7 +232,7 @@
 .policy-flow-preview strong {
   min-width: 0;
   overflow: hidden;
-  font-size: 10px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -266,7 +266,7 @@
 .policy-capability-note p {
   margin: 0;
   overflow-wrap: anywhere;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -290,7 +290,7 @@
 
 .policy-nested-heading small {
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -307,7 +307,7 @@
 }
 
 .replication-execution-table {
-  min-width: 840px;
+  min-width: 950px;
   table-layout: fixed;
 }
 
@@ -324,11 +324,11 @@
 }
 
 .replication-execution-table :is(th, td):nth-child(4) {
-  width: 84px;
+  width: 112px;
 }
 
 .replication-execution-table :is(th, td):nth-child(5) {
-  width: 86px;
+  width: 128px;
 }
 
 .replication-execution-table :is(th, td):nth-child(6) {
@@ -336,7 +336,7 @@
 }
 
 .replication-execution-table :is(th, td):nth-child(7) {
-  width: 78px;
+  width: 104px;
 }
 
 .replication-execution-table :is(th, td):last-child {
@@ -371,6 +371,7 @@
 }
 
 .replication-policy-table {
+  min-width: 920px;
   table-layout: fixed;
 }
 
@@ -379,7 +380,7 @@
 }
 
 .replication-policy-table :is(th, td):nth-child(2) {
-  width: 84px;
+  width: 104px;
 }
 
 .replication-policy-table :is(th, td):nth-child(3) {
@@ -476,7 +477,7 @@
 .replication-filter-empty,
 .replication-label-empty {
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -509,11 +510,11 @@
   gap: 7px;
   padding: 5px 9px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: var(--surface-subtle);
   color: var(--ink-soft);
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .replication-label-grid label:has(input:checked) {
@@ -538,7 +539,7 @@
 .replication-label-empty {
   padding: 12px;
   border: 1px dashed var(--line-strong);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: var(--surface-subtle);
 }
 
@@ -566,7 +567,7 @@
   min-height: 62px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: var(--surface-subtle);
 }
 

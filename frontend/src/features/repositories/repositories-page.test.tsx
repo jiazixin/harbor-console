@@ -93,22 +93,19 @@ describe("RepositoriesPage", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "镜像资产" }),
+      await screen.findByRole("heading", { name: "镜像仓库" }),
     ).toBeVisible();
     expect(await screen.findByText("api")).toBeVisible();
     expect(screen.getByText("worker")).toBeVisible();
     expect(
-      screen.getAllByRole("columnheader").map((header) => header.textContent),
-    ).toEqual([
-      "仓库",
-      "项目",
-      "制品数",
-      "拉取次数",
-      "创建时间",
-      "最近推送",
-      "",
-    ]);
+      screen.getByRole("columnheader", { name: /制品数/ }),
+    ).toHaveAttribute("aria-sort", "descending");
     expect(screen.getByText("#4")).toBeVisible();
+    expect(
+      screen
+        .getByRole("group", { name: "仓库展示方式" })
+        .closest(".repository-asset-toolbar-actions"),
+    ).not.toBeNull();
     expect(list).toHaveBeenCalledWith(
       "repositories",
       { project: "platform", page: 1, page_size: 100, sort: "name" },
@@ -127,11 +124,10 @@ describe("RepositoriesPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "项目" }));
     fireEvent.click(screen.getByRole("option", { name: "sandbox" }));
     expect(navigate).toHaveBeenCalledWith("repositories?project=sandbox");
-    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
     expect(navigate).toHaveBeenCalledWith("repositories?q=worker");
 
-    fireEvent.click(screen.getByRole("button", { name: "排序" }));
-    fireEvent.click(screen.getByRole("option", { name: "拉取最多" }));
+    fireEvent.click(screen.getByRole("button", { name: "按拉取次数降序排序" }));
     expect(navigate).toHaveBeenCalledWith("repositories?sort=-pull_count");
 
     fireEvent.click(screen.getByRole("button", { name: "卡片视图" }));
@@ -153,7 +149,65 @@ describe("RepositoriesPage", () => {
     );
   });
 
-  it("keeps repository statistics and toolbar controls English-only", async () => {
+  it("keeps the route geometry stable and advances bounded repository loads without batch barriers", async () => {
+    const manyProjects = Array.from({ length: 5 }, (_, index) => ({
+      project_id: index + 1,
+      name: `project-${String(index + 1)}`,
+    }));
+    const resolvers = new Map<
+      string,
+      (value: {
+        items: RepositorySummary[];
+        pagination: { page: number; page_size: number; total: number };
+      }) => void
+    >();
+    const list = vi
+      .spyOn(controlApi, "list")
+      .mockImplementation((_operation, parameters) => {
+        const project = String(parameters?.project ?? "");
+        return new Promise((resolve) => resolvers.set(project, resolve));
+      });
+
+    render(
+      <LocaleProvider>
+        <IconSprite />
+        <RepositoriesPage
+          route={parseHashRoute("#/repositories")}
+          session={session}
+          projects={manyProjects}
+          refreshing={false}
+          navigate={vi.fn()}
+          onRefresh={vi.fn().mockResolvedValue(undefined)}
+          onShowPushCommand={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+
+    const statistics = screen.getByRole("region", {
+      name: "镜像仓库统计",
+    });
+    expect(statistics).toHaveAttribute("aria-busy", "true");
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(4));
+
+    resolvers.get("project-1")?.({
+      items: [],
+      pagination: { page: 1, page_size: 100, total: 0 },
+    });
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(5));
+
+    for (const project of manyProjects.slice(1)) {
+      resolvers.get(project.name)?.({
+        items: [],
+        pagination: { page: 1, page_size: 100, total: 0 },
+      });
+    }
+    await waitFor(() =>
+      expect(statistics).toHaveAttribute("aria-busy", "false"),
+    );
+    expect(statistics).not.toHaveClass("motion-content-enter");
+  });
+
+  it("keeps repository statistics and shared table controls English-only", async () => {
     window.localStorage.setItem("harbor-console-language", "en-US");
     vi.spyOn(controlApi, "list").mockImplementation(
       (_operation, parameters) => {
@@ -183,9 +237,13 @@ describe("RepositoriesPage", () => {
 
     expect(await screen.findByText("2 projects")).toBeVisible();
     expect(
-      screen.getByRole("region", { name: "Image asset statistics" }),
+      screen.getByRole("region", { name: "Image repository statistics" }),
     ).toBeVisible();
-    expect(screen.getByText("Sort")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Sort" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Sort by Artifacts ascending" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Items per page" }),
+    ).toBeVisible();
   });
 });

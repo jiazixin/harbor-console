@@ -163,7 +163,7 @@ export function ProjectPreheatSection({
                   <th>{t("筛选范围")}</th>
                   <th>{t("触发方式")}</th>
                   <th>{t("状态")}</th>
-                  <th>{t("最近更新")}</th>
+                  <th className="table-cell-time">{t("最近更新")}</th>
                   <th />
                 </tr>
               </thead>
@@ -229,7 +229,7 @@ export function ProjectPreheatSection({
                           {t(policy.enabled ? "已启用" : "已停用")}
                         </span>
                       </td>
-                      <td>
+                      <td className="table-cell-time">
                         {formatDate(
                           policy.update_time ?? policy.creation_time,
                           locale,

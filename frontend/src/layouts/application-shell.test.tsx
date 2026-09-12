@@ -92,7 +92,7 @@ afterEach(() => {
 });
 
 describe("ApplicationShell overlays", () => {
-  it("preserves the legacy brand, instance card, and navigation order", () => {
+  it("uses the favicon brand, omits the duplicate instance card, and preserves navigation order", () => {
     const { container } = render(
       <LocaleProvider>
         <IconSprite />
@@ -113,21 +113,25 @@ describe("ApplicationShell overlays", () => {
       </LocaleProvider>,
     );
 
-    expect(container.querySelector(".brand-mark")?.textContent).toBe("H");
-    expect(container.querySelector(".instance-button")?.textContent).toContain(
-      "harbor.example.com已连接实例",
+    expect(container.querySelector(".brand-mark img")).toHaveAttribute(
+      "src",
+      "/favicon.svg",
     );
+    expect(container.querySelector(".instance-button")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "切换 Harbor 实例" }),
+    ).toBeVisible();
     expect(
       Array.from(container.querySelectorAll(".primary-nav a")).map((link) =>
         link.textContent.trim(),
       ),
     ).toEqual([
       "概览",
-      "项目",
-      "镜像资产",
+      "项目中心",
+      "镜像仓库",
       "制品安全",
       "复制管理",
-      "镜像仓库",
+      "远程仓库",
       "P2P 分发",
       "审计日志",
       "管理中心",

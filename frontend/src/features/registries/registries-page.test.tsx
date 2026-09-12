@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe("registries page", () => {
-  it("loads registry capabilities and renders the legacy name-ordered cards", async () => {
+  it("loads registry capabilities and supports real list sorting and card switching", async () => {
     const list = vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [
         { id: 2, name: "edge", type: "docker-hub", status: "healthy" },
@@ -51,12 +51,23 @@ describe("registries page", () => {
       { page: 1, page_size: 100, sort: "name" },
       expect.any(AbortSignal),
     );
+    const rows = await screen.findAllByRole("row");
+    expect(rows[1]).toHaveTextContent("edge");
+    expect(rows[2]).toHaveTextContent("prod");
+    fireEvent.click(screen.getByRole("button", { name: "按名称降序排序" }));
+    const sortedRows = screen.getAllByRole("row");
+    expect(sortedRows[1]).toHaveTextContent("prod");
+    expect(sortedRows[2]).toHaveTextContent("edge");
+
+    fireEvent.click(screen.getByRole("button", { name: "卡片视图" }));
     const cards = await screen.findAllByRole("article");
-    expect(cards[0]).toHaveTextContent("edge");
-    expect(cards[0]).toHaveTextContent("#2");
-    expect(cards[0]).toHaveTextContent("正常");
-    expect(cards[1]).toHaveTextContent("prod");
-    expect(cards[1]).toHaveTextContent("#1");
+    expect(cards[0]).toHaveTextContent("prod");
+    expect(cards[0]).toHaveTextContent("#1");
+    expect(cards[1]).toHaveTextContent("edge");
+    expect(cards[1]).toHaveTextContent("#2");
+    expect(
+      window.localStorage.getItem("harbor-console-preferences-v1"),
+    ).toContain('"registryView":"card"');
     expect(data).toHaveBeenCalledWith(
       "registry-adapters",
       {},

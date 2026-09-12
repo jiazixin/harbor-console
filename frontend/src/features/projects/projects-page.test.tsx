@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { controlApi } from "../../app/api-client";
@@ -48,7 +54,10 @@ const projects: ProjectSummary[] = [
   },
 ];
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("ProjectsPage", () => {
   it("preserves project list behavior for selection, sorting, and filtering", async () => {
@@ -77,18 +86,10 @@ describe("ProjectsPage", () => {
 
     expect(await screen.findByText("commerce")).toBeInTheDocument();
     expect(screen.getByText("commerce")).toHaveAttribute("title", "commerce");
+    expect(screen.getByRole("heading", { name: "项目中心" })).toBeVisible();
     expect(
-      screen.getAllByRole("columnheader").map((header) => header.textContent),
-    ).toEqual([
-      "",
-      "项目",
-      "可见性",
-      "仓库数",
-      "自动扫描",
-      "漏洞阻止",
-      "最近更新",
-      "",
-    ]);
+      screen.getByRole("button", { name: "按项目降序排序" }),
+    ).toBeVisible();
     expect(screen.getByText("demo-admin · #2")).toBeVisible();
     expect(list).toHaveBeenCalledWith(
       "projects",
@@ -110,8 +111,10 @@ describe("ProjectsPage", () => {
     fireEvent.click(deleteButton);
     expect(deleteProjects).toHaveBeenCalledWith([projects[0]]);
 
-    fireEvent.click(screen.getByRole("button", { name: "排序" }));
-    fireEvent.click(screen.getByRole("option", { name: "最近更新" }));
+    fireEvent.click(screen.getByRole("button", { name: "按项目降序排序" }));
+    expect(navigate).toHaveBeenCalledWith("projects?sort=-name");
+
+    fireEvent.click(screen.getByRole("button", { name: "按最近更新降序排序" }));
     expect(navigate).toHaveBeenCalledWith("projects?sort=-update_time");
 
     const projectNameSearch = screen.getByRole("searchbox", {
@@ -128,5 +131,74 @@ describe("ProjectsPage", () => {
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith("projects?q=plat&owner=demo-admin"),
     );
+  });
+
+  it("sorts derived columns across the complete set without remounting the table", async () => {
+    const list = vi.spyOn(controlApi, "list").mockResolvedValue({
+      items: projects,
+      pagination: { page: 1, page_size: 100, total: projects.length },
+    });
+
+    const { rerender } = render(
+      <LocaleProvider>
+        <IconSprite />
+        <ProjectsPage
+          route={parseHashRoute("#/projects?sort=-public")}
+          session={session}
+          refreshing={false}
+          navigate={vi.fn()}
+          onRefresh={vi.fn().mockResolvedValue(undefined)}
+          onCreateProject={vi.fn()}
+          onDeleteProjects={vi.fn()}
+          onExportProjectCve={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(
+      await screen.findByRole("columnheader", { name: "可见性" }),
+    ).toHaveAttribute("aria-sort", "descending");
+    await waitFor(() => {
+      const rows = screen.getAllByRole("row");
+      expect(rows[1]).toHaveTextContent("platform");
+      expect(rows[2]).toHaveTextContent("commerce");
+    });
+    expect(
+      screen.getByRole("button", { name: "按自动扫描降序排序" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "按漏洞阻止降序排序" }),
+    ).toBeVisible();
+
+    const table = screen.getByRole("table");
+    const requestCount = list.mock.calls.length;
+    rerender(
+      <LocaleProvider>
+        <IconSprite />
+        <ProjectsPage
+          route={parseHashRoute("#/projects?sort=-repo_count")}
+          session={session}
+          refreshing={false}
+          navigate={vi.fn()}
+          onRefresh={vi.fn().mockResolvedValue(undefined)}
+          onCreateProject={vi.fn()}
+          onDeleteProjects={vi.fn()}
+          onExportProjectCve={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+
+    await waitFor(() => {
+      const rows = screen.getAllByRole("row");
+      expect(rows[1]).toHaveTextContent("platform");
+      expect(rows[2]).toHaveTextContent("commerce");
+    });
+    expect(screen.getByRole("table")).toBe(table);
+    expect(list).toHaveBeenCalledTimes(requestCount);
+    expect(list.mock.calls).not.toContainEqual([
+      "projects",
+      expect.objectContaining({ sort: "-repo_count" }),
+      expect.any(AbortSignal),
+    ]);
   });
 });

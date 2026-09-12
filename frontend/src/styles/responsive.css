@@ -17,11 +17,21 @@
 
 @media (max-width: 560px) {
   .repository-asset-stats {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .repository-asset-stats .stat-cell {
-    padding: 11px 5px;
+    min-width: 0;
+    padding: 11px 12px;
+  }
+
+  .repository-asset-stats .stat-cell:nth-child(3),
+  .repository-asset-stats .stat-cell:nth-child(4) {
+    border-top: 1px solid var(--line);
+  }
+
+  .repository-asset-stats .stat-cell:nth-child(3) {
+    border-left: 0;
   }
 
   .repository-asset-stats .stat-label .icon {
@@ -305,6 +315,11 @@
     flex-direction: column;
   }
 
+  .pagination-summary,
+  .pagination-buttons {
+    flex-wrap: wrap;
+  }
+
   .pagination-buttons,
   .artifact-identity .button,
   .danger-zone .button {
@@ -391,7 +406,7 @@
 
   .control-dialog,
   .control-dialog form {
-    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
   }
 
   .maintenance-facts {

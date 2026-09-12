@@ -250,13 +250,13 @@ type ToastMessage = {
 
 const viewTitles: Record<string, string> = {
   overview: "概览",
-  projects: "项目",
+  projects: "项目中心",
   project: "项目详情",
-  repositories: "镜像资产",
+  repositories: "镜像仓库",
   repository: "仓库详情",
   artifact: "制品详情",
   security: "制品安全",
-  registries: "镜像仓库",
+  registries: "远程仓库",
   replication: "复制管理",
   preheat: "P2P 分发",
   audit: "审计日志",
@@ -806,6 +806,7 @@ export function ReactApplication() {
         onIdentityChanged={handleIdentityChanged}
         onSessionChanged={handleSessionChanged}
         onLogout={() => void handleLogout()}
+        contentKey={route.view}
       >
         {!data && !error ? <LoadingView /> : null}
         {error ? (

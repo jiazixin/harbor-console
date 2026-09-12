@@ -29,7 +29,7 @@ export function HarborBrand({
         className={`brand-mark${compact ? " brand-mark-small" : ""}`}
         aria-hidden="true"
       >
-        <span>H</span>
+        <img src="/favicon.svg" alt="" />
       </span>
       <span className="brand-text">
         Harbor <b>{t(label)}</b>

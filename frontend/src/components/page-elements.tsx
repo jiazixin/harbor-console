@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 
 import { useLocale } from "../app/locale-context";
+import { formatNumber } from "../app/formatters";
 import { Icon, type IconName } from "./icons";
 
 export function PageHeader({
@@ -8,18 +9,16 @@ export function PageHeader({
   subtitle,
   actions,
   breadcrumb,
-  motionClass = "",
 }: {
   title: string;
   subtitle: ReactNode;
   actions?: ReactNode;
   breadcrumb?: ReactNode;
-  motionClass?: string;
 }) {
   const { t } = useLocale();
   const translatedTitle = t(title);
   return (
-    <header className={`page-header${motionClass}`}>
+    <header className="page-header">
       <div>
         {breadcrumb}
         <h1 title={translatedTitle}>{translatedTitle}</h1>
@@ -62,8 +61,9 @@ export function RefreshButton({
   const { t } = useLocale();
   return (
     <button
-      className="button button-small"
+      className="button button-small refresh-button"
       type="button"
+      aria-busy={refreshing}
       disabled={refreshing}
       onClick={onRefresh}
     >
@@ -73,10 +73,10 @@ export function RefreshButton({
   );
 }
 
-export function DemoBanner({ motionClass = "" }: { motionClass?: string }) {
+export function DemoBanner() {
   const { t } = useLocale();
   return (
-    <div className={`demo-banner${motionClass}`}>
+    <div className="demo-banner">
       <Icon name="alert" />
       <span>
         <strong>{t("当前为演示模式。")}</strong>{" "}
@@ -105,6 +105,38 @@ export function StatCell({
       </span>
       <strong className="stat-value">{value}</strong>
       <span className="stat-foot">{foot}</span>
+    </div>
+  );
+}
+
+export function SectionHeading({
+  title,
+  total,
+  zhUnit = "个",
+  enUnit = "items",
+  loading = false,
+  error = false,
+}: {
+  title: string;
+  total?: number;
+  zhUnit?: string;
+  enUnit?: string;
+  loading?: boolean;
+  error?: boolean;
+}) {
+  const { locale, t } = useLocale();
+  const count = loading
+    ? t("正在载入")
+    : error || total === undefined
+      ? t("统计不可用")
+      : locale === "en-US"
+        ? `${formatNumber(total, locale)} ${enUnit}`
+        : `${formatNumber(total, locale)} ${t(zhUnit)}`;
+  return (
+    <div className="section-heading">
+      <h2>
+        {t(title)} <span className="section-count">{count}</span>
+      </h2>
     </div>
   );
 }

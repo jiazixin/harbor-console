@@ -1,3 +1,4 @@
+import { ContentTransition } from "../../components/content-transition";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { controlApi } from "../../app/api-client";
@@ -439,7 +440,7 @@ export function ArtifactDetailPage({
   const breadcrumb = (
     <Breadcrumb
       items={[
-        { label: "项目", href: "#/projects" },
+        { label: "项目中心", href: "#/projects" },
         {
           label: project,
           href: `#/projects/${encodeURIComponent(project)}/repositories`,
@@ -796,7 +797,7 @@ export function ArtifactDetailPage({
           </a>
         ))}
       </nav>
-      {section}
+      <ContentTransition mode={routeState.tab}>{section}</ContentTransition>
     </>
   );
 }

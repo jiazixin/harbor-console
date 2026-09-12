@@ -269,7 +269,7 @@ function PublicProjectsTable({
             <th>{t("项目")}</th>
             <th>{t("所有者")}</th>
             <th>{t("仓库")}</th>
-            <th>{t("创建时间")}</th>
+            <th className="table-cell-time">{t("创建时间")}</th>
             <th />
           </tr>
         </thead>
@@ -295,7 +295,9 @@ function PublicProjectsTable({
               </td>
               <td>{project.owner_name ?? "-"}</td>
               <td>{formatNumber(project.repo_count, locale)}</td>
-              <td>{formatDate(project.creation_time, locale)}</td>
+              <td className="table-cell-time">
+                {formatDate(project.creation_time, locale)}
+              </td>
               <td>
                 <button
                   className="icon-button"
@@ -345,7 +347,7 @@ function PublicRepositoriesTable({
             <th>{t("公开仓库")}</th>
             <th>{t("制品")}</th>
             <th>{t("拉取")}</th>
-            <th>{t("最近推送")}</th>
+            <th className="table-cell-time">{t("最近更新")}</th>
             <th />
           </tr>
         </thead>
@@ -371,7 +373,9 @@ function PublicRepositoriesTable({
               </td>
               <td>{formatNumber(repository.artifact_count, locale)}</td>
               <td>{formatNumber(repository.pull_count, locale)}</td>
-              <td>{formatDate(repository.update_time, locale)}</td>
+              <td className="table-cell-time">
+                {formatDate(repository.update_time, locale)}
+              </td>
               <td>
                 <button
                   className="icon-button"
@@ -497,7 +501,9 @@ function PublicArtifactsTable({
                   <SeverityBadge severity={artifactSeverity(artifact)} />
                 </td>
                 <td>{formatBytes(artifact.size, locale)}</td>
-                <td>{formatDate(artifact.push_time, locale)}</td>
+                <td className="table-cell-time">
+                  {formatDate(artifact.push_time, locale)}
+                </td>
                 <td>
                   {pullTag ? (
                     <button

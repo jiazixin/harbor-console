@@ -1,18 +1,19 @@
 :root {
   color-scheme: light;
-  --bg: #f7f7f8;
+  --bg: #f5f6f8;
   --surface: #ffffff;
-  --surface-subtle: #f1f1f2;
+  --surface-subtle: #f1f3f6;
   --surface-raised: #ffffff;
-  --ink: #171717;
-  --ink-soft: #55555b;
-  --ink-faint: #7b7b82;
-  --line: #dedee2;
-  --line-strong: #c8c8ce;
+  --code-bg: #151515;
+  --ink: #20252d;
+  --ink-soft: #505966;
+  --ink-faint: #656e7b;
+  --line: #dfe4ea;
+  --line-strong: #c2cad4;
   --orange: #f48120;
-  --orange-strong: #d96708;
+  --orange-strong: #b64d08;
   --orange-soft: #fff1e3;
-  --green: #168352;
+  --green: #13784a;
   --green-soft: #e9f6ef;
   --red: #c73a3a;
   --red-soft: #fcecec;
@@ -26,12 +27,21 @@
   --motion-instant: 120ms;
   --motion-fast: 160ms;
   --motion-standard: 220ms;
-  --motion-content: 280ms;
-  --motion-global: 320ms;
-  --motion-stagger: 16ms;
+  --motion-content: 220ms;
+  --motion-global: 220ms;
   --motion-distance-small: 2px;
-  --motion-distance-medium: 6px;
+  --motion-distance-medium: 4px;
   --motion-linear: linear;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --motion-spin: 900ms;
+  --radius-small: 4px;
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --radius-dialog: 12px;
+  --shadow-panel: 0 1px 2px rgb(20 30 45 / 3%);
+  --shadow-dialog: 0 24px 64px rgb(15 23 42 / 22%);
+  --control-height: 42px;
+  --control-height-compact: 34px;
   --font-body:
     "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
     sans-serif;

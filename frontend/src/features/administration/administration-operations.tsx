@@ -840,8 +840,8 @@ export function AdministrationMaintenanceSection({
                     <th>{t("方式")}</th>
                     <th>{t("状态")}</th>
                     <th>{t("清理结果")}</th>
-                    <th>{t("开始时间")}</th>
-                    <th>{t("最近更新")}</th>
+                    <th className="table-cell-time">{t("开始时间")}</th>
+                    <th className="table-cell-time">{t("最近更新")}</th>
                     <th>{t("操作")}</th>
                   </tr>
                 </thead>
@@ -876,8 +876,12 @@ export function AdministrationMaintenanceSection({
                             <span className="badge">{t("未删除")}</span>
                           )}
                         </td>
-                        <td>{formatDate(job.creation_time, locale)}</td>
-                        <td>{formatDate(job.update_time, locale)}</td>
+                        <td className="table-cell-time">
+                          {formatDate(job.creation_time, locale)}
+                        </td>
+                        <td className="table-cell-time">
+                          {formatDate(job.update_time, locale)}
+                        </td>
                         <td>
                           <div className="row-actions">
                             <ActionButton
@@ -1407,8 +1411,8 @@ function JobPoolTable({ pools }: { pools: JobServicePool[] }) {
           <th>{t("主机")}</th>
           <th>{t("进程")}</th>
           <th>{t("并发数")}</th>
-          <th>{t("启动时间")}</th>
-          <th>{t("最近心跳")}</th>
+          <th className="table-cell-time">{t("启动时间")}</th>
+          <th className="table-cell-time">{t("最近心跳")}</th>
         </tr>
       </thead>
       <tbody>
@@ -1418,8 +1422,12 @@ function JobPoolTable({ pools }: { pools: JobServicePool[] }) {
             <td>{fallbackText(pool.host)}</td>
             <td className="mono">{String(pool.pid ?? "-")}</td>
             <td>{formatNumber(pool.concurrency, locale)}</td>
-            <td>{formatDate(pool.start_at, locale)}</td>
-            <td>{formatDate(pool.heartbeat_at, locale)}</td>
+            <td className="table-cell-time">
+              {formatDate(pool.start_at, locale)}
+            </td>
+            <td className="table-cell-time">
+              {formatDate(pool.heartbeat_at, locale)}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -1455,8 +1463,8 @@ function JobWorkerTable({
           <th>{t("任务类型")}</th>
           <th>{t("任务 ID")}</th>
           <th>{t("状态")}</th>
-          <th>{t("开始时间")}</th>
-          <th>{t("最近签入")}</th>
+          <th className="table-cell-time">{t("开始时间")}</th>
+          <th className="table-cell-time">{t("最近签入")}</th>
           <th>{t("操作")}</th>
         </tr>
       </thead>
@@ -1472,8 +1480,12 @@ function JobWorkerTable({
                 status={worker.job_id ? (worker.check_in ?? "running") : "idle"}
               />
             </td>
-            <td>{formatDate(worker.start_at, locale)}</td>
-            <td>{formatDate(worker.checkin_at, locale)}</td>
+            <td className="table-cell-time">
+              {formatDate(worker.start_at, locale)}
+            </td>
+            <td className="table-cell-time">
+              {formatDate(worker.checkin_at, locale)}
+            </td>
             <td>
               {worker.job_id ? (
                 <div className="row-actions">
@@ -1591,7 +1603,7 @@ function JobScheduleTable({ schedules }: { schedules: JobServiceSchedule[] }) {
           <th>{t("任务类型")}</th>
           <th>{t("关联资源")}</th>
           <th>Cron</th>
-          <th>{t("最近更新")}</th>
+          <th className="table-cell-time">{t("最近更新")}</th>
         </tr>
       </thead>
       <tbody>
@@ -1603,7 +1615,9 @@ function JobScheduleTable({ schedules }: { schedules: JobServiceSchedule[] }) {
             <td>
               <code>{fallbackText(schedule.cron)}</code>
             </td>
-            <td>{formatDate(schedule.update_time, locale)}</td>
+            <td className="table-cell-time">
+              {formatDate(schedule.update_time, locale)}
+            </td>
           </tr>
         ))}
       </tbody>

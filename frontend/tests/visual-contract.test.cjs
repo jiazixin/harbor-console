@@ -19,7 +19,7 @@ test("font, color, spacing, and motion tokens remain stable", () => {
   assert.match(tokens, /--motion-standard:\s*220ms/);
 });
 
-test("top bar controls retain the legacy geometry", () => {
+test("top bar controls share compact geometry", () => {
   const shell = read("application-shell.css");
   assert.match(shell, /\.global-search\s*\{[^}]*height:\s*34px/s);
   assert.match(shell, /\.account-button\s*\{[^}]*height:\s*34px/s);
@@ -28,22 +28,17 @@ test("top bar controls retain the legacy geometry", () => {
     shell,
     /\.icon-button\s*\{[^}]*width:\s*34px;[^}]*height:\s*34px/s,
   );
-  assert.match(shell, /border-radius:\s*4px/);
+  assert.match(shell, /border-radius:\s*var\(--radius-control\)/);
 });
 
-test("brand and sidebar instance card retain the legacy structure", () => {
+test("brand reuses the favicon and instance switching has one shell owner", () => {
   const connection = read("connection.css");
   const shell = read("application-shell.css");
-  assert.match(
-    connection,
-    /\.brand-mark\s*\{[^}]*background:\s*var\(--orange\);[^}]*transform:\s*skew\(-8deg\)/s,
-  );
-  assert.match(connection, /\.brand-mark::after/);
-  assert.match(shell, /\.instance-switcher\s*\{[^}]*margin:\s*16px 12px 6px/s);
-  assert.match(
-    shell,
-    /\.instance-button\s*\{[^}]*min-height:\s*58px;[^}]*grid-template-columns:\s*32px minmax\(0, 1fr\) 16px/s,
-  );
+  assert.match(connection, /\.brand-mark\s*\{[^}]*border-radius:\s*8px/s);
+  assert.match(connection, /\.brand-mark img\s*\{[^}]*width:\s*100%/s);
+  assert.doesNotMatch(connection, /\.brand-mark::after/);
+  assert.doesNotMatch(shell, /\.instance-button|\.instance-switcher/);
+  assert.match(shell, /\.top-instance-switcher\s*\{/);
 });
 
 test("search, notice, and control overlays retain their fixed dimensions", () => {
@@ -62,7 +57,7 @@ test("search, notice, and control overlays retain their fixed dimensions", () =>
     artifactManagement,
     /\.control-dialog\s*\{[^}]*width:\s*min\(620px, 100%\)/s,
   );
-  assert.match(overlays, /border-radius:\s*6px/);
+  assert.match(overlays, /border-radius:\s*var\(--radius-dialog\)/);
 });
 
 test("mobile shell remains bounded to the viewport", () => {
@@ -94,7 +89,10 @@ test("same-type data controls use shared compact metrics", () => {
   const controls = read("control-plane.css");
   const shell = read("application-shell.css");
   assert.match(forms, /\.unified-select-trigger/);
-  assert.match(forms, /input,\s*select\s*\{[^}]*height:\s*42px/s);
+  assert.match(
+    forms,
+    /input,\s*select\s*\{[^}]*height:\s*var\(--control-height\)/s,
+  );
   assert.match(shell, /\.table-toolbar/);
   assert.match(controls, /\.control-pagination/);
 });
@@ -104,5 +102,23 @@ test("dense artifact actions wrap without changing shared button geometry", () =
   assert.match(
     artifacts,
     /\.artifact-detail-actions\s*\{[^}]*max-width:\s*640px;[^}]*flex-wrap:\s*wrap/s,
+  );
+});
+
+test("shared styles do not reference undefined design tokens", () => {
+  const styles = fs
+    .readdirSync(stylesRoot)
+    .filter((file) => file.endsWith(".css"))
+    .map(read)
+    .join("\n");
+  const defined = new Set(
+    [...styles.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]),
+  );
+  const used = new Set(
+    [...styles.matchAll(/var\((--[\w-]+)/g)].map((match) => match[1]),
+  );
+  assert.deepEqual(
+    [...used].filter((token) => !defined.has(token)),
+    [],
   );
 });

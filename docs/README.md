@@ -1,16 +1,16 @@
-# Harbor Console 文档索引
+# Harbor Console 文档
 
-> 最后核对：2026-08-04
+当前维护基线：2026-09-12。首次使用、配置和部署见根目录的 [中文 README](../README.zh-CN.md) / [English README](../README.md)。
 
-- [`DESIGN.md`](DESIGN.md)：当前架构事实、目标架构和不可变设计合同。
-- [`IMPLEMENTATION.md`](IMPLEMENTATION.md)：代码组织、实现约束、质量门和前端迁移规则。
-- [`ACCEPTANCE.md`](ACCEPTANCE.md)：发布 Gate、浏览器验收、真实 Harbor 验收和历史缺陷回归。
-- [`CHANGELOG.md`](CHANGELOG.md)：已提交历史、当前迁移提交、问题根因和验证证据。
-- [`plans/2026-08-03-react-frontend-migration.md`](plans/2026-08-03-react-frontend-migration.md)：React 迁移执行计划与完成条件。
+| 文档 | 解决的问题 |
+| --- | --- |
+| [架构与边界](DESIGN.md) | 系统如何运行，API、会话与部署有哪些约束 |
+| [UI 规范](UI.md) | 颜色、控件、表格、动效、键盘与响应式如何保持一致 |
+| [开发与验证](IMPLEMENTATION.md) | 应该修改哪里，如何运行检查和维护构建产物 |
+| [验收记录](ACCEPTANCE.md) | 本轮验证了什么，哪些环境还未覆盖 |
+| [变更记录](CHANGELOG.md) | 当前工作区的改进与设计决定 |
+| [本轮实施计划](plans/2026-09-12-console-quality.md) | 检查范围与实施步骤 |
 
-## 文档状态规则
+[2026 年 8 月归档](archive/2026-08/README.md)保留 React 迁移计划、旧设计和历史缺陷证据。它们用于追溯，不是当前开发指令；其中的暂停状态、测试数量、环境信息和“保持旧版外观”限制不能覆盖当前规范。
 
-- “当前事实”必须能在工作区代码、测试或运行证据中直接验证。
-- “目标”不得写成已经实现；未达到发布条件时明确标记 `IN PROGRESS`、`FAIL` 或 `BLOCKED`。
-- demo、静态合同、组件测试、浏览器截图和真实 Harbor 验收分别记录，不能互相替代。
-- 架构、实现、验收或 API 基线变化时，至少同步更新上述四份长期文档。
+更新原则：代码决定当前事实；设计变化更新对应文档；测试结果写清日期、范围和限制。不要复制同一规则到多份文件，也不要把历史通过记录当作本次发布证据。

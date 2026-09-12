@@ -663,7 +663,7 @@ export function RepositoryDetailPage({
   const breadcrumb = (
     <Breadcrumb
       items={[
-        { label: "项目", href: "#/projects" },
+        { label: "项目中心", href: "#/projects" },
         {
           label: routeState.project,
           href: `#/projects/${encodeURIComponent(routeState.project)}/repositories`,

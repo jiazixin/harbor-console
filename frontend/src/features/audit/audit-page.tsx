@@ -22,6 +22,7 @@ import {
   DemoBanner,
   PageHeader,
   RefreshButton,
+  SectionHeading,
 } from "../../components/page-elements";
 import { UnifiedSelect } from "../../components/unified-select";
 
@@ -37,6 +38,7 @@ type AuditFilters = {
 type AuditRouteState = AuditFilters & {
   page: number;
   pageSize: number;
+  sort: "op_time" | "-op_time";
 };
 
 export function parseAuditRoute(route: ConsoleRoute): AuditRouteState {
@@ -54,6 +56,7 @@ function parseAuditQuery(query: URLSearchParams): AuditRouteState {
     resource: query.get("resource") ?? "",
     operation: query.get("operation") ?? "",
     result: result === "success" || result === "failed" ? result : "",
+    sort: query.get("sort") === "op_time" ? "op_time" : "-op_time",
   };
 }
 
@@ -76,10 +79,16 @@ export function auditControlQuery(filters: AuditFilters): string {
   return values.join(",");
 }
 
+function formString(form: FormData, name: string): string {
+  const value = form.get(name);
+  return typeof value === "string" ? value : "";
+}
+
 export function auditPath(
   page: number,
   pageSize: number,
   filters: AuditFilters,
+  sort: "op_time" | "-op_time" = "-op_time",
 ): string {
   const query = new URLSearchParams();
   if (filters.username) query.set("username", filters.username);
@@ -88,6 +97,7 @@ export function auditPath(
   if (filters.result) query.set("result", filters.result);
   if (page > 1) query.set("page", String(page));
   if (pageSize !== 50) query.set("page_size", String(pageSize));
+  if (sort !== "-op_time") query.set("sort", sort);
   return `audit${query.size ? `?${query}` : ""}`;
 }
 
@@ -117,13 +127,23 @@ function AuditFilterForm({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const submittedResult = formString(form, "result");
     navigate(
-      auditPath(1, values.pageSize, {
-        username: username.trim(),
-        resource: resource.trim(),
-        operation,
-        result,
-      }),
+      auditPath(
+        1,
+        values.pageSize,
+        {
+          username: formString(form, "username").trim(),
+          resource: formString(form, "resource").trim(),
+          operation: formString(form, "operation"),
+          result:
+            submittedResult === "success" || submittedResult === "failed"
+              ? submittedResult
+              : "",
+        },
+        values.sort,
+      ),
     );
   }
 
@@ -202,44 +222,25 @@ function AuditFilterForm({
               type="button"
               onClick={() =>
                 navigate(
-                  auditPath(1, values.pageSize, {
-                    username: "",
-                    resource: "",
-                    operation: "",
-                    result: "",
-                  }),
+                  auditPath(
+                    1,
+                    values.pageSize,
+                    {
+                      username: "",
+                      resource: "",
+                      operation: "",
+                      result: "",
+                    },
+                    values.sort,
+                  ),
                 )
               }
             >
               <Icon name="x" />
-              <span>{t("清除")}</span>
+              <span>{t("取消筛选")}</span>
             </button>
           ) : null}
         </div>
-      </div>
-      <div className="filter-toolbar-meta">
-        <label className="toolbar-field">
-          <span>{t("每页")}</span>
-          <UnifiedSelect
-            ariaLabel={t("每页条数")}
-            className="toolbar-select"
-            value={String(values.pageSize)}
-            options={[20, 50, 100].map((pageSize) => ({
-              value: String(pageSize),
-              label: `${String(pageSize)} ${t("条")}`,
-            }))}
-            onChange={(pageSize) =>
-              navigate(
-                auditPath(1, Number(pageSize), {
-                  username: values.username,
-                  resource: values.resource,
-                  operation: values.operation,
-                  result: values.result,
-                }),
-              )
-            }
-          />
-        </label>
       </div>
     </form>
   );
@@ -276,7 +277,6 @@ export function AuditPage({
     const controller = new AbortController();
     const currentVersion = requestVersion.current + 1;
     requestVersion.current = currentVersion;
-    setCollection(undefined);
     setError(undefined);
     const filters: AuditFilters = values;
     const eventsPromise = eventCache.current
@@ -291,7 +291,7 @@ export function AuditPage({
         {
           page: values.page,
           page_size: values.pageSize,
-          sort: "-op_time",
+          sort: values.sort,
           q: auditControlQuery(filters),
         },
         controller.signal,
@@ -410,26 +410,49 @@ export function AuditPage({
             operations={operations}
             navigate={navigate}
           />
-          <div className="table-scroll audit-table-scroll">
-            <AuditLogTable
-              logs={logs}
-              emptyTitle={
-                activeFilters ? "没有匹配的审计记录" : "暂无可见审计记录"
-              }
-              emptyDescription={
-                activeFilters
-                  ? "调整筛选条件后重新查询。"
-                  : "当前 Harbor 实例没有返回该账号可见的审计记录。"
-              }
-              emptyIcon="history"
-              operationLabel={globalAuditOperationLabel}
-              descriptionLabel={globalAuditDescriptionLabel}
-            />
+          <SectionHeading
+            title="审计日志"
+            total={collection.pagination.total}
+            zhUnit="条"
+            enUnit="entries"
+          />
+          <div>
+            <div className="table-scroll audit-table-scroll">
+              <AuditLogTable
+                logs={logs}
+                emptyTitle={
+                  activeFilters ? "没有匹配的审计记录" : "暂无可见审计记录"
+                }
+                emptyDescription={
+                  activeFilters
+                    ? "调整筛选条件后重新查询。"
+                    : "当前 Harbor 实例没有返回该账号可见的审计记录。"
+                }
+                emptyIcon="history"
+                sort={values.sort}
+                onSort={(sort) =>
+                  navigate(
+                    auditPath(
+                      1,
+                      values.pageSize,
+                      values,
+                      sort as "op_time" | "-op_time",
+                    ),
+                  )
+                }
+                operationLabel={globalAuditOperationLabel}
+                descriptionLabel={globalAuditDescriptionLabel}
+              />
+            </div>
           </div>
           <Pagination
             pagination={collection.pagination}
             onPageChange={(page) =>
-              navigate(auditPath(page, values.pageSize, values))
+              navigate(auditPath(page, values.pageSize, values, values.sort))
+            }
+            pageSizeOptions={[20, 50, 100]}
+            onPageSizeChange={(pageSize) =>
+              navigate(auditPath(1, pageSize, values, values.sort))
             }
           />
         </section>

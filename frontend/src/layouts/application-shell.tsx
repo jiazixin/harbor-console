@@ -39,11 +39,11 @@ type NavItem = {
 
 const workspaceItems: NavItem[] = [
   { view: "overview", href: "#/overview", label: "概览", icon: "home" },
-  { view: "projects", href: "#/projects", label: "项目", icon: "folder" },
+  { view: "projects", href: "#/projects", label: "项目中心", icon: "folder" },
   {
     view: "repositories",
     href: "#/repositories",
-    label: "镜像资产",
+    label: "镜像仓库",
     icon: "package",
   },
   {
@@ -66,7 +66,7 @@ const distributionItems: NavItem[] = [
   {
     view: "registries",
     href: "#/registries",
-    label: "镜像仓库",
+    label: "远程仓库",
     icon: "database",
     permission: ["registry", "list"],
   },
@@ -168,6 +168,7 @@ export function ApplicationShell({
   onIdentityChanged,
   onSessionChanged,
   onLogout,
+  contentKey,
   children,
 }: {
   session: Session;
@@ -180,6 +181,7 @@ export function ApplicationShell({
   onIdentityChanged: (identity: HarborIdentity, message: string) => void;
   onSessionChanged: (session: Session, message: string) => void | Promise<void>;
   onLogout: () => void;
+  contentKey?: string;
   children: ReactNode;
 }) {
   const { locale, t } = useLocale();
@@ -378,21 +380,6 @@ export function ApplicationShell({
             <Icon name="x" />
           </button>
         </div>
-        <div id="instance-switcher" className="instance-switcher">
-          <button
-            className="instance-button"
-            type="button"
-            aria-expanded={panel === "instances"}
-            onClick={(event) => togglePanel("instances", event.currentTarget)}
-          >
-            <span className="instance-avatar">H</span>
-            <span className="instance-meta">
-              <strong>{instanceHost(session.instance_url)}</strong>
-              <span>{t(session.demo ? "演示实例" : "已连接实例")}</span>
-            </span>
-            <Icon name="chevron" />
-          </button>
-        </div>
         <nav className="primary-nav" aria-label={t("主导航")}>
           <NavGroup
             label="工作区"
@@ -537,16 +524,23 @@ export function ApplicationShell({
           openDialog={openDialog}
           onSwitchInstance={(instance) => void handleSwitchInstance(instance)}
         />
-        <main id="main-content" className="main-content" tabIndex={-1}>
-          {children}
+        <main
+          id="main-content"
+          className="main-content"
+          tabIndex={-1}
+          onClickCapture={(event) => {
+            // WebKit does not focus mouse-clicked buttons. Capture the opener
+            // before a page action mounts a dialog so restoration is consistent.
+            if (event.target instanceof Element) {
+              event.target.closest("button")?.focus({ preventScroll: true });
+            }
+          }}
+        >
+          <div key={contentKey ?? activeView} className="motion-route-enter">
+            {children}
+          </div>
         </main>
       </div>
-      <div
-        id="toast-region"
-        className="toast-region"
-        role="status"
-        aria-live="polite"
-      />
       <GlobalSearchDialog
         open={searchOpen}
         onClose={() => setSearchOpen(false)}

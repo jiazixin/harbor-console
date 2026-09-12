@@ -7,7 +7,7 @@
 .registry-adapter-grid .field small,
 .registry-fixed-endpoint + small {
   color: var(--ink-faint);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 

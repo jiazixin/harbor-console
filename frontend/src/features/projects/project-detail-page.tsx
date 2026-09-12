@@ -1,3 +1,4 @@
+import { ContentTransition } from "../../components/content-transition";
 import {
   type MouseEvent,
   useCallback,
@@ -36,7 +37,12 @@ import type {
   WebhookEventMetadata,
 } from "../../app/models";
 import { loadPreferences, savePreferences } from "../../app/preferences";
-import { Pagination } from "../../components/data-table";
+import {
+  createSortValues,
+  Pagination,
+  SortableHeader,
+  StableTableColumns,
+} from "../../components/data-table";
 import { Icon, type IconName } from "../../components/icons";
 import { ToolbarSearchForm } from "../../components/toolbar-search-form";
 import {
@@ -48,7 +54,6 @@ import {
 } from "../../components/page-elements";
 import { ViewModeToggle } from "../../components/view-mode-toggle";
 import { useCenterActiveTab } from "../../components/use-center-active-tab";
-import { UnifiedSelect } from "../../components/unified-select";
 import {
   ProjectAuditSection,
   type ProjectAuditError,
@@ -69,6 +74,7 @@ import {
   type ProjectSettingsData,
 } from "./project-settings-section";
 import { ProjectWebhooksSection } from "./project-webhooks-section";
+import { sortRepositories } from "../repositories/repository-sorting";
 
 const defaultPageSize = 50;
 const defaultRepositorySort = "-update_time";
@@ -84,22 +90,20 @@ const validSections = new Set([
   "preheat",
   "settings",
 ]);
-const validRepositorySorts = new Set([
+const validRepositorySorts = createSortValues([
   "name",
-  "-artifact_count",
-  "-pull_count",
-  "-update_time",
+  "artifact_count",
+  "pull_count",
+  "update_time",
 ]);
-const validAuditSorts = new Set(
-  [
-    "id",
-    "op_time",
-    "username",
-    "resource_type",
-    "operation",
-    "operation_result",
-  ].flatMap((field) => [field, `-${field}`]),
-);
+const validAuditSorts = createSortValues([
+  "id",
+  "op_time",
+  "username",
+  "resource_type",
+  "operation",
+  "operation_result",
+]);
 
 type ProjectSection =
   | "audit"
@@ -351,6 +355,7 @@ async function loadProjectPage(
   route: ProjectDetailRoute,
   signal: AbortSignal,
   isSystemAdmin: boolean,
+  locale: string,
 ): Promise<ProjectPageData> {
   const projectRequest = controlApi.data<ProjectSummary>(
     "project",
@@ -387,17 +392,29 @@ async function loadProjectPage(
   const retentionId = Number.parseInt(project.metadata?.retention_id ?? "", 10);
   const repositoryRequest =
     !permissionDenied && route.section === "repositories"
-      ? controlApi.list<RepositorySummary>(
-          "repositories",
-          {
-            project: route.project,
-            page: route.page,
-            page_size: route.pageSize,
-            sort: route.sort,
-            q: route.query ? `name=~${route.query}` : "",
-          },
-          signal,
-        )
+      ? allRequest.then((repositories) => {
+          const query = route.query.trim().toLocaleLowerCase(locale);
+          const sorted = sortRepositories(
+            repositories.filter(
+              (repository) =>
+                !query ||
+                repository.name.toLocaleLowerCase(locale).includes(query),
+            ),
+            route.sort,
+            locale,
+          );
+          return {
+            items: sorted.slice(
+              (route.page - 1) * route.pageSize,
+              route.page * route.pageSize,
+            ),
+            pagination: {
+              page: route.page,
+              page_size: route.pageSize,
+              total: sorted.length,
+            },
+          };
+        })
       : Promise.resolve(undefined);
   const memberRequest =
     !permissionDenied && route.section === "members"
@@ -885,7 +902,6 @@ export function ProjectDetailPage({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [query, setQuery] = useState(routeState.query);
   const [preferences, setPreferences] = useState(loadPreferences);
-  const [entering, setEntering] = useState(true);
   const resourceTabsRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -895,10 +911,9 @@ export function ProjectDetailPage({
 
   useEffect(() => {
     const controller = new AbortController();
-    setData(undefined);
     setLoading(true);
     setError("");
-    void loadProjectPage(routeState, controller.signal, isSystemAdmin)
+    void loadProjectPage(routeState, controller.signal, isSystemAdmin, locale)
       .then(setData)
       .catch((loadError: unknown) => {
         if (
@@ -914,16 +929,7 @@ export function ProjectDetailPage({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [isSystemAdmin, reloadToken, routeKey, routeState]);
-
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setEntering(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setEntering(false), 380);
-    return () => window.clearTimeout(timer);
-  }, []);
+  }, [isSystemAdmin, locale, reloadToken, routeKey, routeState]);
 
   useCenterActiveTab(
     resourceTabsRef,
@@ -946,8 +952,6 @@ export function ProjectDetailPage({
   const allSelected =
     Boolean(data?.repositories.length) &&
     selectedRepositories.length === data?.repositories.length;
-  const motionClass = entering ? " motion-route-enter" : "";
-
   async function refreshPage() {
     await onRefresh();
     setReloadToken((current) => current + 1);
@@ -969,7 +973,9 @@ export function ProjectDetailPage({
     savePreferences(next);
   }
 
-  if (!data && loading) {
+  const dataMatchesProject = data?.project.name === routeState.project;
+
+  if ((!data || !dataMatchesProject) && loading) {
     return (
       <>
         <PageHeader
@@ -978,7 +984,7 @@ export function ProjectDetailPage({
           breadcrumb={
             <Breadcrumb
               items={[
-                { label: "项目", href: "#/projects" },
+                { label: "项目中心", href: "#/projects" },
                 { label: routeState.project },
               ]}
             />
@@ -997,7 +1003,7 @@ export function ProjectDetailPage({
     );
   }
 
-  if (!data || error) {
+  if (!data || !dataMatchesProject) {
     return (
       <div className="error-state" role="alert">
         <div>
@@ -1045,12 +1051,11 @@ export function ProjectDetailPage({
         breadcrumb={
           <Breadcrumb
             items={[
-              { label: "项目", href: "#/projects" },
+              { label: "项目中心", href: "#/projects" },
               { label: data.project.name || routeState.project },
             ]}
           />
         }
-        motionClass={motionClass}
         actions={
           <>
             <RefreshButton
@@ -1070,9 +1075,15 @@ export function ProjectDetailPage({
           </>
         }
       />
-      {session.demo ? <DemoBanner motionClass={motionClass} /> : null}
+      {session.demo ? <DemoBanner /> : null}
+      {error ? (
+        <div className="warning-banner" role="alert">
+          <Icon name="alert" />
+          <span>{error}</span>
+        </div>
+      ) : null}
       <section
-        className={`overview-stats project-stats${motionClass}`}
+        className="overview-stats project-stats"
         aria-label={t("项目统计")}
       >
         <StatCell
@@ -1106,7 +1117,7 @@ export function ProjectDetailPage({
       </section>
       <nav
         ref={resourceTabsRef}
-        className={`resource-tabs${motionClass}`}
+        className="resource-tabs"
         aria-label={t("项目页面")}
       >
         {visibleProjectTabs.map((tab) => (
@@ -1127,344 +1138,218 @@ export function ProjectDetailPage({
           </a>
         ))}
       </nav>
-      {data.permissionDenied ? (
-        <section className={`table-shell${motionClass}`}>
-          <div className="empty-table permission-table">
-            <strong>{t("没有访问此项目页面的权限")}</strong>
-            <span>{t("当前账号缺少 Harbor 要求的项目资源权限。")}</span>
-          </div>
-        </section>
-      ) : routeState.section === "members" ? (
-        <div className={motionClass.trim() || undefined}>
-          <ProjectMembersSection
-            project={routeState.project}
-            members={data.members}
-            pagination={data.pagination}
-            initialQuery={routeState.query}
-            onSearch={(nextQuery) => updateRoute({ page: 1, query: nextQuery })}
-            onPageChange={(page) => updateRoute({ page })}
-            onAddMember={onAddMember}
-            onEditMember={onEditMember}
-            onDeleteMember={onDeleteMember}
-          />
-        </div>
-      ) : routeState.section === "robots" ? (
-        <div className={motionClass.trim() || undefined}>
-          <ProjectRobotsSection
-            project={routeState.project}
-            robots={data.robots}
-            pagination={data.pagination}
-            onPageChange={(page) => updateRoute({ page })}
-            onCreate={(project) =>
-              onCreateRobot(project, data.permissionMetadata?.project ?? [])
-            }
-            onEdit={(project, robot) =>
-              onEditRobot(
-                project,
-                robot,
-                data.permissionMetadata?.project ?? [],
-              )
-            }
-            onResetSecret={onResetRobotSecret}
-            onDelete={onDeleteRobot}
-          />
-        </div>
-      ) : routeState.section === "webhooks" ? (
-        <div className={motionClass.trim() || undefined}>
-          <ProjectWebhooksSection
-            project={routeState.project}
-            webhooks={data.webhooks}
-            pagination={data.pagination}
-            onPageChange={(page) => updateRoute({ page })}
-            onCreate={(project) =>
-              onCreateWebhook(project, data.webhookEventMetadata)
-            }
-            onEdit={(project, webhook) =>
-              onEditWebhook(project, webhook, data.webhookEventMetadata)
-            }
-            onHistory={onShowWebhookHistory}
-            onDelete={onDeleteWebhook}
-          />
-        </div>
-      ) : routeState.section === "rules" ? (
-        <div className={motionClass.trim() || undefined}>
-          <ProjectRulesSection
-            project={routeState.project}
-            projectId={numberValue(data.project.project_id)}
-            rules={data.immutableRules}
-            labels={data.projectLabels}
-            metadata={data.retentionMetadata}
-            onCreateRule={onCreateImmutableRule}
-            onEditRule={onEditImmutableRule}
-            onDeleteRule={onDeleteImmutableRule}
-            onCreateLabel={onCreateProjectLabel}
-            onEditLabel={onEditProjectLabel}
-            onDeleteLabel={onDeleteProjectLabel}
-          />
-        </div>
-      ) : routeState.section === "retention" ? (
-        <div className={motionClass.trim() || undefined}>
-          <ProjectRetentionSection
-            project={routeState.project}
-            projectId={numberValue(data.project.project_id)}
-            policy={data.retentionPolicy}
-            executions={data.retentionExecutions}
-            pagination={data.retentionPagination}
-            metadata={data.retentionMetadata}
-            onPageChange={(page) => updateRoute({ page })}
-            onAction={onRetentionAction}
-          />
-        </div>
-      ) : routeState.section === "audit" ? (
-        <div className={motionClass.trim() || undefined}>
-          <ProjectAuditSection
-            logs={data.auditLogs}
-            pagination={data.auditPagination}
-            initialQuery={routeState.query}
-            error={data.auditError}
-            onSearch={(nextQuery) => updateRoute({ page: 1, query: nextQuery })}
-            onPageChange={(page) => updateRoute({ page })}
-            onRetry={() => setReloadToken((current) => current + 1)}
-          />
-        </div>
-      ) : routeState.section === "preheat" ? (
-        <div className={motionClass.trim() || undefined}>
-          <ProjectPreheatSection
-            project={routeState.project}
-            projectId={numberValue(data.project.project_id)}
-            policies={data.preheatPolicies}
-            providers={data.preheatProviders}
-            pagination={data.preheatPagination}
-            initialQuery={routeState.query}
-            errors={data.preheatErrors}
-            onSearch={(nextQuery) => updateRoute({ page: 1, query: nextQuery })}
-            onPageChange={(page) => updateRoute({ page })}
-            onAction={onPreheatAction}
-          />
-        </div>
-      ) : routeState.section === "settings" ? (
-        <div className={motionClass.trim() || undefined}>
-          <ProjectSettingsSection
-            project={data.project}
-            settings={data.settings}
-            onSaved={() => setReloadToken((current) => current + 1)}
-            onNotice={onNotice}
-            onDelete={() => onDeleteProject(data.project)}
-          />
-        </div>
-      ) : (
-        <section className={`table-shell${motionClass}`}>
-          <div className="table-toolbar">
-            <ToolbarSearchForm
-              name="q"
-              placeholder="按仓库名称搜索"
-              value={query}
-              onChange={setQuery}
-              onSubmit={(value) => updateRoute({ page: 1, query: value })}
-            />
-            <button
-              className="button button-small button-primary"
-              type="button"
-              onClick={() => onShowPushCommand(routeState.project)}
-            >
-              <Icon name="upload" />
-              <span>{t("推送镜像")}</span>
-            </button>
-            <div className="toolbar-spacer" />
-            <label className="toolbar-field">
-              <span>{t("排序")}</span>
-              <UnifiedSelect
-                className="toolbar-select"
-                value={routeState.sort}
-                ariaLabel={t("排序")}
-                options={[
-                  { value: "-update_time", label: t("最近推送") },
-                  { value: "-artifact_count", label: t("制品最多") },
-                  { value: "-pull_count", label: t("拉取最多") },
-                  { value: "name", label: t("名称") },
-                ]}
-                onChange={(sort) => updateRoute({ page: 1, sort })}
-              />
-            </label>
-            <label className="toolbar-field">
-              <span>{t("每页")}</span>
-              <UnifiedSelect
-                className="toolbar-select"
-                value={String(routeState.pageSize)}
-                ariaLabel={t("每页条数")}
-                options={[20, 50, 100].map((pageSize) => ({
-                  value: String(pageSize),
-                  label: `${String(pageSize)} ${t("条")}`,
-                }))}
-                onChange={(pageSize) =>
-                  updateRoute({ page: 1, pageSize: Number(pageSize) })
-                }
-              />
-            </label>
-            <ViewModeToggle
-              value={preferences.repositoryView}
-              ariaLabel={t("仓库展示方式")}
-              listLabel={t("列表视图")}
-              cardLabel={t("卡片视图")}
-              onChange={setViewMode}
-            />
-          </div>
-          <div className="artifact-batch-toolbar repository-batch-toolbar">
-            <span>
-              <strong>
-                {formatNumber(selectedRepositories.length, locale)}
-              </strong>{" "}
-              {t("个已选择")}
-            </span>
-            <div>
-              <button
-                className="button button-small button-danger"
-                type="button"
-                disabled={!selectedRepositories.length}
-                onClick={() =>
-                  onDeleteRepositories(routeState.project, selectedRepositories)
-                }
-              >
-                <Icon name="trash" />
-                <span>{t("删除仓库")}</span>
-              </button>
+      <ContentTransition
+        mode={`${routeState.section}:${preferences.repositoryView}`}
+      >
+        {data.permissionDenied ? (
+          <section className="table-shell">
+            <div className="empty-table permission-table">
+              <strong>{t("没有访问此项目页面的权限")}</strong>
+              <span>{t("当前账号缺少 Harbor 要求的项目资源权限。")}</span>
             </div>
+          </section>
+        ) : routeState.section === "members" ? (
+          <div>
+            <ProjectMembersSection
+              project={routeState.project}
+              members={data.members}
+              pagination={data.pagination}
+              initialQuery={routeState.query}
+              onSearch={(nextQuery) =>
+                updateRoute({ page: 1, query: nextQuery })
+              }
+              onPageChange={(page) => updateRoute({ page })}
+              onAddMember={onAddMember}
+              onEditMember={onEditMember}
+              onDeleteMember={onDeleteMember}
+            />
           </div>
-          {!data.repositories.length ? (
-            <div className="empty-state">
+        ) : routeState.section === "robots" ? (
+          <div>
+            <ProjectRobotsSection
+              project={routeState.project}
+              robots={data.robots}
+              pagination={data.pagination}
+              onPageChange={(page) => updateRoute({ page })}
+              onCreate={(project) =>
+                onCreateRobot(project, data.permissionMetadata?.project ?? [])
+              }
+              onEdit={(project, robot) =>
+                onEditRobot(
+                  project,
+                  robot,
+                  data.permissionMetadata?.project ?? [],
+                )
+              }
+              onResetSecret={onResetRobotSecret}
+              onDelete={onDeleteRobot}
+            />
+          </div>
+        ) : routeState.section === "webhooks" ? (
+          <div>
+            <ProjectWebhooksSection
+              project={routeState.project}
+              webhooks={data.webhooks}
+              pagination={data.pagination}
+              onPageChange={(page) => updateRoute({ page })}
+              onCreate={(project) =>
+                onCreateWebhook(project, data.webhookEventMetadata)
+              }
+              onEdit={(project, webhook) =>
+                onEditWebhook(project, webhook, data.webhookEventMetadata)
+              }
+              onHistory={onShowWebhookHistory}
+              onDelete={onDeleteWebhook}
+            />
+          </div>
+        ) : routeState.section === "rules" ? (
+          <div>
+            <ProjectRulesSection
+              project={routeState.project}
+              projectId={numberValue(data.project.project_id)}
+              rules={data.immutableRules}
+              labels={data.projectLabels}
+              metadata={data.retentionMetadata}
+              onCreateRule={onCreateImmutableRule}
+              onEditRule={onEditImmutableRule}
+              onDeleteRule={onDeleteImmutableRule}
+              onCreateLabel={onCreateProjectLabel}
+              onEditLabel={onEditProjectLabel}
+              onDeleteLabel={onDeleteProjectLabel}
+            />
+          </div>
+        ) : routeState.section === "retention" ? (
+          <div>
+            <ProjectRetentionSection
+              project={routeState.project}
+              projectId={numberValue(data.project.project_id)}
+              policy={data.retentionPolicy}
+              executions={data.retentionExecutions}
+              pagination={data.retentionPagination}
+              metadata={data.retentionMetadata}
+              onPageChange={(page) => updateRoute({ page })}
+              onAction={onRetentionAction}
+            />
+          </div>
+        ) : routeState.section === "audit" ? (
+          <div>
+            <ProjectAuditSection
+              logs={data.auditLogs}
+              pagination={data.auditPagination}
+              initialQuery={routeState.query}
+              error={data.auditError}
+              onSearch={(nextQuery) =>
+                updateRoute({ page: 1, query: nextQuery })
+              }
+              onPageChange={(page) => updateRoute({ page })}
+              onRetry={() => setReloadToken((current) => current + 1)}
+            />
+          </div>
+        ) : routeState.section === "preheat" ? (
+          <div>
+            <ProjectPreheatSection
+              project={routeState.project}
+              projectId={numberValue(data.project.project_id)}
+              policies={data.preheatPolicies}
+              providers={data.preheatProviders}
+              pagination={data.preheatPagination}
+              initialQuery={routeState.query}
+              errors={data.preheatErrors}
+              onSearch={(nextQuery) =>
+                updateRoute({ page: 1, query: nextQuery })
+              }
+              onPageChange={(page) => updateRoute({ page })}
+              onAction={onPreheatAction}
+            />
+          </div>
+        ) : routeState.section === "settings" ? (
+          <div>
+            <ProjectSettingsSection
+              project={data.project}
+              settings={data.settings}
+              onSaved={() => setReloadToken((current) => current + 1)}
+              onNotice={onNotice}
+              onDelete={() => onDeleteProject(data.project)}
+            />
+          </div>
+        ) : (
+          <section className="table-shell">
+            <div className="table-toolbar">
+              <ToolbarSearchForm
+                name="q"
+                placeholder="按仓库名称搜索"
+                value={query}
+                onChange={setQuery}
+                onSubmit={(value) => updateRoute({ page: 1, query: value })}
+              />
+              <button
+                className="button button-small button-primary"
+                type="button"
+                onClick={() => onShowPushCommand(routeState.project)}
+              >
+                <Icon name="upload" />
+                <span>{t("推送镜像")}</span>
+              </button>
+              <div className="toolbar-spacer" />
+              <ViewModeToggle
+                value={preferences.repositoryView}
+                ariaLabel={t("仓库展示方式")}
+                listLabel={t("列表视图")}
+                cardLabel={t("卡片视图")}
+                onChange={setViewMode}
+              />
+            </div>
+            <div className="artifact-batch-toolbar repository-batch-toolbar">
+              <span>
+                <strong>
+                  {formatNumber(selectedRepositories.length, locale)}
+                </strong>{" "}
+                {t("个已选择")}
+              </span>
               <div>
-                <span className="state-icon">
-                  <Icon name="package" />
-                </span>
-                <h2>{t("暂无仓库")}</h2>
-                <p>{t("镜像首次推送后会出现在这里。")}</p>
+                <button
+                  className="button button-small button-danger"
+                  type="button"
+                  disabled={!selectedRepositories.length}
+                  onClick={() =>
+                    onDeleteRepositories(
+                      routeState.project,
+                      selectedRepositories,
+                    )
+                  }
+                >
+                  <Icon name="trash" />
+                  <span>{t("删除仓库")}</span>
+                </button>
               </div>
             </div>
-          ) : preferences.repositoryView === "card" ? (
-            <div className="repository-card-grid">
-              {data.repositories.map((repository) => {
-                const id = numberValue(repository.id);
-                const selected = selectedIds.has(id);
-                const name = displayRepositoryName(
-                  routeState.project,
-                  repository.name,
-                );
-                return (
-                  <article
-                    key={id || repository.name}
-                    className={`repository-card${selected ? " selected" : ""}`}
-                    onClick={(event) => openRepository(event, repository)}
-                  >
-                    <header>
-                      <label className="repository-card-select">
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          aria-label={`${t("选择")} ${name}`}
-                          onChange={(event) => {
-                            const checked = event.currentTarget.checked;
-                            setSelectedIds((current) => {
-                              const next = new Set(current);
-                              if (checked) next.add(id);
-                              else next.delete(id);
-                              return next;
-                            });
-                          }}
-                        />
-                      </label>
-                      <span className="cell-icon">
-                        <Icon name="package" />
-                      </span>
-                      <div>
-                        <button
-                          type="button"
-                          onClick={(event) => openRepository(event, repository)}
-                        >
-                          {name}
-                        </button>
-                        <span className="mono">#{repository.id ?? "-"}</span>
-                      </div>
-                      <button
-                        className="icon-button"
-                        type="button"
-                        title={t("推送指引")}
-                        aria-label={t("查看推送指引")}
-                        onClick={() =>
-                          onShowPushCommand(routeState.project, repository.name)
-                        }
-                      >
-                        <Icon name="upload" />
-                      </button>
-                    </header>
-                    <p>
-                      {descriptionOr(repository.description, t("暂无仓库描述"))}
-                    </p>
-                    <dl>
-                      <div>
-                        <dt>{t("制品")}</dt>
-                        <dd>
-                          {formatNumber(repository.artifact_count, locale)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>{t("累计拉取")}</dt>
-                        <dd>{formatNumber(repository.pull_count, locale)}</dd>
-                      </div>
-                      <div>
-                        <dt>{t("最近更新")}</dt>
-                        <dd>{formatDate(repository.update_time, locale)}</dd>
-                      </div>
-                    </dl>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="table-scroll">
-              <table className="repository-select-table">
-                <thead>
-                  <tr>
-                    <th className="selection-cell">
-                      <input
-                        type="checkbox"
-                        checked={allSelected}
-                        aria-label={t("选择当前页全部仓库")}
-                        onChange={(event) =>
-                          setSelectedIds(
-                            event.currentTarget.checked
-                              ? new Set(
-                                  data.repositories.map((repository) =>
-                                    numberValue(repository.id),
-                                  ),
-                                )
-                              : new Set(),
-                          )
-                        }
-                      />
-                    </th>
-                    <th>{t("仓库")}</th>
-                    <th className="repository-metric-count">{t("制品")}</th>
-                    <th className="repository-metric-count">{t("拉取次数")}</th>
-                    <th>{t("描述")}</th>
-                    <th>{t("最近推送")}</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.repositories.map((repository) => {
-                    const id = numberValue(repository.id);
-                    const selected = selectedIds.has(id);
-                    const name = displayRepositoryName(
-                      routeState.project,
-                      repository.name,
-                    );
-                    return (
-                      <tr
-                        key={id || repository.name}
-                        className={`clickable-row${selected ? " selected-row" : ""}`}
-                        onClick={(event) => openRepository(event, repository)}
-                      >
-                        <td className="selection-cell">
+            {!data.repositories.length ? (
+              <div className="empty-state">
+                <div>
+                  <span className="state-icon">
+                    <Icon name="package" />
+                  </span>
+                  <h2>{t("暂无仓库")}</h2>
+                  <p>{t("镜像首次推送后会出现在这里。")}</p>
+                </div>
+              </div>
+            ) : preferences.repositoryView === "card" ? (
+              <div className="repository-card-grid">
+                {data.repositories.map((repository) => {
+                  const id = numberValue(repository.id);
+                  const selected = selectedIds.has(id);
+                  const name = displayRepositoryName(
+                    routeState.project,
+                    repository.name,
+                  );
+                  return (
+                    <article
+                      key={id || repository.name}
+                      className={`repository-card${selected ? " selected" : ""}`}
+                      onClick={(event) => openRepository(event, repository)}
+                    >
+                      <header>
+                        <label className="repository-card-select">
                           <input
                             type="checkbox"
                             checked={selected}
@@ -1479,62 +1364,216 @@ export function ProjectDetailPage({
                               });
                             }}
                           />
-                        </td>
-                        <td>
-                          <div className="cell-title">
-                            <span className="cell-icon">
-                              <Icon name="package" />
-                            </span>
-                            <span className="cell-stack">
-                              <strong>{name}</strong>
-                              <small className="mono">
-                                #{repository.id ?? "-"}
-                              </small>
-                            </span>
-                          </div>
-                        </td>
-                        <td className="mono repository-metric-count">
-                          {formatNumber(repository.artifact_count, locale)}
-                        </td>
-                        <td className="mono repository-metric-count">
-                          {formatNumber(repository.pull_count, locale)}
-                        </td>
-                        <td className="truncate-cell">
-                          {descriptionOr(repository.description, "-")}
-                        </td>
-                        <td>{formatDate(repository.update_time, locale)}</td>
-                        <td>
-                          <div className="row-actions">
-                            <button
-                              className="icon-button"
-                              type="button"
-                              title={t("推送指引")}
-                              aria-label={t("查看推送指引")}
-                              onClick={() =>
-                                onShowPushCommand(
-                                  routeState.project,
-                                  repository.name,
-                                )
-                              }
-                            >
-                              <Icon name="upload" />
-                            </button>
-                            <Icon name="chevron" />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <Pagination
-            pagination={data.pagination}
-            onPageChange={(page) => updateRoute({ page })}
-          />
-        </section>
-      )}
+                        </label>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={(event) =>
+                              openRepository(event, repository)
+                            }
+                          >
+                            {name}
+                          </button>
+                          <span className="mono">#{repository.id ?? "-"}</span>
+                        </div>
+                        <button
+                          className="icon-button"
+                          type="button"
+                          title={t("推送指引")}
+                          aria-label={t("查看推送指引")}
+                          onClick={() =>
+                            onShowPushCommand(
+                              routeState.project,
+                              repository.name,
+                            )
+                          }
+                        >
+                          <Icon name="upload" />
+                        </button>
+                      </header>
+                      <p>
+                        {descriptionOr(
+                          repository.description,
+                          t("暂无仓库描述"),
+                        )}
+                      </p>
+                      <dl>
+                        <div>
+                          <dt>{t("制品")}</dt>
+                          <dd>
+                            {formatNumber(repository.artifact_count, locale)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>{t("累计拉取")}</dt>
+                          <dd>{formatNumber(repository.pull_count, locale)}</dd>
+                        </div>
+                        <div>
+                          <dt>{t("最近更新")}</dt>
+                          <dd>{formatDate(repository.update_time, locale)}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="table-scroll">
+                <table className="repository-select-table data-table-stable">
+                  <StableTableColumns
+                    widths={[
+                      "44px",
+                      "30%",
+                      "11%",
+                      "11%",
+                      "20%",
+                      "144px",
+                      "44px",
+                    ]}
+                  />
+                  <thead>
+                    <tr>
+                      <th className="selection-cell">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          aria-label={t("选择当前页全部仓库")}
+                          onChange={(event) =>
+                            setSelectedIds(
+                              event.currentTarget.checked
+                                ? new Set(
+                                    data.repositories.map((repository) =>
+                                      numberValue(repository.id),
+                                    ),
+                                  )
+                                : new Set(),
+                            )
+                          }
+                        />
+                      </th>
+                      <SortableHeader
+                        label="仓库"
+                        field="name"
+                        currentSort={routeState.sort}
+                        onSort={(sort) => updateRoute({ page: 1, sort })}
+                      />
+                      <SortableHeader
+                        label="制品"
+                        field="artifact_count"
+                        descendingFirst
+                        className="table-cell-number repository-metric-count"
+                        currentSort={routeState.sort}
+                        onSort={(sort) => updateRoute({ page: 1, sort })}
+                      />
+                      <SortableHeader
+                        label="拉取次数"
+                        field="pull_count"
+                        descendingFirst
+                        className="table-cell-number repository-metric-count"
+                        currentSort={routeState.sort}
+                        onSort={(sort) => updateRoute({ page: 1, sort })}
+                      />
+                      <th>{t("描述")}</th>
+                      <SortableHeader
+                        label="最近更新"
+                        field="update_time"
+                        className="table-cell-time"
+                        descendingFirst
+                        currentSort={routeState.sort}
+                        onSort={(sort) => updateRoute({ page: 1, sort })}
+                      />
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.repositories.map((repository) => {
+                      const id = numberValue(repository.id);
+                      const selected = selectedIds.has(id);
+                      const name = displayRepositoryName(
+                        routeState.project,
+                        repository.name,
+                      );
+                      return (
+                        <tr
+                          key={id || repository.name}
+                          className={`clickable-row${selected ? " selected-row" : ""}`}
+                          onClick={(event) => openRepository(event, repository)}
+                        >
+                          <td className="selection-cell">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              aria-label={`${t("选择")} ${name}`}
+                              onChange={(event) => {
+                                const checked = event.currentTarget.checked;
+                                setSelectedIds((current) => {
+                                  const next = new Set(current);
+                                  if (checked) next.add(id);
+                                  else next.delete(id);
+                                  return next;
+                                });
+                              }}
+                            />
+                          </td>
+                          <td>
+                            <div className="cell-title">
+                              <span className="cell-stack">
+                                <strong>{name}</strong>
+                                <small className="mono">
+                                  #{repository.id ?? "-"}
+                                </small>
+                              </span>
+                            </div>
+                          </td>
+                          <td className="mono table-cell-number repository-metric-count">
+                            {formatNumber(repository.artifact_count, locale)}
+                          </td>
+                          <td className="mono table-cell-number repository-metric-count">
+                            {formatNumber(repository.pull_count, locale)}
+                          </td>
+                          <td className="truncate-cell">
+                            {descriptionOr(repository.description, "-")}
+                          </td>
+                          <td className="table-cell-time">
+                            {formatDate(repository.update_time, locale)}
+                          </td>
+                          <td>
+                            <div className="row-actions">
+                              <button
+                                className="icon-button"
+                                type="button"
+                                title={t("推送指引")}
+                                aria-label={t("查看推送指引")}
+                                onClick={() =>
+                                  onShowPushCommand(
+                                    routeState.project,
+                                    repository.name,
+                                  )
+                                }
+                              >
+                                <Icon name="upload" />
+                              </button>
+                              <Icon name="chevron" />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <Pagination
+              pagination={data.pagination}
+              onPageChange={(page) => updateRoute({ page })}
+              pageSizeOptions={[20, 50, 100]}
+              onPageSizeChange={(pageSize) =>
+                updateRoute({ page: 1, pageSize })
+              }
+            />
+          </section>
+        )}
+      </ContentTransition>
     </>
   );
 }

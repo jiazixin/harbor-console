@@ -62,7 +62,7 @@ export function ProjectWebhooksSection({
                 <th>{t("目标地址")}</th>
                 <th>{t("事件")}</th>
                 <th>{t("状态")}</th>
-                <th>{t("最近更新")}</th>
+                <th className="table-cell-time">{t("最近更新")}</th>
                 <th />
               </tr>
             </thead>
@@ -105,7 +105,7 @@ export function ProjectWebhooksSection({
                       {t(webhook.enabled ? "已启用" : "已停用")}
                     </span>
                   </td>
-                  <td>
+                  <td className="table-cell-time">
                     {formatDate(
                       webhook.update_time ?? webhook.creation_time,
                       locale,

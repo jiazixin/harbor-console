@@ -81,8 +81,8 @@ export function ProjectRobotsSection({
                 <th>{t("机器人账号")}</th>
                 <th>{t("权限")}</th>
                 <th>{t("状态")}</th>
-                <th>{t("到期时间")}</th>
-                <th>{t("创建时间")}</th>
+                <th className="table-cell-time">{t("到期时间")}</th>
+                <th className="table-cell-time">{t("创建时间")}</th>
                 <th />
               </tr>
             </thead>
@@ -122,8 +122,12 @@ export function ProjectRobotsSection({
                         {t(robot.disable ? "已停用" : "已启用")}
                       </span>
                     </td>
-                    <td>{formatExpiration(robot.expires_at, locale)}</td>
-                    <td>{formatDate(robot.creation_time, locale)}</td>
+                    <td className="table-cell-time">
+                      {formatExpiration(robot.expires_at, locale)}
+                    </td>
+                    <td className="table-cell-time">
+                      {formatDate(robot.creation_time, locale)}
+                    </td>
                     <td>
                       <div className="row-actions">
                         <button

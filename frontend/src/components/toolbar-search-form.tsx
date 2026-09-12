@@ -23,27 +23,35 @@ export function ToolbarSearchForm({
   onSubmit: (value: string) => void;
 }) {
   const { t } = useLocale();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const draftRef = useRef(value);
+  const previousValueRef = useRef(value);
   const translatedPlaceholder = t(placeholder);
+
+  if (value !== previousValueRef.current) {
+    previousValueRef.current = value;
+    draftRef.current = value;
+  }
 
   return (
     <form
       className={`toolbar-search control-search-form ${className}`.trim()}
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit((inputRef.current?.value ?? value).trim());
+        onSubmit(draftRef.current.trim());
       }}
     >
       <Icon name="search" />
       <input
-        ref={inputRef}
         name={name}
         type="search"
         maxLength={maxLength}
         value={value}
         placeholder={translatedPlaceholder}
         aria-label={ariaLabel ? t(ariaLabel) : translatedPlaceholder}
-        onChange={(event) => onChange(event.currentTarget.value)}
+        onChange={(event) => {
+          draftRef.current = event.currentTarget.value;
+          onChange(event.currentTarget.value);
+        }}
       />
       <button
         className="icon-button toolbar-search-submit"

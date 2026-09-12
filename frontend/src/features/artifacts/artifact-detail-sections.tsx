@@ -796,7 +796,7 @@ function AdditionContent({
           <table>
             <thead>
               <tr>
-                <th>{t("创建时间")}</th>
+                <th className="table-cell-time">{t("创建时间")}</th>
                 <th>{t("构建指令")}</th>
                 <th>{t("文件层")}</th>
               </tr>

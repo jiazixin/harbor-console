@@ -908,7 +908,7 @@ export function RetentionExecutionDialog({
                       <th>{t("清理")}</th>
                       <th>{t("状态码")}</th>
                       <th>{t("状态")}</th>
-                      <th>{t("耗时")}</th>
+                      <th className="table-cell-time">{t("耗时")}</th>
                       <th>{t("日志")}</th>
                     </tr>
                   </thead>

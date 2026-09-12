@@ -1,4 +1,4 @@
-/* Unified motion layer */
+/* Interaction motion has one owner. Only progress indicators use linear timing. */
 .button,
 .icon-button,
 .global-search,
@@ -14,46 +14,29 @@
 .search-result,
 .account-menu-actions > button,
 .instance-menu-row > button,
-.clickable-row,
+.view-mode-toggle button,
+.language-switch button,
+.unified-select-option,
+.clickable-row > td,
 .check-row {
   transition:
-    background-color var(--motion-fast) var(--motion-linear),
-    border-color var(--motion-fast) var(--motion-linear),
-    color var(--motion-fast) var(--motion-linear),
-    box-shadow var(--motion-fast) var(--motion-linear),
-    opacity var(--motion-fast) var(--motion-linear),
-    transform var(--motion-fast) var(--motion-linear);
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 .button:not(:disabled):active,
-.icon-button:not(:disabled):active,
-.global-search:active,
-.account-button:active,
-.top-instance-switcher:active,
-.sidebar-footer button:not(:disabled):active,
-.search-result:active,
-.account-menu-actions > button:not(:disabled):active,
-.instance-menu-row > button:not(:disabled):active {
+.icon-button:not(:disabled):active {
   transform: translateY(1px);
   transition-duration: var(--motion-instant);
 }
 
-.resource-tabs a .icon,
-.administration-tabs a .icon,
-.administration-tabs button .icon,
-.primary-nav a .icon,
 .top-instance-switcher .top-instance-chevron,
 .account-button > .icon {
-  transition:
-    color var(--motion-fast) var(--motion-linear),
-    transform var(--motion-fast) var(--motion-linear);
-}
-
-.resource-tabs a:hover .icon,
-.administration-tabs a:hover .icon,
-.administration-tabs button:hover .icon,
-.primary-nav a:hover .icon {
-  transform: translateX(1px);
+  transition: transform var(--motion-fast) var(--motion-ease);
 }
 
 .top-instance-switcher[aria-expanded="true"] .top-instance-chevron,
@@ -61,133 +44,44 @@
   transform: rotate(270deg);
 }
 
-.motion-route-enter,
-.motion-content-enter,
-.motion-refresh-enter {
-  will-change: opacity;
-}
-
+/* The shell alone owns route entry; page chrome and rows never animate twice. */
 .motion-route-enter {
-  animation: motion-route-enter var(--motion-content) var(--motion-linear) both;
-  animation-delay: calc(var(--motion-order, 0) * var(--motion-stagger));
-  will-change: opacity, transform;
+  animation: motion-route-enter var(--motion-content) var(--motion-ease);
 }
 
-.motion-content-enter {
-  animation: motion-content-enter var(--motion-standard) var(--motion-linear)
-    both;
-}
-
-.motion-refresh-enter {
-  animation: motion-refresh-enter var(--motion-content) var(--motion-linear)
-    both;
-}
-
-:is(
-    .motion-route-enter,
-    .motion-content-enter,
-    .motion-refresh-enter
-  ).overview-stats
-  .stat-cell {
-  animation: motion-stat-cell-enter var(--motion-fast) var(--motion-linear) both;
-  animation-delay: calc(
-    var(--motion-order, 0) * var(--motion-stagger) +
-      var(--stat-motion-delay, 0ms)
-  );
-}
-
-:is(
-    .motion-route-enter,
-    .motion-content-enter,
-    .motion-refresh-enter
-  ).overview-stats
-  .stat-cell:nth-child(2) {
-  --stat-motion-delay: 18ms;
-}
-
-:is(
-    .motion-route-enter,
-    .motion-content-enter,
-    .motion-refresh-enter
-  ).overview-stats
-  .stat-cell:nth-child(3) {
-  --stat-motion-delay: 36ms;
-}
-
-:is(
-    .motion-route-enter,
-    .motion-content-enter,
-    .motion-refresh-enter
-  ).overview-stats
-  .stat-cell:nth-child(4) {
-  --stat-motion-delay: 54ms;
-}
-
-.view-content-pending,
-.main-content.view-refreshing
-  > :not(
-    .page-header,
-    .demo-banner,
-    .warning-banner,
-    .resource-tabs,
-    .administration-tabs
-  ) {
-  opacity: 0.68;
-  pointer-events: none;
-  transition: opacity var(--motion-standard) var(--motion-linear);
-}
-
-.main-content.view-refreshing [data-action="refresh-view"],
-.main-content.view-refreshing [data-action="refresh-dashboard"] {
-  pointer-events: none;
-  opacity: 0.72;
-}
-
-.main-content.view-refreshing [data-action="refresh-view"] .icon,
-.main-content.view-refreshing [data-action="refresh-dashboard"] .icon {
-  animation: motion-refresh-turn 760ms var(--motion-linear) infinite;
-}
-
-.dialog-backdrop:not([hidden]) {
-  animation: motion-backdrop-in var(--motion-standard) var(--motion-linear) both;
+.dialog-backdrop:not([hidden]),
+.mobile-scrim:not([hidden]) {
+  animation: motion-fade-in var(--motion-fast) var(--motion-ease);
 }
 
 .dialog-backdrop:not([hidden])
   > :is(.search-dialog, .control-dialog, .public-catalog-dialog) {
-  animation: motion-dialog-in var(--motion-standard) var(--motion-linear) both;
+  animation: motion-surface-in var(--motion-standard) var(--motion-ease);
 }
 
-.notice-panel:not([hidden]) {
-  transform-origin: top right;
-  animation: motion-popover-in var(--motion-fast) var(--motion-linear) both;
-}
-
-.dialog-backdrop:not([hidden]) .search-results > *,
-.public-catalog-content > *,
-.notice-panel:not([hidden]) > * {
-  animation: motion-list-in var(--motion-standard) var(--motion-linear) both;
-}
-
-.harbor-banner:not([hidden]),
-.demo-banner,
-.warning-banner,
-.info-banner {
-  animation: motion-banner-in var(--motion-standard) var(--motion-linear) both;
+.notice-panel:not([hidden]),
+.unified-select-menu {
+  animation: motion-fade-in var(--motion-fast) var(--motion-ease);
 }
 
 .toast {
-  animation: motion-toast-in var(--motion-standard) var(--motion-linear) both;
+  animation: motion-surface-in var(--motion-standard) var(--motion-ease);
 }
 
-.mobile-scrim:not([hidden]) {
-  animation: motion-backdrop-in var(--motion-standard) var(--motion-linear) both;
+.language-reload-in :is(.app-shell, .connect-view) {
+  animation: motion-content-in var(--motion-global) var(--motion-ease);
+}
+
+.spinner,
+.refresh-button[aria-busy="true"] .icon,
+.operation-kind.status-running .icon {
+  animation: motion-spin var(--motion-spin) var(--motion-linear) infinite;
 }
 
 body,
 .connect-view,
 .sidebar,
 .topbar,
-.main-content,
 .panel,
 .table-shell,
 .overview-stats,
@@ -195,127 +89,52 @@ body,
 .search-dialog,
 .notice-panel {
   transition:
-    background-color var(--motion-standard) var(--motion-linear),
-    border-color var(--motion-standard) var(--motion-linear),
-    color var(--motion-standard) var(--motion-linear),
-    box-shadow var(--motion-standard) var(--motion-linear);
+    background-color var(--motion-standard) var(--motion-ease),
+    border-color var(--motion-standard) var(--motion-ease),
+    color var(--motion-standard) var(--motion-ease);
 }
 
 @keyframes motion-route-enter {
   from {
-    opacity: 0.68;
-    transform: translateX(var(--motion-distance-medium));
+    opacity: 0.85;
+    transform: translateY(var(--motion-distance-medium));
   }
-
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: none;
   }
 }
 
-@keyframes motion-content-enter {
+@keyframes motion-content-in {
   from {
-    opacity: 0.78;
+    opacity: 0.85;
   }
-
   to {
     opacity: 1;
   }
 }
 
-@keyframes motion-stat-cell-enter {
-  from {
-    opacity: 0.7;
-    transform: translateY(var(--motion-distance-small));
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes motion-refresh-enter {
-  from {
-    opacity: 0.72;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes motion-backdrop-in {
+@keyframes motion-fade-in {
   from {
     opacity: 0;
   }
-
   to {
     opacity: 1;
   }
 }
 
-@keyframes motion-dialog-in {
+@keyframes motion-surface-in {
   from {
     opacity: 0;
     transform: translateY(var(--motion-distance-medium));
   }
-
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
-@keyframes motion-popover-in {
-  from {
-    opacity: 0;
-    transform: translateY(calc(-1 * var(--motion-distance-small))) scale(0.99);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes motion-list-in {
-  from {
-    opacity: 0.78;
-    transform: translateY(var(--motion-distance-small));
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes motion-banner-in {
-  from {
-    opacity: 0;
-    transform: translateY(calc(-1 * var(--motion-distance-small)));
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes motion-toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(var(--motion-distance-medium));
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes motion-refresh-turn {
+@keyframes motion-spin {
   to {
     transform: rotate(1turn);
   }
@@ -326,13 +145,12 @@ body,
   *::before,
   *::after {
     scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation: none !important;
+    transition: none !important;
   }
 
-  .view-content-pending,
-  .main-content.view-refreshing > * {
-    opacity: 1;
+  .button:not(:disabled):active,
+  .icon-button:not(:disabled):active {
+    transform: none;
   }
 }

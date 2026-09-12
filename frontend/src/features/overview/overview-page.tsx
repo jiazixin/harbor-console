@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   formatBytes,
@@ -143,7 +143,7 @@ function ReplicationTable({
           <th className="table-cell-center">{t("状态")}</th>
           <th>{t("任务统计")}</th>
           <th className="table-cell-time">{t("开始时间")}</th>
-          <th>{t("耗时")}</th>
+          <th className="table-cell-time">{t("耗时")}</th>
         </tr>
       </thead>
       <tbody>
@@ -186,7 +186,9 @@ function ReplicationTable({
               <td className="table-cell-time">
                 {formatDate(item.start_time, locale)}
               </td>
-              <td>{formatDuration(item.start_time, item.end_time, locale)}</td>
+              <td className="table-cell-time">
+                {formatDuration(item.start_time, item.end_time, locale)}
+              </td>
             </tr>
           );
         })}
@@ -208,7 +210,6 @@ export function OverviewPage({
 }) {
   const { locale, t } = useLocale();
   const [assetSort, setAssetSort] = useState<AssetMetricName>("storage");
-  const [entering, setEntering] = useState(true);
   const projects = dashboard.projects ?? [];
   const statistics = dashboard.statistics ?? {};
   const hasTagCounts = projects.some(
@@ -254,17 +255,6 @@ export function OverviewPage({
     0,
   );
   const healthy = dashboard.health?.status?.toLowerCase() === "healthy";
-  const motionClass = entering ? " motion-route-enter" : "";
-
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setEntering(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setEntering(false), 380);
-    return () => window.clearTimeout(timer);
-  }, []);
-
   return (
     <>
       <PageHeader
@@ -275,24 +265,20 @@ export function OverviewPage({
             {dashboard.systeminfo?.harbor_version ?? "Harbor v2"}
           </>
         }
-        motionClass={motionClass}
         actions={
           <RefreshButton refreshing={refreshing} onRefresh={onRefresh} />
         }
       />
-      {session.demo ? <DemoBanner motionClass={motionClass} /> : null}
+      {session.demo ? <DemoBanner /> : null}
       {(dashboard.warnings ?? []).map((warning) => (
-        <div className={`warning-banner${motionClass}`} key={warning}>
+        <div className="warning-banner" key={warning}>
           <Icon name="alert" />
           <span>
             <strong>{t("部分数据未载入。")}</strong> {warning}
           </span>
         </div>
       ))}
-      <section
-        className={`overview-stats${motionClass}`}
-        aria-label={t("实例统计")}
-      >
+      <section className="overview-stats" aria-label={t("实例统计")}>
         <StatCell
           label={t("项目总数")}
           value={formatNumber(
@@ -321,7 +307,7 @@ export function OverviewPage({
           icon="shield"
         />
       </section>
-      <div className={`dashboard-grid${motionClass}`}>
+      <div className="dashboard-grid">
         <section className="panel">
           <div className="panel-head">
             <div>
@@ -398,7 +384,7 @@ export function OverviewPage({
           <RiskRing demo={session.demo} />
         </section>
       </div>
-      <section className={`section-block${motionClass}`}>
+      <section className="section-block">
         <div className="section-heading">
           <div>
             <h2>{t("最近复制活动")}</h2>

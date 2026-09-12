@@ -1,3 +1,4 @@
+import { ContentTransition } from "../../components/content-transition";
 import { type FormEvent, useMemo, useState } from "react";
 
 import { globalAuditOperationLabel } from "../../app/audit-log";
@@ -1532,29 +1533,31 @@ export function AdministrationConfigurationSection({
           </a>
         ))}
       </nav>
-      {selected === "auth" ? (
-        <AuthenticationConfiguration
-          configuration={data.configuration}
-          onReload={onReload}
-          onNotice={onNotice}
-        />
-      ) : selected === "security" ? (
-        <SecurityConfiguration
-          allowlist={data.allowlist}
-          loadError={data.allowlistError}
-          onReload={onReload}
-          onNotice={onNotice}
-        />
-      ) : (
-        <SystemConfiguration
-          configuration={data.configuration}
-          auditEvents={data.auditEvents}
-          auditEventsError={data.auditEventsError}
-          hasRootCertificate={hasRootCertificate}
-          onReload={onReload}
-          onNotice={onNotice}
-        />
-      )}
+      <ContentTransition mode={selected}>
+        {selected === "auth" ? (
+          <AuthenticationConfiguration
+            configuration={data.configuration}
+            onReload={onReload}
+            onNotice={onNotice}
+          />
+        ) : selected === "security" ? (
+          <SecurityConfiguration
+            allowlist={data.allowlist}
+            loadError={data.allowlistError}
+            onReload={onReload}
+            onNotice={onNotice}
+          />
+        ) : (
+          <SystemConfiguration
+            configuration={data.configuration}
+            auditEvents={data.auditEvents}
+            auditEventsError={data.auditEventsError}
+            hasRootCertificate={hasRootCertificate}
+            onReload={onReload}
+            onNotice={onNotice}
+          />
+        )}
+      </ContentTransition>
     </section>
   );
 }

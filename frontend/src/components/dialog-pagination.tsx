@@ -2,6 +2,7 @@ import { formatNumber } from "../app/formatters";
 import { useLocale } from "../app/locale-context";
 import type { ControlPagination } from "../app/models";
 import { Icon } from "./icons";
+import { PageJumpControl } from "./data-table";
 
 export function DialogPagination({
   pagination,
@@ -18,7 +19,12 @@ export function DialogPagination({
       : `第 ${formatNumber(pagination.page, locale)} / ${formatNumber(pages, locale)} 页，共 ${formatNumber(pagination.total, locale)} 项`;
   return (
     <div className="dialog-pagination">
-      <span>{summary}</span>
+      <PageJumpControl
+        label={summary}
+        page={pagination.page}
+        totalPages={pages}
+        onPageChange={onPageChange}
+      />
       <div>
         <button
           className="button button-small"

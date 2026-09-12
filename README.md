@@ -39,7 +39,7 @@ older Harbor APIs are intentionally not included.
 
 ## Requirements
 
-- Go 1.26.5 or newer
+- Go 1.26.6 or newer
 - Node.js 22 or newer for frontend checks
 - Docker or another OCI builder for container images
 

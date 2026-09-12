@@ -60,4 +60,41 @@ describe("OverviewPage", () => {
     fireEvent.click(screen.getByRole("option", { name: "仓库数量" }));
     expect(screen.getByText("按镜像仓库数量排序")).toBeInTheDocument();
   });
+
+  it("keeps the recent replication duration header and cells on one axis", () => {
+    render(
+      <LocaleProvider>
+        <IconSprite />
+        <OverviewPage
+          session={session}
+          dashboard={{
+            ...dashboard,
+            replications: [
+              {
+                id: 26370,
+                policy_id: 1,
+                trigger: "scheduled",
+                status: "succeed",
+                succeed: 1,
+                failed: 0,
+                in_progress: 0,
+                start_time: "2026-08-05T12:00:00Z",
+                end_time: "2026-08-05T12:00:06Z",
+              },
+            ],
+            replication_policies: [{ id: 1, name: "daily-sync" }],
+          }}
+          refreshing={false}
+          onRefresh={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "耗时" })).toHaveClass(
+      "table-cell-time",
+    );
+    expect(screen.getByRole("cell", { name: "6 秒" })).toHaveClass(
+      "table-cell-time",
+    );
+  });
 });

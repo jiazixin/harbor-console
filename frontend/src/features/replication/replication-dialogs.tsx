@@ -1275,18 +1275,24 @@ export function ReplicationExecutionDialog({
                   <span>{t("该执行记录还没有返回任务明细。")}</span>
                 </div>
               ) : (
-                <table>
+                <table className="replication-task-table-grid">
                   <thead>
                     <tr>
                       <th className="id-column">{t("任务")}</th>
                       <th>{t("资源类型")}</th>
-                      <th>{t("源")}</th>
-                      <th>{t("目标")}</th>
-                      <th>{t("操作")}</th>
-                      <th>{t("状态")}</th>
-                      <th>{t("开始时间")}</th>
-                      <th>{t("结束时间")}</th>
-                      <th>{t("日志")}</th>
+                      <th className="replication-task-source">{t("源")}</th>
+                      <th className="replication-task-target">{t("目标")}</th>
+                      <th className="replication-task-operation">
+                        {t("操作")}
+                      </th>
+                      <th className="replication-task-status">{t("状态")}</th>
+                      <th className="replication-task-start-time table-cell-time">
+                        {t("开始时间")}
+                      </th>
+                      <th className="replication-task-end-time table-cell-time">
+                        {t("结束时间")}
+                      </th>
+                      <th className="replication-task-log">{t("日志")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1299,25 +1305,35 @@ export function ReplicationExecutionDialog({
                             ? "Images"
                             : t(resourceTypeLabel(task.resource_type))}
                         </td>
-                        <td
-                          className="replication-resource mono"
-                          title={task.src_resource}
-                        >
-                          {task.src_resource ?? "-"}
+                        <td className="replication-task-source">
+                          <span
+                            className="replication-resource mono"
+                            title={task.src_resource}
+                          >
+                            {task.src_resource ?? "-"}
+                          </span>
                         </td>
-                        <td
-                          className="replication-resource mono"
-                          title={task.dst_resource}
-                        >
-                          {task.dst_resource ?? "-"}
+                        <td className="replication-task-target">
+                          <span
+                            className="replication-resource mono"
+                            title={task.dst_resource}
+                          >
+                            {task.dst_resource ?? "-"}
+                          </span>
                         </td>
-                        <td>{t(operationLabel(task.operation))}</td>
-                        <td>
+                        <td className="replication-task-operation">
+                          {t(operationLabel(task.operation))}
+                        </td>
+                        <td className="replication-task-status">
                           <StatusBadge status={task.status} />
                         </td>
-                        <td>{formatDate(task.start_time, locale)}</td>
-                        <td>{replicationTaskDate(task.end_time, locale)}</td>
-                        <td>
+                        <td className="replication-task-start-time table-cell-time">
+                          {formatDate(task.start_time, locale)}
+                        </td>
+                        <td className="replication-task-end-time table-cell-time">
+                          {replicationTaskDate(task.end_time, locale)}
+                        </td>
+                        <td className="replication-task-log">
                           {task.status?.toLowerCase() === "initialized" ? (
                             "-"
                           ) : (

@@ -8,6 +8,7 @@ import type {
   PreheatProviderMetadata,
 } from "../../app/models";
 import { ErrorView, LoadingView } from "../../components/feedback";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
 import {
   DemoBanner,
@@ -54,6 +55,7 @@ export function PreheatPage({
   const [instances, setInstances] = useState<PreheatInstance[]>();
   const [warnings, setWarnings] = useState<string[]>([]);
   const [fatalError, setFatalError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [version, setVersion] = useState(0);
   const requestVersion = useRef(0);
   const reload = useCallback(() => setVersion((current) => current + 1), []);
@@ -62,8 +64,7 @@ export function PreheatPage({
     const controller = new AbortController();
     const currentVersion = requestVersion.current + 1;
     requestVersion.current = currentVersion;
-    setProviders(undefined);
-    setInstances(undefined);
+    setLoading(true);
     setWarnings([]);
     setFatalError("");
     void Promise.allSettled([
@@ -77,36 +78,47 @@ export function PreheatPage({
         { page: 1, page_size: 100, sort: "name" },
         controller.signal,
       ),
-    ]).then(([providerResult, instanceResult]) => {
-      if (
-        controller.signal.aborted ||
-        requestVersion.current !== currentVersion
-      )
-        return;
-      const errors = [providerResult, instanceResult].flatMap((result) => {
-        if (result.status !== "rejected") return [];
-        return [
-          result.reason instanceof Error
-            ? result.reason.message
-            : String(result.reason),
-        ];
+    ])
+      .then(([providerResult, instanceResult]) => {
+        if (
+          controller.signal.aborted ||
+          requestVersion.current !== currentVersion
+        )
+          return;
+        const errors = [providerResult, instanceResult].flatMap((result) => {
+          if (result.status !== "rejected") return [];
+          return [
+            result.reason instanceof Error
+              ? result.reason.message
+              : String(result.reason),
+          ];
+        });
+        if (errors.length === 2) {
+          setFatalError(errors.join("；"));
+          setProviders([]);
+          setInstances([]);
+          return;
+        }
+        setProviders(
+          providerResult.status === "fulfilled"
+            ? (providerResult.value ?? [])
+            : [],
+        );
+        setInstances(
+          instanceResult.status === "fulfilled"
+            ? instanceResult.value.items
+            : [],
+        );
+        setWarnings(errors);
+      })
+      .finally(() => {
+        if (
+          !controller.signal.aborted &&
+          requestVersion.current === currentVersion
+        ) {
+          setLoading(false);
+        }
       });
-      if (errors.length === 2) {
-        setFatalError(errors.join("；"));
-        setProviders([]);
-        setInstances([]);
-        return;
-      }
-      setProviders(
-        providerResult.status === "fulfilled"
-          ? (providerResult.value ?? [])
-          : [],
-      );
-      setInstances(
-        instanceResult.status === "fulfilled" ? instanceResult.value.items : [],
-      );
-      setWarnings(errors);
-    });
     return () => controller.abort();
   }, [version]);
 
@@ -121,7 +133,11 @@ export function PreheatPage({
     }
   }
 
-  const loading = providers === undefined || instances === undefined;
+  const providerItems = providers ?? [];
+  const instanceItems = instances ?? [];
+  const initialLoading =
+    loading && providers === undefined && instances === undefined;
+
   return (
     <>
       <PageHeader
@@ -139,9 +155,9 @@ export function PreheatPage({
             <button
               className="button button-small button-primary"
               type="button"
-              disabled={!providers?.length}
+              disabled={!providerItems.length}
               onClick={() =>
-                onAction({ kind: "create", providers: providers ?? [] })
+                onAction({ kind: "create", providers: providerItems })
               }
             >
               <Icon name="plus" />
@@ -151,19 +167,19 @@ export function PreheatPage({
         }
       />
       {demo ? <DemoBanner /> : null}
-      {loading ? (
+      {initialLoading ? (
         <section className="table-shell">
           <LoadingView />
         </section>
       ) : null}
-      {!loading && fatalError ? (
+      {!initialLoading && fatalError ? (
         <ErrorView
           message={`${fatalError}。${t("当前 Harbor 版本可能未启用分布式分发模块，或当前账号没有系统级预热实例权限。")}`}
           retry={reload}
         />
       ) : null}
-      {!loading && !fatalError ? (
-        <>
+      {!fatalError && providers !== undefined && instances !== undefined ? (
+        <div aria-busy={loading}>
           {warnings.length ? (
             <div className="warning-banner preheat-warning">
               <Icon name="alert" />
@@ -175,24 +191,19 @@ export function PreheatPage({
               <span className="eyebrow">{t("官方 Provider")}</span>
               <h2>
                 {locale === "en-US"
-                  ? `${formatNumber(providers.length, locale)} providers available`
-                  : `${formatNumber(providers.length, locale)} 种驱动可用`}
+                  ? `${formatNumber(providerItems.length, locale)} providers available`
+                  : `${formatNumber(providerItems.length, locale)} 种驱动可用`}
               </h2>
             </div>
             <div className="preheat-provider-list">
-              {providers.length ? (
-                providers.map((provider) => (
+              {providerItems.length ? (
+                providerItems.map((provider) => (
                   <span className="preheat-provider-badge" key={provider.id}>
                     <span className="cell-icon">
                       <Icon name="play" />
                     </span>
                     <span>
                       <strong>{providerName(provider)}</strong>
-                      <small>
-                        {[provider.id, provider.version]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </small>
                     </span>
                   </span>
                 ))
@@ -209,23 +220,17 @@ export function PreheatPage({
               <div className="toolbar-spacer" />
               <span className="muted">
                 {locale === "en-US"
-                  ? `${formatNumber(instances.length, locale)} ${instances.length === 1 ? "instance" : "instances"}`
-                  : `${formatNumber(instances.length, locale)} 个实例`}
+                  ? `${formatNumber(instanceItems.length, locale)} ${instanceItems.length === 1 ? "instance" : "instances"}`
+                  : `${formatNumber(instanceItems.length, locale)} 个实例`}
               </span>
             </div>
             <div className="table-scroll">
-              {!instances.length ? (
-                <div className="empty-table">
-                  <Icon name="play" />
-                  <div>
-                    <strong>{t("暂无 P2P 实例")}</strong>
-                    <span>
-                      {t(
-                        "注册 Dragonfly、Kraken 等 Provider 实例后，项目即可创建预热策略。",
-                      )}
-                    </span>
-                  </div>
-                </div>
+              {!instanceItems.length ? (
+                <EmptyState
+                  title="暂无 P2P 实例"
+                  description="注册 Dragonfly、Kraken 等 Provider 实例后，项目即可创建预热策略。"
+                  icon="play"
+                />
               ) : (
                 <table className="preheat-instance-table">
                   <thead>
@@ -240,7 +245,7 @@ export function PreheatPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {instances.map((instance) => (
+                    {instanceItems.map((instance) => (
                       <tr key={instance.id}>
                         <td>
                           <div className="cell-title">
@@ -323,7 +328,7 @@ export function PreheatPage({
                                 onAction({
                                   kind: "edit",
                                   instance,
-                                  providers,
+                                  providers: providerItems,
                                 })
                               }
                             >
@@ -349,7 +354,7 @@ export function PreheatPage({
               )}
             </div>
           </section>
-        </>
+        </div>
       ) : null}
     </>
   );

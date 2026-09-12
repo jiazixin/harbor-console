@@ -795,8 +795,8 @@ export function PreheatExecutionsDialog({
                       <th>{t("类型")}</th>
                       <th>{t("状态")}</th>
                       <th>{locale === "en-US" ? "Retries" : "重试"}</th>
-                      <th>{t("开始时间")}</th>
-                      <th>{t("结束时间")}</th>
+                      <th className="table-cell-time">{t("开始时间")}</th>
+                      <th className="table-cell-time">{t("结束时间")}</th>
                       <th>{locale === "en-US" ? "Log" : "日志"}</th>
                     </tr>
                   </thead>
@@ -829,8 +829,12 @@ export function PreheatExecutionsDialog({
                           <StatusBadge status={task.status} />
                         </td>
                         <td>{formatNumber(task.run_count, locale)}</td>
-                        <td>{formatDate(task.start_time, locale)}</td>
-                        <td>{formatDate(task.end_time, locale)}</td>
+                        <td className="table-cell-time">
+                          {formatDate(task.start_time, locale)}
+                        </td>
+                        <td className="table-cell-time">
+                          {formatDate(task.end_time, locale)}
+                        </td>
                         <td>
                           <button
                             className="icon-button"
@@ -974,8 +978,8 @@ export function PreheatExecutionsDialog({
                     <th>{t("任务")}</th>
                     <th>{t("成功")}</th>
                     <th>{t("失败")}</th>
-                    <th>{t("开始时间")}</th>
-                    <th>{t("耗时")}</th>
+                    <th className="table-cell-time">{t("开始时间")}</th>
+                    <th className="table-cell-time">{t("耗时")}</th>
                     <th />
                   </tr>
                 </thead>
@@ -1002,8 +1006,10 @@ export function PreheatExecutionsDialog({
                           locale,
                         )}
                       </td>
-                      <td>{formatDate(execution.start_time, locale)}</td>
-                      <td>
+                      <td className="table-cell-time">
+                        {formatDate(execution.start_time, locale)}
+                      </td>
+                      <td className="table-cell-time">
                         {formatDuration(
                           execution.start_time,
                           execution.end_time,

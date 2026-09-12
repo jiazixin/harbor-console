@@ -1,6 +1,6 @@
 # React Frontend Migration Implementation Plan
 
-> Status: COMPLETE. Typed React owns the production application and the classic runtime has been removed; local quality and browser visual-preservation gates pass.
+> Status: COMPLETE for the technology migration. Typed React owns the production application and the classic runtime has been removed. Product UI consistency follow-up remains OPEN in `2026-08-04-react-ui-consistency-follow-up.md`; this plan's completion does not close those newly recorded items.
 
 **Goal:** Rewrite the Harbor Console frontend with React while preserving the existing visual and interaction contract exactly.
 
@@ -71,3 +71,7 @@
 - Responsive boundary evidence: 390x844, 412x915, and 1280x720 kept document width equal to viewport; dialogs remained internally bounded and long values used local scrolling or 260px ellipsis with full `title`.
 - Container runtime Gate: `harbor-console:dev` builds from immutable base-image digests, runs as `nonroot:nonroot` with UID 65532, serves health and every embedded hashed asset, reads the packaged configuration, and exits with code 0 after SIGTERM.
 - Final acceptance: all in-scope repository, architecture, API contract, local runtime, real Harbor, browser UI, security, findings-regression, and container Gates pass. Native OIDC login remains outside the migration scope; direct macOS Safari application coverage is informational because Firefox and WebKit Gates pass.
+
+## Post-Migration Follow-Up
+
+The migration evidence above remains the factual record for the completed React architecture replacement. It does not claim that every previously requested product-level UI detail survived the rewrite. Sorting entry points, pagination footer placement, project filter geometry, project page copy, project overview metrics, and non-semantic resource icons are reopened in `2026-08-04-react-ui-consistency-follow-up.md` and require a new browser sign-off after implementation.

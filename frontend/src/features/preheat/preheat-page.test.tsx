@@ -56,8 +56,10 @@ describe("preheat page", () => {
 
     expect(await screen.findByText("Dragonfly")).toBeVisible();
     expect(screen.getByText("Kraken")).toBeVisible();
-    expect(screen.getByText("dragonfly · v2")).toBeVisible();
-    expect(screen.getByText("kraken · v1")).toBeVisible();
+    expect(screen.queryByText("dragonfly · v2")).toBeNull();
+    expect(screen.queryByText("kraken · v1")).toBeNull();
+    expect(screen.queryByText("v2")).toBeNull();
+    expect(screen.queryByText("v1")).toBeNull();
     expect(screen.getByText("dragonfly-shanghai")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "编辑实例" }));
     expect(onAction).toHaveBeenCalledWith({

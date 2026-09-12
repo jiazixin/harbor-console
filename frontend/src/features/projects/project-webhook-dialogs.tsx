@@ -599,7 +599,7 @@ export function WebhookHistoryDialog({
                       <th>{t("目标")}</th>
                       <th>{t("尝试次数")}</th>
                       <th>{t("状态")}</th>
-                      <th>{t("开始时间")}</th>
+                      <th className="table-cell-time">{t("开始时间")}</th>
                       <th>{t("日志")}</th>
                     </tr>
                   </thead>
@@ -618,7 +618,9 @@ export function WebhookHistoryDialog({
                         <td>
                           <StatusBadge status={task.status} />
                         </td>
-                        <td>{formatDate(task.start_time, locale)}</td>
+                        <td className="table-cell-time">
+                          {formatDate(task.start_time, locale)}
+                        </td>
                         <td>
                           <button
                             className="icon-button"
@@ -759,8 +761,8 @@ export function WebhookHistoryDialog({
                     <th>{t("触发方式")}</th>
                     <th>{t("任务")}</th>
                     <th>{t("状态")}</th>
-                    <th>{t("开始时间")}</th>
-                    <th>{t("耗时")}</th>
+                    <th className="table-cell-time">{t("开始时间")}</th>
+                    <th className="table-cell-time">{t("耗时")}</th>
                     <th />
                   </tr>
                 </thead>
@@ -780,8 +782,10 @@ export function WebhookHistoryDialog({
                       <td>
                         <StatusBadge status={execution.status} />
                       </td>
-                      <td>{formatDate(execution.start_time, locale)}</td>
-                      <td>
+                      <td className="table-cell-time">
+                        {formatDate(execution.start_time, locale)}
+                      </td>
+                      <td className="table-cell-time">
                         {formatDuration(
                           execution.start_time,
                           execution.end_time,

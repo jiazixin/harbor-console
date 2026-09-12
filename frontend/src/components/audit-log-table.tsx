@@ -1,7 +1,9 @@
 import { auditResourceTypeLabel, formatAuditDate } from "../app/audit-log";
 import { useLocale } from "../app/locale-context";
 import type { AuditLog, Locale } from "../app/models";
-import { Icon, type IconName } from "./icons";
+import { SortableHeader, StableTableColumns } from "./data-table";
+import { EmptyState } from "./empty-state";
+import type { IconName } from "./icons";
 
 type Translate = (source: string) => string;
 
@@ -10,6 +12,8 @@ export function AuditLogTable({
   emptyTitle,
   emptyDescription,
   emptyIcon,
+  sort,
+  onSort,
   operationLabel,
   descriptionLabel,
 }: {
@@ -17,6 +21,8 @@ export function AuditLogTable({
   emptyTitle: string;
   emptyDescription: string;
   emptyIcon?: IconName;
+  sort?: string;
+  onSort?: (sort: string) => void;
   operationLabel: (
     value: string | undefined,
     locale: Locale,
@@ -32,21 +38,33 @@ export function AuditLogTable({
 
   if (!logs.length) {
     return (
-      <div className="empty-table">
-        {emptyIcon ? <Icon name={emptyIcon} /> : null}
-        <div>
-          <strong>{t(emptyTitle)}</strong>
-          <span>{t(emptyDescription)}</span>
-        </div>
-      </div>
+      <EmptyState
+        title={emptyTitle}
+        description={emptyDescription}
+        icon={emptyIcon}
+      />
     );
   }
 
   return (
-    <table>
+    <table className="data-table-stable audit-log-table">
+      <StableTableColumns
+        widths={["144px", "12%", "24%", "9%", "10%", "22%", "96px"]}
+      />
       <thead>
         <tr>
-          <th>{t("时间")}</th>
+          {sort && onSort ? (
+            <SortableHeader
+              label="时间"
+              field="op_time"
+              className="audit-time table-cell-time"
+              descendingFirst
+              currentSort={sort}
+              onSort={onSort}
+            />
+          ) : (
+            <th className="audit-time table-cell-time">{t("时间")}</th>
+          )}
           <th>{t("用户")}</th>
           <th>{t("事件")}</th>
           <th>{t("结果")}</th>
@@ -61,7 +79,7 @@ export function AuditLogTable({
           const description = descriptionLabel(log, locale, t);
           return (
             <tr key={`${String(log.id)}-${String(index)}`}>
-              <td className="audit-time">
+              <td className="audit-time table-cell-time">
                 {formatAuditDate(log.op_time, locale)}
               </td>
               <td>

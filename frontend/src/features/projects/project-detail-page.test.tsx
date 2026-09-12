@@ -258,11 +258,17 @@ describe("ProjectDetailPage", () => {
     expect(screen.getByText("api")).toBeInTheDocument();
     expect(controlApi.list).toHaveBeenCalledWith(
       "repositories",
-      expect.objectContaining({
+      {
+        project: "platform",
         page: 1,
-        page_size: 50,
-        sort: "-update_time",
-      }),
+        page_size: 100,
+        sort: "name",
+      },
+      expect.any(AbortSignal),
+    );
+    expect(controlApi.list).not.toHaveBeenCalledWith(
+      "repositories",
+      expect.objectContaining({ sort: "artifact_count" }),
       expect.any(AbortSignal),
     );
 
@@ -274,8 +280,7 @@ describe("ProjectDetailPage", () => {
       repositories[0],
     ]);
 
-    fireEvent.click(screen.getByRole("button", { name: "排序" }));
-    fireEvent.click(screen.getByRole("option", { name: "拉取最多" }));
+    fireEvent.click(screen.getByRole("button", { name: "按拉取次数降序排序" }));
     expect(navigate).toHaveBeenCalledWith(
       "projects/platform/repositories?sort=-pull_count",
     );
@@ -289,6 +294,85 @@ describe("ProjectDetailPage", () => {
         "projects/platform/repositories/platform%2Fapi/artifacts",
       ),
     );
+  });
+
+  it("sorts derived repository counts in both directions without remounting", async () => {
+    vi.spyOn(controlApi, "data").mockImplementation((operation) =>
+      Promise.resolve(operation === "project" ? project : summary),
+    );
+    const list = vi.spyOn(controlApi, "list").mockResolvedValue({
+      items: repositories,
+      pagination: { page: 1, page_size: 100, total: repositories.length },
+    });
+    const props = {
+      session,
+      isSystemAdmin: true,
+      refreshing: false,
+      navigate: vi.fn(),
+      onRefresh: vi.fn().mockResolvedValue(undefined),
+      onDeleteRepositories: vi.fn(),
+      onShowPushCommand: vi.fn(),
+      onAddMember: vi.fn(),
+      onEditMember: vi.fn(),
+      onDeleteMember: vi.fn(),
+      onCreateRobot: vi.fn(),
+      onEditRobot: vi.fn(),
+      onResetRobotSecret: vi.fn(),
+      onDeleteRobot: vi.fn(),
+      onCreateWebhook: vi.fn(),
+      onEditWebhook: vi.fn(),
+      onShowWebhookHistory: vi.fn(),
+      onDeleteWebhook: vi.fn(),
+      onCreateImmutableRule: vi.fn(),
+      onEditImmutableRule: vi.fn(),
+      onDeleteImmutableRule: vi.fn(),
+      onCreateProjectLabel: vi.fn(),
+      onEditProjectLabel: vi.fn(),
+      onDeleteProjectLabel: vi.fn(),
+      onRetentionAction: vi.fn(),
+    };
+    const { rerender } = render(
+      <LocaleProvider>
+        <IconSprite />
+        <ProjectDetailPage
+          {...props}
+          route={parseHashRoute(
+            "#/projects/platform/repositories?sort=-artifact_count",
+          )}
+        />
+      </LocaleProvider>,
+    );
+
+    await waitFor(() => {
+      const rows = screen.getAllByRole("row");
+      expect(rows[1]).toHaveTextContent("api");
+      expect(rows[2]).toHaveTextContent("web");
+    });
+    const table = screen.getByRole("table");
+
+    rerender(
+      <LocaleProvider>
+        <IconSprite />
+        <ProjectDetailPage
+          {...props}
+          route={parseHashRoute(
+            "#/projects/platform/repositories?sort=artifact_count",
+          )}
+        />
+      </LocaleProvider>,
+    );
+
+    await waitFor(() => {
+      const rows = screen.getAllByRole("row");
+      expect(rows[1]).toHaveTextContent("web");
+      expect(rows[2]).toHaveTextContent("api");
+    });
+    expect(screen.getByRole("table")).toBe(table);
+    expect(list.mock.calls).not.toContainEqual([
+      "repositories",
+      expect.objectContaining({ sort: "artifact_count" }),
+      expect.any(AbortSignal),
+    ]);
   });
 
   it("preserves project member search, pagination, and row actions", async () => {

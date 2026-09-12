@@ -1,3 +1,4 @@
+import { ContentTransition } from "../../components/content-transition";
 import {
   type ReactNode,
   useCallback,
@@ -32,6 +33,7 @@ import type {
   SystemRobot,
 } from "../../app/models";
 import { Pagination } from "../../components/data-table";
+import { EmptyState } from "../../components/empty-state";
 import { Icon, type IconName } from "../../components/icons";
 import { OverflowText } from "../../components/overflow-text";
 import { ToolbarSearchForm } from "../../components/toolbar-search-form";
@@ -39,6 +41,7 @@ import {
   DemoBanner,
   PageHeader,
   RefreshButton,
+  SectionHeading,
 } from "../../components/page-elements";
 import {
   AdministrationDialog,
@@ -414,15 +417,7 @@ function EmptyTable({
   icon: IconName;
 }) {
   const { t } = useLocale();
-  return (
-    <div className="empty-table">
-      <Icon name={icon} />
-      <div>
-        <strong>{t(title)}</strong>
-        <span>{t(message)}</span>
-      </div>
-    </div>
-  );
+  return <EmptyState title={t(title)} description={t(message)} icon={icon} />;
 }
 
 function SearchToolbar({
@@ -558,7 +553,7 @@ function UsersTable({
           <th>{t("用户")}</th>
           <th>{t("邮箱")}</th>
           <th>{t("权限")}</th>
-          <th>{t("创建时间")}</th>
+          <th className="table-cell-time">{t("创建时间")}</th>
           <th />
         </tr>
       </thead>
@@ -592,7 +587,9 @@ function UsersTable({
                 {t(user.sysadmin_flag ? "系统管理员" : "普通用户")}
               </span>
             </td>
-            <td>{formatDate(user.creation_time, locale)}</td>
+            <td className="table-cell-time">
+              {formatDate(user.creation_time, locale)}
+            </td>
             <td>
               <RowActions>
                 <ActionButton
@@ -721,8 +718,8 @@ function RobotsTable({
           <th>{t("机器人账号")}</th>
           <th>{t("权限范围")}</th>
           <th>{t("状态")}</th>
-          <th>{t("到期时间")}</th>
-          <th>{t("创建时间")}</th>
+          <th className="table-cell-time">{t("到期时间")}</th>
+          <th className="table-cell-time">{t("创建时间")}</th>
           <th />
         </tr>
       </thead>
@@ -778,7 +775,7 @@ function RobotsTable({
                   {t(robot.disable ? "已停用" : "已启用")}
                 </span>
               </td>
-              <td>
+              <td className="table-cell-time">
                 {robot.expires_at === -1
                   ? t("永不过期")
                   : formatDate(
@@ -789,7 +786,9 @@ function RobotsTable({
                       false,
                     )}
               </td>
-              <td>{formatDate(robot.creation_time, locale)}</td>
+              <td className="table-cell-time">
+                {formatDate(robot.creation_time, locale)}
+              </td>
               <td>
                 <RowActions>
                   <ActionButton
@@ -848,7 +847,7 @@ function LabelsTable({
           <th>{t("标签")}</th>
           <th>{t("描述")}</th>
           <th>{t("作用域")}</th>
-          <th>{t("最近更新")}</th>
+          <th className="table-cell-time">{t("最近更新")}</th>
           <th />
         </tr>
       </thead>
@@ -870,7 +869,7 @@ function LabelsTable({
             <td>
               <span className="badge badge-blue">{t("所有项目")}</span>
             </td>
-            <td>
+            <td className="table-cell-time">
               {formatDate(label.update_time ?? label.creation_time, locale)}
             </td>
             <td>
@@ -920,7 +919,7 @@ function QuotasTable({
           <th>{t("已使用")}</th>
           <th>{t("配额上限")}</th>
           <th>{t("使用率")}</th>
-          <th>{t("最近更新")}</th>
+          <th className="table-cell-time">{t("最近更新")}</th>
           <th />
         </tr>
       </thead>
@@ -967,7 +966,7 @@ function QuotasTable({
                   </small>
                 </div>
               </td>
-              <td>
+              <td className="table-cell-time">
                 {formatDate(quota.update_time ?? quota.creation_time, locale)}
               </td>
               <td>
@@ -1012,6 +1011,16 @@ function ResourceSection({
   const { locale, t } = useLocale();
   const pageChange = (page: number) =>
     navigate(routePath(data.section, page, filter));
+  const heading =
+    data.section === "users"
+      ? { title: "用户", zhUnit: "个", enUnit: "users" }
+      : data.section === "groups"
+        ? { title: "用户组", zhUnit: "个", enUnit: "groups" }
+        : data.section === "robots"
+          ? { title: "系统机器人", zhUnit: "个", enUnit: "robots" }
+          : data.section === "labels"
+            ? { title: "全局标签", zhUnit: "个", enUnit: "labels" }
+            : { title: "项目存储配额", zhUnit: "个", enUnit: "quotas" };
 
   let toolbar: ReactNode;
   let table: ReactNode;
@@ -1130,6 +1139,12 @@ function ResourceSection({
   return (
     <section className="table-shell">
       {toolbar}
+      <SectionHeading
+        title={heading.title}
+        total={data.collection.pagination.total}
+        zhUnit={heading.zhUnit}
+        enUnit={heading.enUnit}
+      />
       <div className="table-scroll">{table}</div>
       <Pagination
         pagination={data.collection.pagination}
@@ -1223,70 +1238,72 @@ export function AdministrationPage({
       />
       {demo ? <DemoBanner /> : null}
       <AdministrationTabs selected={section} />
-      {error ? (
-        <div className="loading-state">
-          <div>
-            <Icon name="alert" />
-            <h2>{t("系统管理数据载入失败")}</h2>
-            <p>{error}</p>
-            <button
-              className="button button-small"
-              type="button"
-              onClick={reload}
+      <ContentTransition mode={section}>
+        {error ? (
+          <div className="loading-state">
+            <div>
+              <Icon name="alert" />
+              <h2>{t("系统管理数据载入失败")}</h2>
+              <p>{error}</p>
+              <button
+                className="button button-small"
+                type="button"
+                onClick={reload}
+              >
+                {t("重试")}
+              </button>
+            </div>
+          </div>
+        ) : !implementedSections.has(section) || data?.section !== section ? (
+          <section className="table-shell">
+            <div
+              className="route-loading"
+              role="status"
+              aria-label={t("正在载入")}
             >
-              {t("重试")}
-            </button>
-          </div>
-        </div>
-      ) : !implementedSections.has(section) || data?.section !== section ? (
-        <section className="table-shell">
-          <div
-            className="route-loading"
-            role="status"
-            aria-label={t("正在载入")}
-          >
-            <span className="spinner spinner-small" aria-hidden="true" />
-          </div>
-        </section>
-      ) : data.section === "maintenance" ? (
-        <AdministrationMaintenanceSection
-          data={data}
-          navigate={navigate}
-          onReload={reload}
-          onNotice={onNotice}
-        />
-      ) : data.section === "purge" ? (
-        <AdministrationPurgeSection
-          data={data}
-          navigate={navigate}
-          onReload={reload}
-          onNotice={onNotice}
-        />
-      ) : data.section === "jobs" ? (
-        <AdministrationJobServiceSection
-          data={data}
-          navigate={navigate}
-          onReload={reload}
-          onNotice={onNotice}
-        />
-      ) : data.section === "configuration" ? (
-        <AdministrationConfigurationSection
-          data={data}
-          route={route}
-          hasRootCertificate={hasRootCertificate}
-          navigate={navigate}
-          onReload={reload}
-          onNotice={onNotice}
-        />
-      ) : (
-        <ResourceSection
-          data={data}
-          filter={filter}
-          authMode={authMode ?? ""}
-          navigate={navigate}
-          onAction={setDialog}
-        />
-      )}
+              <span className="spinner spinner-small" aria-hidden="true" />
+            </div>
+          </section>
+        ) : data.section === "maintenance" ? (
+          <AdministrationMaintenanceSection
+            data={data}
+            navigate={navigate}
+            onReload={reload}
+            onNotice={onNotice}
+          />
+        ) : data.section === "purge" ? (
+          <AdministrationPurgeSection
+            data={data}
+            navigate={navigate}
+            onReload={reload}
+            onNotice={onNotice}
+          />
+        ) : data.section === "jobs" ? (
+          <AdministrationJobServiceSection
+            data={data}
+            navigate={navigate}
+            onReload={reload}
+            onNotice={onNotice}
+          />
+        ) : data.section === "configuration" ? (
+          <AdministrationConfigurationSection
+            data={data}
+            route={route}
+            hasRootCertificate={hasRootCertificate}
+            navigate={navigate}
+            onReload={reload}
+            onNotice={onNotice}
+          />
+        ) : (
+          <ResourceSection
+            data={data}
+            filter={filter}
+            authMode={authMode ?? ""}
+            navigate={navigate}
+            onAction={setDialog}
+          />
+        )}
+      </ContentTransition>
       {dialog ? (
         <AdministrationDialog
           action={dialog}

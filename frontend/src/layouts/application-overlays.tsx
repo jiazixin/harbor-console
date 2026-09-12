@@ -18,6 +18,7 @@ import {
 import { ControlDialog } from "../components/control-dialog";
 import { Icon } from "../components/icons";
 import { UnifiedSelect } from "../components/unified-select";
+import { useModal } from "../components/use-modal";
 
 export type ShellPanel = "account" | "instances" | "operations";
 
@@ -51,23 +52,6 @@ function authModeLabel(
   );
 }
 
-function useOverlay(open: boolean, close: () => void) {
-  useEffect(() => {
-    if (!open) return;
-    document.documentElement.classList.add("overlay-open");
-    document.body.classList.add("overlay-open");
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.documentElement.classList.remove("overlay-open");
-      document.body.classList.remove("overlay-open");
-    };
-  }, [close, open]);
-}
-
 export function GlobalSearchDialog({
   open,
   onClose,
@@ -79,29 +63,23 @@ export function GlobalSearchDialog({
 }) {
   const { locale, t } = useLocale();
   const inputRef = useRef<HTMLInputElement>(null);
-  const openerRef = useRef<HTMLElement | null>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<SearchResults>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  useOverlay(open, onClose);
+  useModal({
+    open,
+    dialogRef,
+    onClose,
+    initialFocusSelector: 'input[type="search"]',
+  });
 
   useEffect(() => {
     if (!open) return;
-    openerRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
     setTerm("");
     setResults(undefined);
     setError("");
-    const timer = window.setTimeout(() => inputRef.current?.focus(), 20);
-    return () => {
-      window.clearTimeout(timer);
-      const opener = openerRef.current;
-      openerRef.current = null;
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
-    };
   }, [open]);
 
   useEffect(() => {
@@ -152,6 +130,8 @@ export function GlobalSearchDialog({
       }}
     >
       <section
+        ref={dialogRef}
+        tabIndex={-1}
         className="search-dialog"
         role="dialog"
         aria-modal="true"

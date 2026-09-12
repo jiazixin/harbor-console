@@ -133,6 +133,120 @@ test("single-choice controls use the shared React select", () => {
   assert.match(source, /<UnifiedSelect\b/);
 });
 
+test("shared select menus escape clipping owners and stay inside the viewport", () => {
+  const select = read("frontend/src/components/unified-select.tsx");
+  const styles = read("frontend/src/styles/form-controls.css");
+  assert.match(select, /createPortal\(menu, document\.body\)/);
+  assert.match(select, /availableAbove/);
+  assert.match(select, /availableBelow/);
+  assert.match(select, /window\.visualViewport/);
+  assert.match(
+    styles,
+    /\.unified-select-menu\s*\{[^}]*position:\s*fixed[^}]*overflow-y:\s*auto/s,
+  );
+  assert.doesNotMatch(
+    styles,
+    /\.unified-select-menu\s*\{[^}]*top:\s*calc\(100%/s,
+  );
+});
+
+test("sorting contracts generate both directions from one field list", () => {
+  for (const relativePath of [
+    "frontend/src/features/projects/projects-page.tsx",
+    "frontend/src/features/projects/project-detail-page.tsx",
+    "frontend/src/features/repositories/repositories-page.tsx",
+    "frontend/src/features/replication/replication-page.tsx",
+  ]) {
+    const source = read(relativePath);
+    assert.match(source, /createSortValues\(/, relativePath);
+    assert.doesNotMatch(
+      source,
+      /const\s+\w*Sorts?\s*=\s*new Set\(/,
+      relativePath,
+    );
+  }
+});
+
+test("data refinements do not remount animated content owners", () => {
+  const source = sourceFiles()
+    .map((file) => fs.readFileSync(file, "utf8"))
+    .join("\n");
+  assert.doesNotMatch(
+    source,
+    /key=\{[^}\n]*(?:routeKey|loadKey|contentVersion|sort)[^}\n]*\}/,
+  );
+  assert.doesNotMatch(source, /setContentVersion/);
+});
+
+test("route entry motion has one owner in the application shell", () => {
+  const shell = read("frontend/src/layouts/application-shell.tsx");
+  const features = sourceFiles(path.join(sourceRoot, "features"))
+    .map((file) => fs.readFileSync(file, "utf8"))
+    .join("\n");
+  assert.match(
+    shell,
+    /key=\{contentKey \?\? activeView\} className="motion-route-enter"/,
+  );
+  assert.doesNotMatch(features, /motion-route-enter/);
+});
+
+test("stable data tables keep sortable targets distinct on narrow screens", () => {
+  const styles = read("frontend/src/styles/application-shell.css");
+  const replicationStyles = read(
+    "frontend/src/styles/replication-management.css",
+  );
+  assert.match(styles, /\.table-scroll\s*\{[^}]*overflow-x:\s*auto/s);
+  assert.match(
+    styles,
+    /\.table-scroll\s*>\s*\.data-table-stable\s*\{[^}]*min-width:\s*max\(100%,\s*760px\)[^}]*table-layout:\s*fixed/s,
+  );
+  assert.match(
+    replicationStyles,
+    /\.replication-policy-table\s*\{[^}]*min-width:\s*920px[^}]*table-layout:\s*fixed/s,
+  );
+  assert.match(
+    replicationStyles,
+    /\.replication-execution-table\s*\{[^}]*min-width:\s*950px[^}]*table-layout:\s*fixed/s,
+  );
+});
+
+test("centered sortable headers balance the indicator outside the label axis", () => {
+  const styles = read("frontend/src/styles/application-shell.css");
+  const workspaceStyles = read("frontend/src/styles/workspace.css");
+  assert.match(
+    styles,
+    /:is\(\.table-cell-center, \.table-cell-number, \.table-cell-time\)\s+\.table-sort-button::before\s*\{[^}]*width:\s*10px[^}]*flex:\s*0 0 10px/s,
+  );
+  assert.doesNotMatch(
+    workspaceStyles,
+    /project-select-table[^{]*nth-child[^}]*table-sort-button/s,
+  );
+});
+
+test("project table keeps semantic alignment classes paired in header and body", () => {
+  const source = read("frontend/src/features/projects/projects-page.tsx");
+  assert.match(
+    source,
+    /<SortableHeader\s+label="可见性"[\s\S]*?className="table-cell-center"[\s\S]*?\/\>[\s\S]*?<td\s+className="table-cell-center">[\s\S]*?\{t\(publicProject \? "公开" : "私有"\)\}/,
+  );
+  assert.doesNotMatch(
+    source,
+    /<SortableHeader\s+label="可见性"[\s\S]*?className="table-cell-center"[\s\S]*?\/\>[\s\S]*?<td>\s*<span[\s\S]*?publicProject/,
+  );
+});
+
+test("repository update_time surfaces do not call the value a push time", () => {
+  for (const relativePath of [
+    "frontend/src/features/repositories/repositories-page.tsx",
+    "frontend/src/features/projects/project-detail-page.tsx",
+    "frontend/src/features/artifacts/repository-detail-page.tsx",
+    "frontend/src/features/auth/public-catalog-view.tsx",
+  ]) {
+    const source = read(relativePath);
+    assert.doesNotMatch(source, /最近推送|Last pushed/, relativePath);
+  }
+});
+
 test("search uses only the official Harbor response fields", () => {
   const models = read("frontend/src/app/models.ts");
   const overlays = read("frontend/src/layouts/application-overlays.tsx");

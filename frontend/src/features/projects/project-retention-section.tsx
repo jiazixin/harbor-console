@@ -402,8 +402,8 @@ export function ProjectRetentionSection({
                   <th className="id-column">{t("执行编号")}</th>
                   <th>{t("模式")}</th>
                   <th>{t("状态")}</th>
-                  <th>{t("开始时间")}</th>
-                  <th>{t("结束时间")}</th>
+                  <th className="table-cell-time">{t("开始时间")}</th>
+                  <th className="table-cell-time">{t("结束时间")}</th>
                   <th />
                 </tr>
               </thead>

@@ -1,13 +1,8 @@
-import {
-  type FormEvent,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type FormEvent, type ReactNode, useRef, useState } from "react";
 
 import { useLocale } from "../app/locale-context";
 import { Icon, type IconName } from "./icons";
+import { useModal } from "./use-modal";
 
 export function ControlDialog({
   title,
@@ -39,45 +34,28 @@ export function ControlDialog({
   const { t } = useLocale();
   const formRef = useRef<HTMLFormElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
-  const openerRef = useRef<HTMLElement | null>(null);
-  const closeRef = useRef(onClose);
   const submittingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  closeRef.current = onClose;
-  submittingRef.current = submitting;
-
-  useEffect(() => {
-    openerRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    document.documentElement.classList.add("overlay-open");
-    document.body.classList.add("overlay-open");
-    const timer = window.setTimeout(() => {
-      const first = initialFocusSelector
-        ? formRef.current?.querySelector<HTMLElement>(initialFocusSelector)
-        : dialogRef.current;
-      first?.focus();
-    }, 20);
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !submittingRef.current) closeRef.current();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener("keydown", handleKeyDown);
-      document.documentElement.classList.remove("overlay-open");
-      document.body.classList.remove("overlay-open");
-      const opener = openerRef.current;
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
-    };
-  }, [initialFocusSelector]);
+  useModal({
+    open: true,
+    dialogRef,
+    initialFocusSelector,
+    onClose: () => {
+      if (!submittingRef.current) onClose();
+    },
+  });
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!formRef.current?.reportValidity() || submitting) return;
+    if (
+      !formRef.current?.reportValidity() ||
+      submittingRef.current ||
+      submitDisabled
+    )
+      return;
+    submittingRef.current = true;
     setError("");
     setSubmitting(true);
     try {
@@ -88,6 +66,8 @@ export function ControlDialog({
           ? submitError.message
           : String(submitError),
       );
+    } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -106,6 +86,8 @@ export function ControlDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="control-dialog-title"
+        aria-describedby={subtitle ? "control-dialog-description" : undefined}
+        aria-busy={submitting}
         tabIndex={-1}
       >
         <form ref={formRef} onSubmit={(event) => void handleSubmit(event)}>
@@ -114,7 +96,11 @@ export function ControlDialog({
               <h2 id="control-dialog-title" title={t(title)}>
                 {t(title)}
               </h2>
-              {subtitle ? <p title={t(subtitle)}>{t(subtitle)}</p> : null}
+              {subtitle ? (
+                <p id="control-dialog-description" title={t(subtitle)}>
+                  {t(subtitle)}
+                </p>
+              ) : null}
             </div>
             <button
               className="icon-button"
@@ -127,7 +113,11 @@ export function ControlDialog({
             </button>
           </header>
           <div className="control-dialog-body">
-            {error ? <div className="control-dialog-error">{error}</div> : null}
+            {error ? (
+              <div className="control-dialog-error" role="alert">
+                {error}
+              </div>
+            ) : null}
             {children}
           </div>
           <footer>

@@ -8,31 +8,45 @@ import {
   useState,
 } from "react";
 
-import { controlApi } from "../../app/api-client";
+import { controlApi, loadAllControlItems } from "../../app/api-client";
 import { formatDate, formatNumber } from "../../app/formatters";
 import type { ConsoleRoute } from "../../app/hash-router";
 import { useLocale } from "../../app/locale-context";
 import type { ControlList, ProjectSummary, Session } from "../../app/models";
-import { Pagination } from "../../components/data-table";
+import {
+  createSortValues,
+  Pagination,
+  SortableHeader,
+  StableTableColumns,
+} from "../../components/data-table";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
 import { OverflowText } from "../../components/overflow-text";
 import {
   DemoBanner,
   PageHeader,
   RefreshButton,
+  StatCell,
 } from "../../components/page-elements";
 import { UnifiedSelect } from "../../components/unified-select";
 
 const defaultPageSize = 50;
 const defaultSort = "name";
 const validPageSizes = new Set([20, 50, 100]);
-const validSorts = new Set([
+const validSorts = createSortValues([
   "project_id",
-  "-project_id",
   "name",
-  "-update_time",
   "update_time",
-  "-repo_count",
+  "repo_count",
+  "public",
+  "auto_scan",
+  "prevent_vul",
+]);
+const localProjectSortFields = new Set([
+  "repo_count",
+  "public",
+  "auto_scan",
+  "prevent_vul",
 ]);
 
 type ProjectVisibility = "" | "private" | "public";
@@ -111,7 +125,48 @@ async function loadProjects(
     {
       page: route.page,
       page_size: route.pageSize,
-      sort: route.sort,
+      sort: localProjectSortFields.has(route.sort.replace(/^-/, ""))
+        ? defaultSort
+        : route.sort,
+      name: route.query,
+      owner: route.owner,
+      public:
+        route.visibility === "public"
+          ? true
+          : route.visibility === "private"
+            ? false
+            : "",
+      with_detail: true,
+    },
+    signal,
+  );
+}
+
+function compareProjects(
+  left: ProjectSummary,
+  right: ProjectSummary,
+  sort: string,
+  locale: string,
+): number {
+  const descending = sort.startsWith("-");
+  const field = sort.replace(/^-/, "");
+  const comparison =
+    field === "repo_count"
+      ? numberValue(left.repo_count) - numberValue(right.repo_count)
+      : Number(metadataEnabled(left, field)) -
+        Number(metadataEnabled(right, field));
+  if (comparison) return descending ? -comparison : comparison;
+  return left.name.localeCompare(right.name, locale);
+}
+
+async function loadVisibleProjects(
+  route: ProjectRouteState,
+  signal: AbortSignal,
+): Promise<ProjectSummary[]> {
+  return loadAllControlItems<ProjectSummary>(
+    "projects",
+    {
+      sort: "name",
       name: route.query,
       owner: route.owner,
       public:
@@ -203,7 +258,22 @@ export function ProjectsPage({
     routeState.visibility,
   );
   const [filterOwner, setFilterOwner] = useState(routeState.owner);
-  const [entering, setEntering] = useState(true);
+  const [overviewProjects, setOverviewProjects] = useState<ProjectSummary[]>();
+  const [overviewError, setOverviewError] = useState("");
+  const overviewRoute = useMemo(
+    () => ({
+      page: 1,
+      pageSize: defaultPageSize,
+      query: routeState.query,
+      sort: defaultSort,
+      visibility: routeState.visibility,
+      owner: routeState.owner,
+    }),
+    [routeState.owner, routeState.query, routeState.visibility],
+  );
+  const localSort = localProjectSortFields.has(
+    routeState.sort.replace(/^-/, ""),
+  );
 
   useEffect(() => {
     setFilterName(routeState.query);
@@ -213,6 +283,11 @@ export function ProjectsPage({
   }, [routeKey, routeState.owner, routeState.query, routeState.visibility]);
 
   useEffect(() => {
+    if (localSort) {
+      setLoading(false);
+      setError("");
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError("");
@@ -233,29 +308,71 @@ export function ProjectsPage({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [reloadToken, routeKey, routeState]);
+  }, [localSort, reloadToken, routeKey, routeState]);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setEntering(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setEntering(false), 380);
-    return () => window.clearTimeout(timer);
-  }, []);
+    const controller = new AbortController();
+    setOverviewProjects(undefined);
+    setOverviewError("");
+    void loadVisibleProjects(overviewRoute, controller.signal)
+      .then(setOverviewProjects)
+      .catch((loadError: unknown) => {
+        if (
+          loadError instanceof DOMException &&
+          loadError.name === "AbortError"
+        ) {
+          return;
+        }
+        setOverviewError(
+          loadError instanceof Error ? loadError.message : String(loadError),
+        );
+      });
+    return () => controller.abort();
+  }, [overviewRoute, reloadToken]);
+
+  const locallySortedProjects = useMemo(
+    () =>
+      localSort
+        ? [...(overviewProjects ?? [])].sort((left, right) =>
+            compareProjects(left, right, routeState.sort, locale),
+          )
+        : [],
+    [locale, localSort, overviewProjects, routeState.sort],
+  );
+  const tableData = localSort
+    ? overviewProjects
+      ? {
+          items: locallySortedProjects.slice(
+            (routeState.page - 1) * routeState.pageSize,
+            routeState.page * routeState.pageSize,
+          ),
+          pagination: {
+            page: routeState.page,
+            page_size: routeState.pageSize,
+            total: locallySortedProjects.length,
+          },
+        }
+      : undefined
+    : data;
+  const tableLoading = localSort
+    ? overviewProjects === undefined && !overviewError
+    : loading;
 
   const selectedProjects = useMemo(
     () =>
-      (data?.items ?? []).filter((project) =>
+      (tableData?.items ?? []).filter((project) =>
         selectedIds.has(numberValue(project.project_id)),
       ),
-    [data?.items, selectedIds],
+    [selectedIds, tableData?.items],
   );
   const selectedVisibleCount = selectedProjects.length;
   const allSelected =
-    Boolean(data?.items.length) && selectedVisibleCount === data?.items.length;
+    Boolean(tableData?.items.length) &&
+    selectedVisibleCount === tableData?.items.length;
   const someSelected = selectedVisibleCount > 0 && !allSelected;
-  const motionClass = entering ? " motion-route-enter" : "";
+  const hasActiveFilters = Boolean(
+    routeState.query || routeState.visibility || routeState.owner,
+  );
 
   const updateRoute = useCallback(
     (updates: Partial<ProjectRouteState>) => {
@@ -297,12 +414,24 @@ export function ProjectsPage({
     setReloadToken((current) => current + 1);
   }
 
+  const visibleProjects = overviewProjects ?? [];
+  const autoScanEnabled = visibleProjects.filter((project) =>
+    metadataEnabled(project, "auto_scan"),
+  ).length;
+  const vulnerabilityBlockingEnabled = visibleProjects.filter((project) =>
+    metadataEnabled(project, "prevent_vul"),
+  ).length;
+  const coverage = (enabled: number) =>
+    visibleProjects.length
+      ? Math.round((enabled / visibleProjects.length) * 100)
+      : 0;
+  const overviewLoading = overviewProjects === undefined && !overviewError;
+
   return (
     <>
       <PageHeader
-        title="项目"
+        title="项目中心"
         subtitle={t("管理 Harbor 中的项目边界与访问策略")}
-        motionClass={motionClass}
         actions={
           <>
             <RefreshButton
@@ -320,8 +449,90 @@ export function ProjectsPage({
           </>
         }
       />
-      {session.demo ? <DemoBanner motionClass={motionClass} /> : null}
-      <section className={`table-shell${motionClass}`}>
+      {session.demo ? <DemoBanner /> : null}
+      <section
+        className="overview-stats project-overview-stats"
+        aria-label={t("项目中心概览")}
+        aria-busy={overviewLoading}
+      >
+        <StatCell
+          label={t("项目总数")}
+          value={
+            overviewProjects
+              ? formatNumber(overviewProjects.length, locale)
+              : "-"
+          }
+          foot={
+            overviewLoading
+              ? t("正在载入")
+              : overviewError
+                ? t("统计不可用")
+                : t("当前账号可见项目")
+          }
+          icon="folder"
+        />
+        <StatCell
+          label={t("仓库数量")}
+          value={
+            overviewProjects
+              ? formatNumber(
+                  visibleProjects.reduce(
+                    (total, project) => total + numberValue(project.repo_count),
+                    0,
+                  ),
+                  locale,
+                )
+              : "-"
+          }
+          foot={
+            overviewLoading
+              ? t("正在载入")
+              : overviewError
+                ? t("统计不可用")
+                : t("当前筛选结果")
+          }
+          icon="package"
+        />
+        <StatCell
+          label={t("自动扫描覆盖")}
+          value={
+            overviewProjects ? `${String(coverage(autoScanEnabled))}%` : "-"
+          }
+          foot={
+            overviewLoading
+              ? t("正在载入")
+              : overviewError
+                ? t("统计不可用")
+                : `${t("已启用")} ${formatNumber(autoScanEnabled, locale)} ${t("个")}`
+          }
+          icon="scan"
+        />
+        <StatCell
+          label={t("漏洞阻止覆盖")}
+          value={
+            overviewProjects
+              ? `${String(coverage(vulnerabilityBlockingEnabled))}%`
+              : "-"
+          }
+          foot={
+            overviewLoading
+              ? t("正在载入")
+              : overviewError
+                ? t("统计不可用")
+                : `${t("已启用")} ${formatNumber(vulnerabilityBlockingEnabled, locale)} ${t("个")}`
+          }
+          icon="bug"
+        />
+      </section>
+      {overviewError ? (
+        <div className="warning-banner" role="status">
+          <Icon name="alert" />
+          <span>
+            {t("项目概览统计载入失败")}：{overviewError}
+          </span>
+        </div>
+      ) : null}
+      <section className="table-shell">
         <form
           className="table-toolbar project-filter-toolbar"
           onSubmit={submitFilters}
@@ -369,39 +580,22 @@ export function ProjectsPage({
             <Icon name="search" />
             <span>{t("筛选")}</span>
           </button>
-          <div className="toolbar-spacer" />
-          <label className="toolbar-field">
-            <span>{t("排序")}</span>
-            <UnifiedSelect
-              className="toolbar-select"
-              value={routeState.sort}
-              ariaLabel={t("排序")}
-              options={[
-                { value: "project_id", label: "ID" },
-                { value: "-project_id", label: t("ID（倒序）") },
-                { value: "name", label: t("名称") },
-                { value: "-update_time", label: t("最近更新") },
-                { value: "update_time", label: t("最早更新") },
-                { value: "-repo_count", label: t("仓库最多") },
-              ]}
-              onChange={(sort) => updateRoute({ page: 1, sort })}
-            />
-          </label>
-          <label className="toolbar-field">
-            <span>{t("每页")}</span>
-            <UnifiedSelect
-              className="toolbar-select"
-              value={String(routeState.pageSize)}
-              ariaLabel={t("每页条数")}
-              options={[20, 50, 100].map((pageSize) => ({
-                value: String(pageSize),
-                label: `${String(pageSize)} ${t("条")}`,
-              }))}
-              onChange={(pageSize) =>
-                updateRoute({ page: 1, pageSize: Number(pageSize) })
+          {hasActiveFilters ? (
+            <button
+              className="button button-small"
+              type="button"
+              onClick={() =>
+                updateRoute({
+                  page: 1,
+                  query: "",
+                  visibility: "",
+                  owner: "",
+                })
               }
-            />
-          </label>
+            >
+              {t("取消筛选")}
+            </button>
+          ) : null}
         </form>
         <div className="artifact-batch-toolbar project-batch-toolbar">
           <span>
@@ -431,170 +625,223 @@ export function ProjectsPage({
             </button>
           </div>
         </div>
-        {loading ? (
-          <div
-            className="route-loading"
-            role="status"
-            aria-label={t("正在载入")}
-          >
-            <span className="spinner spinner-small" aria-hidden="true" />
-          </div>
-        ) : null}
-        {error ? (
-          <div className="error-state" role="alert">
-            <div>
-              <span className="state-icon">
-                <Icon name="alert" />
-              </span>
-              <h2>{t("项目载入失败")}</h2>
-              <p>{error}</p>
-              <button
-                className="button button-small"
-                type="button"
-                onClick={() => setReloadToken((current) => current + 1)}
-              >
-                <Icon name="refresh" />
-                <span>{t("重试")}</span>
-              </button>
+        <div aria-busy={tableLoading}>
+          {tableLoading && !tableData ? (
+            <div
+              className="route-loading"
+              role="status"
+              aria-label={t("正在载入")}
+            >
+              <span className="spinner spinner-small" aria-hidden="true" />
             </div>
-          </div>
-        ) : null}
-        {!loading && !error && !data?.items.length ? (
-          <div className="empty-state">
-            <div>
-              <span className="state-icon">
-                <Icon name="folder" />
-              </span>
-              <h2>{t("没有项目")}</h2>
-              <p>{t("当前筛选条件下没有项目。")}</p>
+          ) : null}
+          {error ? (
+            <div className="error-state" role="alert">
+              <div>
+                <span className="state-icon">
+                  <Icon name="alert" />
+                </span>
+                <h2>{t("项目载入失败")}</h2>
+                <p>{error}</p>
+                <button
+                  className="button button-small"
+                  type="button"
+                  onClick={() => setReloadToken((current) => current + 1)}
+                >
+                  <Icon name="refresh" />
+                  <span>{t("重试")}</span>
+                </button>
+              </div>
             </div>
-          </div>
-        ) : null}
-        {!loading && !error && data?.items.length ? (
-          <div className="table-scroll">
-            <table className="project-select-table">
-              <thead>
-                <tr>
-                  <th className="selection-cell">
-                    <SelectAllCheckbox
-                      checked={allSelected}
-                      indeterminate={someSelected}
-                      label={t("选择当前页全部项目")}
-                      onChange={(checked) =>
-                        setSelectedIds(
-                          checked
-                            ? new Set(
-                                data.items.map((project) =>
-                                  numberValue(project.project_id),
-                                ),
-                              )
-                            : new Set(),
-                        )
-                      }
+          ) : null}
+          {!error && tableData && !tableData.items.length ? (
+            <EmptyState
+              title="没有项目"
+              description="当前筛选条件下没有项目。"
+              icon="folder"
+            />
+          ) : null}
+          {!error && tableData?.items.length ? (
+            <div className="table-scroll">
+              <table className="project-select-table data-table-stable">
+                <StableTableColumns
+                  widths={[
+                    "44px",
+                    "28%",
+                    "120px",
+                    "88px",
+                    "176px",
+                    "220px",
+                    "144px",
+                    "44px",
+                  ]}
+                />
+                <thead>
+                  <tr>
+                    <th className="selection-cell">
+                      <SelectAllCheckbox
+                        checked={allSelected}
+                        indeterminate={someSelected}
+                        label={t("选择当前页全部项目")}
+                        onChange={(checked) =>
+                          setSelectedIds(
+                            checked
+                              ? new Set(
+                                  tableData.items.map((project) =>
+                                    numberValue(project.project_id),
+                                  ),
+                                )
+                              : new Set(),
+                          )
+                        }
+                      />
+                    </th>
+                    <SortableHeader
+                      label="项目"
+                      field="name"
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
                     />
-                  </th>
-                  <th>{t("项目")}</th>
-                  <th>{t("可见性")}</th>
-                  <th>{t("仓库数")}</th>
-                  <th>{t("自动扫描")}</th>
-                  <th>{t("漏洞阻止")}</th>
-                  <th>{t("最近更新")}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((project) => {
-                  const id = numberValue(project.project_id);
-                  const selected = selectedIds.has(id);
-                  const publicProject = metadataEnabled(project, "public");
-                  const vulnerabilityBlocking = metadataEnabled(
-                    project,
-                    "prevent_vul",
-                  );
-                  return (
-                    <tr
-                      key={id || project.name}
-                      className={`clickable-row${selected ? " selected-row" : ""}`}
-                      onClick={(event) => openProject(event, project.name)}
-                    >
-                      <td className="selection-cell">
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          aria-label={`${t("选择")} ${project.name}`}
-                          onChange={(event) =>
-                            toggleProject(project, event.currentTarget.checked)
-                          }
-                        />
-                      </td>
-                      <td>
-                        <div className="cell-title">
-                          <span className="cell-icon">
-                            <Icon name="folder" />
+                    <SortableHeader
+                      label="可见性"
+                      field="public"
+                      className="table-cell-center"
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
+                    />
+                    <SortableHeader
+                      label="仓库数"
+                      field="repo_count"
+                      className="table-cell-number project-repository-count"
+                      descendingFirst
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
+                    />
+                    <SortableHeader
+                      label="自动扫描"
+                      field="auto_scan"
+                      className="table-cell-center"
+                      descendingFirst
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
+                    />
+                    <SortableHeader
+                      label="漏洞阻止"
+                      field="prevent_vul"
+                      className="table-cell-center"
+                      descendingFirst
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
+                    />
+                    <SortableHeader
+                      label="最近更新"
+                      field="update_time"
+                      className="table-cell-time"
+                      descendingFirst
+                      currentSort={routeState.sort}
+                      onSort={(sort) => updateRoute({ page: 1, sort })}
+                    />
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableData.items.map((project) => {
+                    const id = numberValue(project.project_id);
+                    const selected = selectedIds.has(id);
+                    const publicProject = metadataEnabled(project, "public");
+                    const vulnerabilityBlocking = metadataEnabled(
+                      project,
+                      "prevent_vul",
+                    );
+                    return (
+                      <tr
+                        key={id || project.name}
+                        className={`clickable-row${selected ? " selected-row" : ""}`}
+                        onClick={(event) => openProject(event, project.name)}
+                      >
+                        <td className="selection-cell">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            aria-label={`${t("选择")} ${project.name}`}
+                            onChange={(event) =>
+                              toggleProject(
+                                project,
+                                event.currentTarget.checked,
+                              )
+                            }
+                          />
+                        </td>
+                        <td className="table-cell-center">
+                          <div className="cell-title">
+                            <span className="cell-stack">
+                              <OverflowText as="strong">
+                                {project.name}
+                              </OverflowText>
+                              <small>
+                                {project.owner_name ?? "-"} · #
+                                {project.project_id ?? "-"}
+                              </small>
+                            </span>
+                          </div>
+                        </td>
+                        <td className="table-cell-center">
+                          <span
+                            className={`badge${publicProject ? " badge-blue" : ""}`}
+                          >
+                            {t(publicProject ? "公开" : "私有")}
                           </span>
-                          <span className="cell-stack">
-                            <OverflowText as="strong">
-                              {project.name}
-                            </OverflowText>
-                            <small>
-                              {project.owner_name ?? "-"} · #
-                              {project.project_id ?? "-"}
-                            </small>
+                        </td>
+                        <td className="mono table-cell-number project-repository-count">
+                          {formatNumber(project.repo_count, locale)}
+                        </td>
+                        <td className="table-cell-center">
+                          <span
+                            className={`badge${metadataEnabled(project, "auto_scan") ? " badge-green" : ""}`}
+                          >
+                            {t(
+                              metadataEnabled(project, "auto_scan")
+                                ? "已启用"
+                                : "未启用",
+                            )}
                           </span>
-                        </div>
-                      </td>
-                      <td>
-                        <span
-                          className={`badge${publicProject ? " badge-blue" : ""}`}
-                        >
-                          {t(publicProject ? "公开" : "私有")}
-                        </span>
-                      </td>
-                      <td className="mono project-repository-count">
-                        {formatNumber(project.repo_count, locale)}
-                      </td>
-                      <td>
-                        <span
-                          className={`badge${metadataEnabled(project, "auto_scan") ? " badge-green" : ""}`}
-                        >
-                          {t(
-                            metadataEnabled(project, "auto_scan")
-                              ? "已启用"
-                              : "未启用",
+                        </td>
+                        <td className="table-cell-center">
+                          <span
+                            className={`badge${vulnerabilityBlocking ? " badge-green" : ""}`}
+                          >
+                            {vulnerabilityBlocking
+                              ? `${t(severityLabel(project.metadata?.severity))}${locale === "en-US" ? " and above" : "及以上"}`
+                              : t("未启用")}
+                          </span>
+                        </td>
+                        <td className="table-cell-time">
+                          {formatDate(
+                            project.update_time ?? project.creation_time,
+                            locale,
                           )}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className={`badge${vulnerabilityBlocking ? " badge-green" : ""}`}
-                        >
-                          {vulnerabilityBlocking
-                            ? `${t(severityLabel(project.metadata?.severity))}${locale === "en-US" ? " and above" : "及以上"}`
-                            : t("未启用")}
-                        </span>
-                      </td>
-                      <td>
-                        {formatDate(
-                          project.update_time ?? project.creation_time,
-                          locale,
-                        )}
-                      </td>
-                      <td>
-                        <Icon name="chevron" />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-        {!loading && !error && data ? (
-          <Pagination
-            pagination={data.pagination}
-            onPageChange={(page) => updateRoute({ page })}
-          />
-        ) : null}
+                        </td>
+                        <td>
+                          <Icon name="chevron" />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          {!error && tableData ? (
+            <Pagination
+              pagination={tableData.pagination}
+              onPageChange={(page) => updateRoute({ page })}
+              pageSizeOptions={[20, 50, 100]}
+              onPageSizeChange={(pageSize) =>
+                updateRoute({ page: 1, pageSize })
+              }
+            />
+          ) : null}
+        </div>
       </section>
     </>
   );

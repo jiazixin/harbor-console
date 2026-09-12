@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const artifactDigest =
   "sha256:41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4";
@@ -74,9 +75,9 @@ async function enterDemo(
   page: Page,
   locale: (typeof scenarios)[number]["locale"],
 ) {
-  await page.goto("/");
+  await page.goto("/#/overview");
   await expect(page).toHaveTitle(/Harbor/);
-  await page.getByRole("button", { name: "使用演示数据预览" }).click();
+  await expect(page.locator(".app-shell")).toBeVisible();
   await expect(page).toHaveURL(/#\/overview$/);
   await expect(page.locator("main h1").first()).toBeVisible();
 
@@ -130,6 +131,165 @@ async function verifySearchFocus(page: Page, locale: string) {
   await expect(opener).toBeFocused();
 }
 
+async function verifyPaginationSelectPlacement(page: Page, locale: string) {
+  await verifyRoute(page, "repositories");
+  const label = locale === "en-US" ? "Items per page" : "每页条数";
+  const trigger = page.getByRole("button", { name: label });
+  await trigger.evaluate((element) =>
+    element.scrollIntoView({ block: "end", inline: "nearest" }),
+  );
+  await trigger.click();
+  const menu = page.getByRole("listbox", { name: label });
+  await expect(menu).toBeVisible();
+  await expect(menu).toHaveAttribute("data-placement", "top");
+
+  const bounds = await menu.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const top = viewport?.offsetTop ?? 0;
+    const left = viewport?.offsetLeft ?? 0;
+    const width = viewport?.width ?? document.documentElement.clientWidth;
+    const height = viewport?.height ?? document.documentElement.clientHeight;
+    return {
+      top: rect.top - top,
+      right: left + width - rect.right,
+      bottom: top + height - rect.bottom,
+      left: rect.left - left,
+    };
+  });
+  expect(bounds.top).toBeGreaterThanOrEqual(7);
+  expect(bounds.right).toBeGreaterThanOrEqual(7);
+  expect(bounds.bottom).toBeGreaterThanOrEqual(7);
+  expect(bounds.left).toBeGreaterThanOrEqual(7);
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(trigger).toBeFocused();
+}
+
+async function verifyCenteredColumn(
+  page: Page,
+  tableSelector: string,
+  column: number,
+) {
+  const metrics = await page.locator(tableSelector).evaluate((table, index) => {
+    const header = table.querySelector<HTMLElement>(
+      `thead th:nth-child(${String(index)})`,
+    );
+    const label = header?.querySelector<HTMLElement>(
+      ".table-sort-button > span:first-child",
+    );
+    const cell = table.querySelector<HTMLElement>(
+      `tbody tr:first-child td:nth-child(${String(index)})`,
+    );
+    const child = cell?.firstElementChild;
+    const headerRect = header?.getBoundingClientRect();
+    const labelRect = label?.getBoundingClientRect();
+    const cellRect = cell?.getBoundingClientRect();
+    const headerStyle = header ? window.getComputedStyle(header) : undefined;
+    const cellStyle = cell ? window.getComputedStyle(cell) : undefined;
+    const sortButton = header?.querySelector<HTMLElement>(".table-sort-button");
+    let contentRect = child?.getBoundingClientRect();
+    if (!contentRect && cell) {
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      contentRect = range.getBoundingClientRect();
+    }
+    if (!headerRect || !labelRect || !cellRect || !contentRect) return null;
+    return {
+      headerDelta:
+        labelRect.left +
+        labelRect.width / 2 -
+        (headerRect.left + headerRect.width / 2),
+      cellDelta:
+        contentRect.left +
+        contentRect.width / 2 -
+        (cellRect.left + cellRect.width / 2),
+      crossDelta:
+        labelRect.left +
+        labelRect.width / 2 -
+        (contentRect.left + contentRect.width / 2),
+      headerOverflow:
+        (sortButton?.scrollWidth ?? 0) -
+        (headerRect.width -
+          Number.parseFloat(headerStyle?.paddingLeft ?? "0") -
+          Number.parseFloat(headerStyle?.paddingRight ?? "0")),
+      cellOverflow:
+        contentRect.width -
+        (cellRect.width -
+          Number.parseFloat(cellStyle?.paddingLeft ?? "0") -
+          Number.parseFloat(cellStyle?.paddingRight ?? "0")),
+    };
+  }, column);
+  expect(metrics).not.toBeNull();
+  const context = `${tableSelector} column ${String(column)}`;
+  expect(
+    Math.abs(metrics?.headerDelta ?? Infinity),
+    context,
+  ).toBeLessThanOrEqual(1);
+  expect(Math.abs(metrics?.cellDelta ?? Infinity), context).toBeLessThanOrEqual(
+    1,
+  );
+  expect(
+    Math.abs(metrics?.crossDelta ?? Infinity),
+    context,
+  ).toBeLessThanOrEqual(1);
+  expect(metrics?.headerOverflow ?? Infinity, context).toBeLessThanOrEqual(1);
+  expect(metrics?.cellOverflow ?? Infinity, context).toBeLessThanOrEqual(1);
+}
+
+async function verifySemanticColumnPairing(page: Page, tableSelector: string) {
+  const violations = await page.locator(tableSelector).evaluate((table) => {
+    const semanticClasses = [
+      "table-cell-center",
+      "table-cell-number",
+      "table-cell-time",
+    ];
+    const headerCells = Array.from(
+      table.querySelectorAll<HTMLElement>("thead tr:last-child > th"),
+    );
+    const firstBodyRow = table.querySelector("tbody tr");
+    if (!firstBodyRow) return [];
+    const bodyCells = Array.from(
+      firstBodyRow.querySelectorAll<HTMLElement>(":scope > td"),
+    );
+    return headerCells.flatMap((header, index) => {
+      if (index >= bodyCells.length) return [];
+      const body = bodyCells[index];
+      const headerSemantic = semanticClasses.find((name) =>
+        header.classList.contains(name),
+      );
+      const bodySemantic = semanticClasses.find((name) =>
+        body.classList.contains(name),
+      );
+      return headerSemantic && headerSemantic !== bodySemantic
+        ? [{ index: index + 1, headerSemantic, bodySemantic }]
+        : [];
+    });
+  });
+  expect(violations, `${tableSelector} header/body semantic alignment`).toEqual(
+    [],
+  );
+}
+
+async function verifyReplicationColumnAlignment(page: Page) {
+  await verifyRoute(page, "replication");
+  for (const column of [2, 4, 5]) {
+    await verifyCenteredColumn(page, ".replication-policy-table", column);
+  }
+  await verifyRoute(page, "replication?tab=executions");
+  for (const column of [3, 4, 5, 6, 7]) {
+    await verifyCenteredColumn(page, ".replication-execution-table", column);
+  }
+}
+
+async function verifyProjectsColumnAlignment(page: Page) {
+  await verifyRoute(page, "projects");
+  await verifySemanticColumnPairing(page, ".project-select-table");
+  for (const column of [3, 5, 6]) {
+    await verifyCenteredColumn(page, ".project-select-table", column);
+  }
+}
+
 test.describe.configure({ mode: "parallel" });
 
 for (const scenario of scenarios) {
@@ -152,6 +312,9 @@ for (const scenario of scenarios) {
       browserIssues.push(`pageerror: ${error.message}`),
     );
     for (const route of routes) await verifyRoute(page, route);
+    await verifyPaginationSelectPlacement(page, scenario.locale);
+    await verifyProjectsColumnAlignment(page);
+    await verifyReplicationColumnAlignment(page);
     await verifySearchFocus(page, scenario.locale);
 
     expect(browserIssues).toEqual([]);
