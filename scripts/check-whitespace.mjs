@@ -1,5 +1,9 @@
+import { fileURLToPath } from "node:url";
+
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
+
+process.chdir(fileURLToPath(new URL("..", import.meta.url)));
 
 const files = execFileSync(
   "git",
@@ -10,11 +14,7 @@ const files = execFileSync(
   .filter(Boolean);
 
 const findings = [];
-const generatedPrefixes = [
-  "internal/webui/assets/",
-  "frontend/node_modules/",
-  "node_modules/",
-];
+const generatedPrefixes = ["web/dist/", "web/node_modules/", "node_modules/"];
 
 for (const file of files) {
   if (generatedPrefixes.some((prefix) => file.startsWith(prefix))) continue;

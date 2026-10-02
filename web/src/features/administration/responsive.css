@@ -1,0 +1,82 @@
+@media (max-width: 900px) {
+  .maintenance-history {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .audit-event-config .check-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-form .section-heading,
+  .configuration-actions {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .configuration-actions {
+    width: 100%;
+  }
+
+  .configuration-actions .button {
+    flex: 1 1 150px;
+  }
+
+  .system-certificate-row {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .system-certificate-row .button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .global-label-palette {
+    grid-template-columns: repeat(6, 30px);
+  }
+
+  .scope-select {
+    width: 100%;
+  }
+
+  .system-project-editor {
+    min-height: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .system-project-list {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .system-project-details {
+    max-height: none;
+    padding: 10px;
+  }
+
+  .system-project-empty {
+    min-height: 150px;
+  }
+
+  .maintenance-facts {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .maintenance-facts > div,
+  .maintenance-facts > div:first-child {
+    padding: 0;
+    border-left: 0;
+  }
+
+  .maintenance-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .administration-tabs {
+    gap: 20px;
+  }
+}

@@ -1,0 +1,35 @@
+.replication-execution-policy {
+  display: block;
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replication-execution-policy-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.replication-list-toolbar-meta {
+  min-width: 0;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 1400px) {
+  #replication-execution-filter.filter-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #replication-execution-filter .filter-toolbar-meta {
+    justify-content: flex-end;
+  }
+}

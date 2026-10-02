@@ -1,0 +1,175 @@
+.directory-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: end;
+  gap: 10px;
+}
+
+.directory-search .button {
+  min-height: 38px;
+  margin-bottom: 1px;
+}
+
+.directory-results {
+  min-height: 188px;
+  max-height: 340px;
+  overflow: auto;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-subtle);
+}
+
+.directory-result-head {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.directory-selection-list {
+  display: grid;
+}
+
+.directory-selection-row {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 18px 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.directory-selection-row:last-child {
+  border-bottom: 0;
+}
+
+.directory-selection-row:hover,
+.directory-selection-row:has(input:checked) {
+  background: var(--surface-raised);
+}
+
+.directory-state {
+  min-height: 186px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 22px;
+  color: var(--ink-faint);
+}
+
+.directory-state.compact {
+  min-height: 82px;
+}
+
+.directory-state > .icon {
+  width: 24px;
+  height: 24px;
+}
+
+.directory-state > div {
+  display: grid;
+  gap: 3px;
+}
+
+.directory-state strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.directory-state span {
+  font-size: 11px;
+}
+
+.directory-state-error > .icon {
+  color: var(--red);
+}
+
+.credential-result {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-subtle);
+}
+
+.credential-result > div {
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.credential-result > div:last-child {
+  border-bottom: 0;
+}
+
+.credential-result span {
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.credential-result code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.event-selector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+  margin: 18px 0 0;
+  padding: 12px 14px 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+}
+
+.event-selector legend {
+  padding: 0 7px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.event-selector .check-row {
+  min-width: 0;
+}
+
+.event-selector .check-row span {
+  min-width: 0;
+}
+
+.event-selector .check-row small {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field input[type="color"] {
+  width: 100%;
+  min-height: 42px;
+  padding: 5px 7px;
+  cursor: pointer;
+}

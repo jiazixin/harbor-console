@@ -1,0 +1,8 @@
+@media (prefers-reduced-motion: reduce) {
+  .view-content-refresh,
+  .global-view-refresh,
+  .language-reload-in :is(.app-shell, .connect-view),
+  .status-dot-healthy {
+    animation: none;
+  }
+}

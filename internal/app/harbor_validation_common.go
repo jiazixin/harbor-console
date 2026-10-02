@@ -68,7 +68,7 @@ func numberValue(value any) int64 {
 func integerNumberValue(value any) (int64, bool) {
 	switch typed := value.(type) {
 	case float64:
-		if math.IsNaN(typed) || math.IsInf(typed, 0) || math.Trunc(typed) != typed || typed < math.MinInt64 || typed > math.MaxInt64 {
+		if math.IsNaN(typed) || math.IsInf(typed, 0) || math.Trunc(typed) != typed || typed < math.MinInt64 || typed >= math.MaxInt64 {
 			return 0, false
 		}
 		return int64(typed), true
@@ -82,4 +82,12 @@ func integerNumberValue(value any) (int64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func validatePositiveInteger(value any, field string) error {
+	number, valid := integerNumberValue(value)
+	if !valid || number <= 0 {
+		return fmt.Errorf("%s 必须是正整数", field)
+	}
+	return nil
 }

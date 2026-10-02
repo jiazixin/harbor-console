@@ -17,6 +17,9 @@ func (state *demoState) handleIdentityControl(
 	status = http.StatusOK
 
 	switch operation {
+	case "permissions":
+		data = demoPermissionMetadata()
+
 	case "current-user":
 		if len(state.users) == 0 {
 			errStatus, errMessage = http.StatusUnauthorized, "当前用户不存在"

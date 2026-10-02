@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"sort"
+	"slices"
 )
 
 type cveAllowlistState struct {
@@ -42,6 +42,10 @@ func (a *app) updateSystemCVEAllowlist(ctx context.Context, current *session, pa
 	if err != nil {
 		return nil, err
 	}
+	want, err := decodeCVEAllowlistState(payload)
+	if err != nil {
+		return nil, err
+	}
 	response, err := a.harborRequest(ctx, current, http.MethodPut, path, nil, body, headers)
 	if err != nil {
 		return nil, err
@@ -49,18 +53,14 @@ func (a *app) updateSystemCVEAllowlist(ctx context.Context, current *session, pa
 
 	var persisted map[string]any
 	if err := a.harborJSON(ctx, current, http.MethodGet, path, nil, &persisted); err != nil {
-		return nil, err
-	}
-	want, err := decodeCVEAllowlistState(payload)
-	if err != nil {
-		return nil, err
+		return nil, &writeConfirmationError{err: err}
 	}
 	got, err := decodeCVEAllowlistState(persisted)
 	if err != nil {
-		return nil, err
+		return nil, &writeConfirmationError{err: err}
 	}
 	if !equalCVEAllowlistState(want, got) {
-		return nil, &upstreamError{StatusCode: http.StatusBadGateway, Message: "Harbor 未按请求持久化 CVE Allowlist，请刷新后重试"}
+		return nil, &writeConfirmationError{err: &upstreamError{StatusCode: http.StatusBadGateway, Message: "Harbor 回读的 CVE Allowlist 与请求不一致"}}
 	}
 	return response, nil
 }
@@ -72,7 +72,7 @@ func decodeCVEAllowlistState(value map[string]any) (cveAllowlistState, error) {
 		if !ok {
 			return cveAllowlistState{}, errors.New("Harbor 返回的 CVE Allowlist expires_at 无效")
 		}
-		state.expiresAt = &expiresAt
+		state.expiresAt = new(expiresAt)
 	}
 	if raw, exists := value["items"]; exists && raw != nil {
 		items, ok := raw.([]any)
@@ -87,7 +87,7 @@ func decodeCVEAllowlistState(value map[string]any) (cveAllowlistState, error) {
 			state.items = append(state.items, stringValue(item["cve_id"]))
 		}
 	}
-	sort.Strings(state.items)
+	slices.Sort(state.items)
 	return state, nil
 }
 

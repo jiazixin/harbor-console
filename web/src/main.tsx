@@ -1,0 +1,82 @@
+import { createRoot } from "react-dom/client";
+
+import { LocaleProvider } from "./app/locale-context";
+import { ReactApplication } from "./app/react-application";
+
+import "./styles/styles.css";
+import "./styles/workspace.css";
+import "./features/projects/workspace.css";
+import "./features/repositories/workspace.css";
+import "./features/replication/workspace.css";
+import "./features/auth/workspace.css";
+import "./features/about/workspace.css";
+import "./styles/form-controls.css";
+import "./features/projects/form-controls.css";
+import "./styles/connection.css";
+import "./features/auth/connection.css";
+import "./styles/application-shell.css";
+import "./features/projects/application-shell.css";
+import "./features/system/application-shell.css";
+import "./features/overview/application-shell.css";
+import "./features/replication/application-shell.css";
+import "./features/artifacts/application-shell.css";
+import "./features/auth/application-shell.css";
+import "./features/repositories/application-shell.css";
+import "./features/audit/application-shell.css";
+import "./features/registries/application-shell.css";
+import "./styles/overlays.css";
+import "./features/artifacts/overlays.css";
+import "./features/auth/overlays.css";
+import "./features/overview/overlays.css";
+import "./features/registries/overlays.css";
+import "./features/system/overlays.css";
+import "./styles/control-plane.css";
+import "./features/registries/control-plane.css";
+import "./features/projects/control-plane.css";
+import "./features/artifacts/artifact-management.css";
+import "./styles/artifact-management.css";
+import "./features/registries/artifact-management.css";
+import "./styles/identity-management.css";
+import "./features/projects/identity-management.css";
+import "./features/administration/identity-management.css";
+import "./features/security/identity-management.css";
+import "./features/replication/replication-management.css";
+import "./styles/replication-management.css";
+import "./features/administration/administration.css";
+import "./styles/administration.css";
+import "./features/replication/administration.css";
+import "./features/preheat/preheat-management.css";
+import "./styles/preheat-management.css";
+import "./features/projects/preheat-management.css";
+import "./styles/execution-details.css";
+import "./features/replication/execution-details.css";
+import "./features/registries/registry-management.css";
+import "./styles/registry-management.css";
+import "./features/projects/registry-management.css";
+import "./styles/security-management.css";
+import "./features/security/security-management.css";
+import "./features/projects/security-management.css";
+import "./features/artifacts/security-management.css";
+import "./styles/responsive.css";
+import "./features/repositories/responsive.css";
+import "./features/projects/responsive.css";
+import "./features/administration/responsive.css";
+import "./features/security/responsive.css";
+import "./features/registries/responsive.css";
+import "./features/replication/responsive.css";
+import "./features/preheat/responsive.css";
+import "./features/artifacts/responsive.css";
+import "./features/audit/responsive.css";
+import "./styles/spacing-system.css";
+import "./features/artifacts/spacing-system.css";
+import "./features/administration/spacing-system.css";
+import "./styles/motion-system.css";
+import "./features/auth/motion-system.css";
+
+const root = document.querySelector<HTMLElement>("#root");
+if (!root) throw new Error("Harbor Console root element is missing");
+createRoot(root).render(
+  <LocaleProvider>
+    <ReactApplication />
+  </LocaleProvider>,
+);

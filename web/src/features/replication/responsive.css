@@ -1,0 +1,17 @@
+@media (max-width: 620px) {
+  .replication-filter-row,
+  .replication-filter-control,
+  .policy-speed-input,
+  .policy-transfer-flags {
+    grid-template-columns: 1fr;
+  }
+
+  .replication-filter-row {
+    align-items: stretch;
+    gap: 9px;
+  }
+
+  .replication-filter-control > * {
+    grid-column: 1;
+  }
+}

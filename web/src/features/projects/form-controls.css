@@ -1,0 +1,14 @@
+.compound-input > .unified-select {
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+}
+
+.compound-input > .unified-select .unified-select-trigger {
+  border-left: 0;
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  background: var(--surface-subtle);
+}
+
+.compact-field > .unified-select {
+  min-width: 128px;
+  height: 34px;
+}

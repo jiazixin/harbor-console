@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -14,6 +15,8 @@ import (
 
 	"harbor-console/internal/buildinfo"
 )
+
+const harborRequestTimeout = 18 * time.Second
 
 func (a *app) harborJSON(ctx context.Context, current *session, method, path string, query url.Values, out any) error {
 	response, err := a.harborRequest(ctx, current, method, path, query, nil, nil)
@@ -36,13 +39,16 @@ type harborResponse struct {
 }
 
 func (a *app) harborRequest(ctx context.Context, current *session, method, path string, query url.Values, body []byte, headers http.Header) (*harborResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	endpoint := current.InstanceURL + path
 	if encoded := query.Encode(); encoded != "" {
 		endpoint += "?" + encoded
 	}
 	var requestBody io.Reader
 	if body != nil {
-		requestBody = strings.NewReader(string(body))
+		requestBody = bytes.NewReader(body)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, requestBody)
 	if err != nil {
@@ -97,7 +103,7 @@ func newHarborClient(skipTLSVerify bool) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: skipTLSVerify} //nolint:gosec -- explicitly selected per Harbor connection
 	return &http.Client{
-		Timeout:   18 * time.Second,
+		Timeout:   harborRequestTimeout,
 		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 3 {

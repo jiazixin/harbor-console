@@ -15,8 +15,10 @@ func validateLabel(body map[string]any) error {
 	if scope, ok := body["scope"].(string); ok && scope != "g" && scope != "p" {
 		return errors.New("标签 scope 必须是 g 或 p")
 	}
-	if body["scope"] == "p" && numberValue(body["project_id"]) <= 0 {
-		return errors.New("项目标签必须包含有效的 project_id")
+	if body["scope"] == "p" {
+		if err := validatePositiveInteger(body["project_id"], "project_id"); err != nil {
+			return err
+		}
 	}
 	return nil
 }

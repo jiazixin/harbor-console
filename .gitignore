@@ -4,5 +4,19 @@
 /bin/
 **/node_modules/
 /coverage.out
-/.env
-/config.yaml
+**/.env
+
+# Local configuration and generated web output
+**/.env.*
+!**/.env.example
+/configs/*.local.yaml
+/web/dist/
+/web/coverage/
+/web/test-results/
+/web/playwright-report/
+*.tsbuildinfo
+/coverage/
+
+# Application state and tool caches
+**/data/
+**/.cache/

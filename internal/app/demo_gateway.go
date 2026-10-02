@@ -44,6 +44,8 @@ func (state *demoState) handleControl(w http.ResponseWriter, method, operation s
 		state.handleScannerControl,
 		state.handleAdministrationControl,
 		state.handleReplicationControl,
+		state.handleRegistryControl,
+		state.handleAuditControl,
 	}
 	for _, handler := range handlers {
 		handled, status, data, errStatus, errMessage := handler(writer, method, operation, query, body)

@@ -156,19 +156,21 @@ func (s *sessionStore) delete(id string) {
 	s.mu.Unlock()
 }
 
-func (s *sessionStore) updateActivePassword(sessionID, password string) error {
+func (s *sessionStore) updateInstancePassword(sessionID, connectionID, password string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current, ok := s.sessions[sessionID]
 	if !ok || time.Now().After(current.ExpiresAt) {
 		return errSessionNotFound
 	}
-	connection, ok := current.Instances[current.ActiveInstance]
+	connection, ok := current.Instances[connectionID]
 	if !ok {
 		return errInstanceNotFound
 	}
-	current.Password = password
 	connection.Password = password
+	if current.ActiveInstance == connectionID {
+		current.Password = password
+	}
 	current.LastAccessedAt = time.Now()
 	return nil
 }

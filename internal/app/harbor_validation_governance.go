@@ -115,8 +115,11 @@ func validateRetentionPolicy(body map[string]any) error {
 	}
 
 	scope, ok := body["scope"].(map[string]any)
-	if !ok || stringValue(scope["level"]) != "project" || numberValue(scope["ref"]) <= 0 {
+	if !ok || stringValue(scope["level"]) != "project" {
 		return errors.New("Tag 保留策略 scope 必须引用有效项目")
+	}
+	if err := validatePositiveInteger(scope["ref"], "Tag 保留策略 scope.ref"); err != nil {
+		return err
 	}
 	return nil
 }

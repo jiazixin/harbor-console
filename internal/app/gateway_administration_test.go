@@ -440,6 +440,69 @@ func TestCurrentPasswordUpdateKeepsActiveSessionConnected(t *testing.T) {
 	}
 }
 
+func TestCurrentCredentialUpdateStaysWithOriginalInstance(t *testing.T) {
+	for _, test := range []struct {
+		operation string
+		path      string
+		body      string
+	}{
+		{operation: "current-user-password", path: "/api/v2.0/users/7/password", body: `{"old_password":"password","new_password":"NewPassword2"}`},
+		{operation: "current-user-cli-secret", path: "/api/v2.0/users/7/cli_secret", body: `{"secret":"NewPassword2"}`},
+	} {
+		t.Run(test.operation, func(t *testing.T) {
+			application, err := newApp()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var sessionID, otherInstanceID string
+			client := mockClient(func(request *http.Request) (int, string) {
+				if request.URL.Path == "/api/v2.0/users/current" {
+					return http.StatusOK, `{"user_id":7}`
+				}
+				if request.URL.Path != test.path || request.Method != http.MethodPut {
+					t.Fatalf("unexpected upstream request %s %s", request.Method, request.URL.Path)
+				}
+				// A second tab can switch instances while the original update is
+				// waiting for Harbor. Its completion must refresh the original one.
+				if _, err := application.sessions.switchInstance(sessionID, otherInstanceID); err != nil {
+					t.Fatal(err)
+				}
+				return http.StatusOK, `{}`
+			})
+			current := createTestSession(t, application, client, false)
+			sessionID = current.ID
+			originalInstanceID := current.ActiveInstance
+			other, err := application.sessions.addInstance(current.ID, &session{
+				InstanceURL: "https://second.harbor.test", Username: "other", Password: "OtherPassword1", Client: client,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			otherInstanceID = other.ActiveInstance
+			if _, err := application.sessions.switchInstance(current.ID, originalInstanceID); err != nil {
+				t.Fatal(err)
+			}
+			request := httptest.NewRequest(http.MethodPut, "/api/control/"+test.operation+"?id=7", strings.NewReader(test.body))
+			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
+			recorder := httptest.NewRecorder()
+			application.routes().ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("credential update status = %d, body = %s", recorder.Code, recorder.Body.String())
+			}
+			stored, ok := application.sessions.get(current.ID)
+			if !ok {
+				t.Fatal("session disappeared after credential update")
+			}
+			if stored.ActiveInstance != otherInstanceID || stored.Password != "OtherPassword1" || stored.Instances[otherInstanceID].Password != "OtherPassword1" {
+				t.Fatal("credential update changed the newly active connection")
+			}
+			if stored.Instances[originalInstanceID].Password != "NewPassword2" {
+				t.Fatal("original connection did not receive the new credential")
+			}
+		})
+	}
+}
+
 func TestControlRejectsInvalidGovernanceBodies(t *testing.T) {
 	tests := []struct {
 		operation string

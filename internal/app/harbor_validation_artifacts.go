@@ -25,10 +25,7 @@ func validateArtifactLabel(body map[string]any) error {
 	if err := validateAllowedFields(body, "id"); err != nil {
 		return err
 	}
-	if numberValue(body["id"]) <= 0 {
-		return errors.New("标签 id 必须是正整数")
-	}
-	return nil
+	return validatePositiveInteger(body["id"], "标签 id")
 }
 
 func validateScanType(body map[string]any) error {

@@ -101,8 +101,8 @@ func (a *app) handleControl(w http.ResponseWriter, r *http.Request) {
 			field = "secret"
 		}
 		if password, ok := decoded[field].(string); ok {
-			if err := a.sessions.updateActivePassword(current.ID, password); err != nil {
-				a.logger.Warn("updated Harbor credential but failed to refresh local session", "session_id", current.ID, "error", err)
+			if err := a.sessions.updateInstancePassword(current.ID, current.ActiveInstance, password); err != nil {
+				a.logger.Warn("updated Harbor credential but failed to refresh local connection", "connection_id", current.ActiveInstance, "error", err)
 			}
 		}
 	}
@@ -152,11 +152,8 @@ func buildControlPath(spec controlSpec, input url.Values) (string, http.Header, 
 	projectName := strings.TrimSpace(input.Get("project"))
 	for _, parameter := range spec.params {
 		value := strings.TrimSpace(input.Get(parameter.name))
-		if value == "" {
-			return "", nil, fmt.Errorf("%s 是必填参数", parameter.name)
-		}
-		if len(value) > 1024 || strings.ContainsAny(value, "\r\n\x00") {
-			return "", nil, fmt.Errorf("%s 包含无效字符或长度过长", parameter.name)
+		if err := validatePathParameter(value, parameter.name); err != nil {
+			return "", nil, err
 		}
 		if parameter.numeric {
 			parsed, err := strconv.ParseInt(value, 10, 64)
@@ -186,6 +183,23 @@ func buildControlPath(spec controlSpec, input url.Values) (string, http.Header, 
 		}
 	}
 	return path, headers, nil
+}
+
+func validatePathParameter(value, name string) error {
+	if value == "" {
+		return fmt.Errorf("%s 是必填参数", name)
+	}
+	if len(value) > 1024 || strings.ContainsAny(value, "\r\n\x00") {
+		return fmt.Errorf("%s 包含无效字符或长度过长", name)
+	}
+	// PathEscape leaves dot segments unchanged; upstream proxies may normalize
+	// them and route outside the declared operation's path.
+	for segment := range strings.SplitSeq(value, "/") {
+		if segment == "." || segment == ".." {
+			return fmt.Errorf("%s 不能包含路径跳转片段", name)
+		}
+	}
+	return nil
 }
 
 func buildControlQuery(allowed []string, input url.Values, applyPaginationDefaults bool) (url.Values, error) {

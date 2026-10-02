@@ -205,10 +205,7 @@ func validateReplicationFilters(raw any) error {
 }
 
 func validateReplicationStart(body map[string]any) error {
-	if numberValue(body["policy_id"]) <= 0 {
-		return errors.New("policy_id 必须是正整数")
-	}
-	return nil
+	return validatePositiveInteger(body["policy_id"], "policy_id")
 }
 
 func validateRegistryCreate(body map[string]any) error {
@@ -231,8 +228,8 @@ func validateRegistryUpdate(body map[string]any) error {
 }
 
 func validateRegistryPing(body map[string]any) error {
-	if numberValue(body["id"]) > 0 {
-		return nil
+	if id, exists := body["id"]; exists {
+		return validatePositiveInteger(id, "远端仓库 id")
 	}
 	return validateRegistryURL(body["url"])
 }

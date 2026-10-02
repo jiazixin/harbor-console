@@ -1,0 +1,25 @@
+.scan-type-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.scan-type-option {
+  min-height: 104px;
+  align-items: center !important;
+  padding: 14px !important;
+  border: 1px solid var(--line) !important;
+  background: var(--surface-subtle);
+}
+
+.scan-type-option strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.scan-type-option strong .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--orange-strong);
+}

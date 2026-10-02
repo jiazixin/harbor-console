@@ -1,0 +1,5 @@
+.control-dialog .policy-transfer-flags .check-row,
+.control-dialog .policy-trigger-options .check-row {
+  min-height: 62px;
+  padding: 10px 12px;
+}

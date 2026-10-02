@@ -36,8 +36,8 @@ func validateMemberCreate(body map[string]any) error {
 		if err := validateResourceName(name, "成员组名称", 255, true); err != nil {
 			return err
 		}
-		groupType := numberValue(group["group_type"])
-		if groupType < 1 || groupType > 3 {
+		groupType, valid := integerNumberValue(group["group_type"])
+		if !valid || groupType < 1 || groupType > 3 {
 			return errors.New("成员组类型必须是 LDAP、HTTP 或 OIDC")
 		}
 		if groupType == 1 && strings.TrimSpace(stringValue(group["ldap_group_dn"])) == "" {
@@ -48,12 +48,15 @@ func validateMemberCreate(body map[string]any) error {
 }
 
 func validateMemberRole(body map[string]any) error {
+	if err := validateAllowedFields(body, "role_id"); err != nil {
+		return err
+	}
 	return validateRole(body)
 }
 
 func validateRole(body map[string]any) error {
-	role := int(numberValue(body["role_id"]))
-	if role < 1 || role > 4 {
+	role, valid := integerNumberValue(body["role_id"])
+	if !valid || role < 1 || role > 4 {
 		return errors.New("role_id 必须是 1 到 4：项目管理员、开发者、访客或维护者")
 	}
 	return nil
@@ -101,8 +104,8 @@ func validateRobotUpdateFields(body map[string]any) error {
 			return errors.New("机器人 disable 必须是布尔值")
 		}
 	}
-	duration := numberValue(body["duration"])
-	if duration != -1 && duration < 1 {
+	duration, valid := integerNumberValue(body["duration"])
+	if !valid || (duration != -1 && duration < 1) {
 		return errors.New("机器人有效期必须是 -1（永不过期）或正整数")
 	}
 	permissions, ok := body["permissions"].([]any)
@@ -124,6 +127,9 @@ func validateRobotUpdateFields(body map[string]any) error {
 }
 
 func validateRobotSecret(body map[string]any) error {
+	if err := validateAllowedFields(body, "secret"); err != nil {
+		return err
+	}
 	secret, ok := body["secret"].(string)
 	if !ok {
 		return errors.New("机器人密钥必须是文本")
@@ -179,6 +185,9 @@ func validateUserProfileFields(body map[string]any) error {
 }
 
 func validateUserSysadmin(body map[string]any) error {
+	if err := validateAllowedFields(body, "sysadmin_flag"); err != nil {
+		return err
+	}
 	if _, ok := body["sysadmin_flag"].(bool); !ok {
 		return errors.New("sysadmin_flag 必须是布尔值")
 	}
@@ -228,8 +237,8 @@ func validateUserGroup(body map[string]any) error {
 	if err := validateResourceName(name, "用户组名称", 255, true); err != nil {
 		return err
 	}
-	groupType := numberValue(body["group_type"])
-	if groupType < 1 || groupType > 3 {
+	groupType, valid := integerNumberValue(body["group_type"])
+	if !valid || groupType < 1 || groupType > 3 {
 		return errors.New("用户组类型必须是 LDAP、HTTP 或 OIDC")
 	}
 	if groupType == 1 && strings.TrimSpace(stringValue(body["ldap_group_dn"])) == "" {

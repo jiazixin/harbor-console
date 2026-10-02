@@ -32,8 +32,8 @@
 
 在当前工作区已完成以下证据：
 
-- 完整 `make check`：PASS，包含格式、空白、deployment pin、`go mod tidy -diff`、Go vet/race、前端检查/测试/构建和生产二进制构建。
-- 信息性 `make coverage`：PASS，总语句覆盖率 61.5%；`internal/app` 61.1%、`internal/config` 78.9%、`internal/observability` 72.0%。覆盖率不是发布 Gate 的替代品。
+- 完整 完整质量检查：PASS，包含格式、空白、deployment pin、`go mod tidy -diff`、Go vet/race、前端检查/测试/构建和生产二进制构建。
+- 信息性 覆盖率检查：PASS，总语句覆盖率 61.5%；`internal/app` 61.1%、`internal/config` 78.9%、`internal/observability` 72.0%。覆盖率不是发布 Gate 的替代品。
 - 前端合同测试：20 passed；React component test：44 个文件、153 passed；0 failed；TypeScript `noUnusedLocals` / `noUnusedParameters` 已进入正式配置。
 - React architecture Gate：PASS。生产入口直接挂载 typed React；`frontend/public/runtime/`、classic renderer、HTML parser 与 preview 入口均不存在；`internal/webui/` 只允许 `embed.go` 和 Vite 生成的 `assets/`，旧式未执行 `.cjs` 测试已清理，并由架构合同防止回归。
 - Stable API contract Gate：PASS。198 个 Harbor v2.15.2 非废弃 operation 的 method/path 双向合同与排序 fixture 独立复验通过。
@@ -66,9 +66,9 @@
 - 制品摘要中的 Label chip 统一限制为 260px；390px 与 1280px 真实截图确认其保持在卡片内并显示省略号，不改变原颜色、字号、间距或操作结构。
 - 超长项目名会使 Harbor 组合后的项目 Robot 名称超过 255 字符并返回上游 500。当前 UI 按项目名计算剩余名称长度；无可用长度时禁用名称输入和提交，并显示明确原因。
 - 清理后 `acceptance-*`、`acceptance-final-*` 和 `codex-ui-*` 项目、用户、Robot、Label、Registry、Replication、Scanner 与 P2P 资源数量均为 0；被测制品 Tag 精确恢复为 `["9"]`，Label 恢复为 `[]`，没有遗留验收资源。最终清理由 React UI 完成，并通过固定解析到 `192.168.30.10` 的 Harbor API 独立复核。
-- `make check`、`make security-check`、`make browser-test` 和 `git diff --check` 均通过；最新结果为 20 条合同测试、44 个文件中的 153 条组件测试，以及 Chromium/Firefox/WebKit 的 24/24 双语四视口场景。npm audit 和 `govulncheck` 均未发现漏洞。
+- 完整质量检查、依赖安全扫描、浏览器测试 和 `git diff --check` 均通过；最新结果为 20 条合同测试、44 个文件中的 153 条组件测试，以及 Chromium/Firefox/WebKit 的 24/24 双语四视口场景。npm audit 和 `govulncheck` 均未发现漏洞。
 - 真实 Harbor Gate：PASS。第 9 节要求的核心读取、CRUD、执行、权威回读、恢复和清理矩阵已经覆盖项目、用户/成员/组、Label、Webhook、规则、Robot、Artifact、配额、系统配置、Registry、Replication、Scanner 和 P2P。
-- Container Gate：PASS。使用 Docker client 29.7.1、Docker server 29.5.2 和 Colima 0.10.3 执行 `make docker-build VERSION=dev`，两个基础镜像均按 Dockerfile 中的不可变 digest 拉取并成功构建 `harbor-console:dev`。
+- Container Gate：PASS。使用 Docker client 29.7.1、Docker server 29.5.2 和 Colima 0.10.3 执行 容器构建，两个基础镜像均按 Dockerfile 中的不可变 digest 拉取并成功构建 `harbor-console:dev`。
 - 容器以 `nonroot:nonroot` 配置运行，PID 1 的实际 UID 为 65532；`/etc/harbor-console/config.yaml` 存在并被 `CONFIG_FILE` 使用。容器仅映射到主机 loopback `127.0.0.1:18487`。
 - 容器 health 返回 200、JSON、`Cache-Control: no-store` 和严格安全头；生产 HTML、favicon、全部 hashed JavaScript/CSS bundle 均返回 200。发送 SIGTERM 后日志包含 `server_stopped`，容器退出码为 0。
 
@@ -155,22 +155,22 @@ Container engine and version:
 不得先运行会写文件的格式化命令。按顺序执行：
 
 ```bash
-make format-check
-make whitespace-check
-make deployment-check
-make mod-check
-make vet
-make test-race
-make frontend-check
-make frontend-test
-make build
+# Go 格式检查
+# 空白检查
+# 部署版本检查
+# 模块检查
+# Go 静态检查
+# Go 竞态测试
+# 前端静态检查
+# 前端测试
+# 生产构建
 git diff --check
 ```
 
 再执行信息性覆盖率：
 
 ```bash
-make coverage
+# 覆盖率检查
 ```
 
 通过条件：所有命令退出码为 0，无 race、无意外 generated file、无未解释的格式修改。
@@ -380,7 +380,7 @@ UI-001 至 UI-034 任一失败都必须记录截图、视口、语言、浏览�
 ## 14. Container Gate
 
 ```bash
-make docker-build
+# 容器构建
 docker run --rm -p 127.0.0.1:<unused-port>:8080 harbor-console:dev
 ```
 

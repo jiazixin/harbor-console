@@ -1,16 +1,35 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 )
 
+type writeConfirmationError struct {
+	err error
+}
+
+func (e *writeConfirmationError) Error() string {
+	return "Harbor accepted write but confirmation failed: " + e.err.Error()
+}
+
+func (e *writeConfirmationError) Unwrap() error {
+	return e.err
+}
+
 func writeUpstreamError(w http.ResponseWriter, err error) {
 	status := http.StatusBadGateway
-	var upstream *upstreamError
-	if errors.As(err, &upstream) {
+	if errors.Is(err, context.DeadlineExceeded) {
+		status = http.StatusGatewayTimeout
+	}
+	if _, ok := errors.AsType[*writeConfirmationError](err); ok {
+		writeError(w, status, "Harbor 已接受写入，最终状态未确认", friendlyUpstreamError(err))
+		return
+	}
+	if upstream, ok := errors.AsType[*upstreamError](err); ok {
 		switch upstream.StatusCode {
 		case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound,
 			http.StatusMethodNotAllowed, http.StatusConflict, http.StatusPreconditionFailed,
@@ -22,8 +41,23 @@ func writeUpstreamError(w http.ResponseWriter, err error) {
 }
 
 func friendlyUpstreamError(err error) string {
-	var upstream *upstreamError
-	if errors.As(err, &upstream) {
+	if confirmation, ok := errors.AsType[*writeConfirmationError](err); ok {
+		reason := friendlyUpstreamError(confirmation.err)
+		switch {
+		case errors.Is(confirmation.err, context.DeadlineExceeded):
+			reason = "确认请求超时"
+		case errors.Is(confirmation.err, context.Canceled):
+			reason = "确认请求已取消"
+		}
+		return "请先刷新回读确认，再决定是否重试。确认失败原因：" + reason
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "Harbor 请求超时，请稍后重试"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "Harbor 请求已取消"
+	}
+	if upstream, ok := errors.AsType[*upstreamError](err); ok {
 		switch upstream.StatusCode {
 		case http.StatusUnauthorized:
 			return "用户名或密码无效"

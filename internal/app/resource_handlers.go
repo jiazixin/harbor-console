@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -56,8 +57,26 @@ func (a *app) handleResource(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "未知资源", "该资源不在 Harbor 代理允许列表中")
 		return
 	}
+	input := r.URL.Query()
+	pathSpec := controlSpec{path: spec.path}
+	for _, key := range spec.requiredQuery {
+		pathSpec.params = append(pathSpec.params, controlParam{name: key, placeholder: key, doubleEncode: key == "repository"})
+	}
+	path, headers, err := buildControlPath(pathSpec, input)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "路径参数无效", err.Error())
+		return
+	}
+	if input.Get("page_size") == "" && slicesContain(spec.allowedQuery, "page_size") {
+		input.Set("page_size", "50")
+	}
+	query, err := buildControlQuery(spec.allowedQuery, input, true)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "查询参数无效", err.Error())
+		return
+	}
 	if current.Demo {
-		payload, ok := demoResource(kind, r.URL.Query())
+		payload, ok := demoResource(kind, input)
 		if !ok {
 			writeError(w, http.StatusNotFound, "没有演示数据", "该资源尚无演示数据")
 			return
@@ -65,40 +84,17 @@ func (a *app) handleResource(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, payload)
 		return
 	}
-
-	path := spec.path
-	for _, key := range spec.requiredQuery {
-		value := strings.TrimSpace(r.URL.Query().Get(key))
-		if value == "" {
-			writeError(w, http.StatusBadRequest, "缺少查询参数", key+" 是必填参数")
-			return
-		}
-		if key == "repository" {
-			value = strings.TrimPrefix(value, strings.TrimSpace(r.URL.Query().Get("project"))+"/")
-			value = url.PathEscape(url.PathEscape(value))
-		} else {
-			value = url.PathEscape(value)
-		}
-		path = strings.ReplaceAll(path, "{"+key+"}", value)
-	}
-	query := url.Values{}
-	for _, key := range spec.allowedQuery {
-		if values, exists := r.URL.Query()[key]; exists {
-			for _, value := range values {
-				query.Add(key, value)
-			}
-		}
-	}
-	if query.Get("page") == "" && slicesContain(spec.allowedQuery, "page") {
-		query.Set("page", "1")
-	}
-	if query.Get("page_size") == "" && slicesContain(spec.allowedQuery, "page_size") {
-		query.Set("page_size", "50")
-	}
-	var payload any
-	if err := a.harborJSON(r.Context(), current, http.MethodGet, path, query, &payload); err != nil {
+	response, err := a.harborRequest(r.Context(), current, http.MethodGet, path, query, nil, headers)
+	if err != nil {
 		writeUpstreamError(w, err)
 		return
+	}
+	var payload any
+	if len(response.Body) > 0 {
+		if err := json.Unmarshal(response.Body, &payload); err != nil {
+			writeError(w, http.StatusBadGateway, "Harbor 响应无效", "资源接口没有返回有效 JSON")
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, payload)
 }

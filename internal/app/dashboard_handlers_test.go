@@ -8,6 +8,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"harbor-console/internal/config"
 )
 
 func TestDashboardDerivesStatisticsFromVisibleResources(t *testing.T) {
@@ -126,6 +129,35 @@ func TestDashboardDerivesStatisticsFromVisibleResources(t *testing.T) {
 		if got := numberValue(project["storage_used"]); got != want.storage {
 			t.Errorf("project %q storage_used = %d, want %d", name, got, want.storage)
 		}
+	}
+}
+
+func TestDashboardBoundsAggregateUpstreamWork(t *testing.T) {
+	runtimeConfig := config.Default()
+	runtimeConfig.Server.WriteTimeout = config.Duration(100 * time.Millisecond)
+	application, err := newAppWithConfig(runtimeConfig, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if _, ok := request.Context().Deadline(); !ok {
+			t.Error("dashboard upstream request is missing an aggregate deadline")
+			return nil, io.ErrUnexpectedEOF
+		}
+		<-request.Context().Done()
+		return nil, request.Context().Err()
+	})}
+	current := createTestSession(t, application, client, false)
+	request := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
+	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
+	response := httptest.NewRecorder()
+	started := time.Now()
+	application.routes().ServeHTTP(response, request)
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("dashboard kept working beyond its aggregate deadline: %s", elapsed)
+	}
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"warnings":[`) {
+		t.Fatalf("dashboard did not report incomplete upstream work: %d %s", response.Code, response.Body.String())
 	}
 }
 

@@ -1,9 +1,25 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"strings"
+	"time"
 )
+
+func upstreamRequestBudget(next http.Handler, budget time.Duration) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// All upstream stages share one deadline, including preflight checks,
+		// pagination and write confirmation. Parent cancellation stays intact.
+		ctx, cancel := context.WithTimeout(r.Context(), budget)
+		defer cancel()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
 
 func securityHeaders(next http.Handler, healthPaths ...string) http.Handler {
 	healthSet := make(map[string]struct{}, len(healthPaths))

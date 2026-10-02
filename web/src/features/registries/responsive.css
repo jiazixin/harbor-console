@@ -1,0 +1,15 @@
+@media (max-width: 900px) {
+  .control-registry-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .form-grid.two-columns,
+  .check-grid,
+  .event-selector,
+  .control-registry-grid,
+  .permission-resource-list {
+    grid-template-columns: 1fr;
+  }
+}

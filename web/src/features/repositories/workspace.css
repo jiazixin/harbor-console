@@ -1,0 +1,30 @@
+.repository-asset-card-grid .repository-card header {
+  grid-template-columns: minmax(0, 1fr) 34px;
+}
+
+.repository-asset-table {
+  min-width: 900px;
+}
+
+.repository-asset-card-grid .repository-card dl {
+  grid-template-columns: minmax(0, 1fr);
+  padding-top: 0;
+}
+
+.repository-asset-card-grid .repository-card dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  border-left: 0;
+}
+
+.repository-asset-card-grid .repository-card dl > div:first-child {
+  border-top: 0;
+}
+
+.repository-asset-card-grid .repository-card dd {
+  flex: 0 0 auto;
+}

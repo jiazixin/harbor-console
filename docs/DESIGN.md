@@ -1,6 +1,6 @@
 # 架构与边界
 
-维护基线：2026-09-12。视觉与交互规范独立放在 [UI.md](UI.md)。
+维护基线：2026-10-02。视觉与交互规范独立放在 [UI.md](UI.md)。
 
 ## 产品范围
 
@@ -29,13 +29,15 @@ Harbor v2.15.2
 | `internal/config` | YAML 与环境变量配置 |
 | `internal/observability` | 应用与访问日志 |
 | `internal/buildinfo` | 编译时版本、提交与时间 |
-| `frontend/src/app` | 类型、API 客户端、路由、语言、偏好与应用装配 |
-| `frontend/src/layouts` | 侧栏、顶栏和全局浮层 |
-| `frontend/src/components` | 共享控件、表格、弹窗和状态 |
-| `frontend/src/features` | 各业务领域页面及写操作 |
-| `internal/webui/assets` | Vite 生成资源；不可手工编辑 |
+| `web/src/app` | 类型、API 客户端、路由、语言、偏好与应用装配 |
+| `web/src/layouts` | 侧栏、顶栏和全局浮层 |
+| `web/src/components` | 共享控件、表格、弹窗和状态 |
+| `web/src/features` | 各业务领域页面、专用组件、样式、就近测试及写操作 |
+| `web/src/styles` | 全局主题、布局基础与跨业务域共享样式 |
+| `web/embed.go` | Go 资源嵌入入口，包名 webui |
+| `web/dist` | Vite 生成资源；不可手工编辑 |
 
-React、翻译、图标和样式都嵌入二进制，生产运行不需要 npm、CDN 或外部字体服务。Vite 开发服务器仅用于开发，通过代理连接 Go 后端。
+React、翻译、图标和样式都嵌入二进制，生产运行不需要 npm、CDN 或外部字体服务。业务页面和弹窗按需加载；全局与业务样式仍按 `main.tsx` 显式顺序一次加载。带哈希的 bundle 使用一年 immutable 缓存，HTML 要求重新验证，资源更新通过新哈希生效。Vite 开发服务器仅用于开发，通过代理连接 Go 后端。
 
 ## API 合同
 
@@ -45,6 +47,7 @@ React、翻译、图标和样式都嵌入二进制，生产运行不需要 npm�
 - 项目名、仓库路径、digest、reference、metadata name 按各自语义验证与转义。仓库路径的双重编码不能简化为通用字符串替换。
 - 排序字段必须在上游 operation 合同中允许。派生字段需要完整的权限范围数据，不能把当前页排序伪装成全量排序。
 - 写入成功后刷新或权威回读；删除先执行可用的官方预检，并明确显示目标与确认步骤。
+- 每个 Console API 请求的全部上游阶段共享总预算，取 18 秒与 `WRITE_TIMEOUT` 的 90% 中较小值；已有更早 deadline 与取消信号优先，预算耗尽后不启动下一阶段。系统 CVE Allowlist 写入获成功响应但确认失败时，明确提示已接受写入、最终状态未确认，先刷新回读再决定是否重试。
 
 ## 会话与信任边界
 
@@ -59,7 +62,7 @@ React、翻译、图标和样式都嵌入二进制，生产运行不需要 npm�
 
 ## 前端状态
 
-React 组件持有状态，类型化 API helper 承担请求；不引入字符串 DOM renderer、全局 HTML 替换或旧版兼容运行时。副作用使用 AbortController 或请求版本丢弃过期结果。
+React 组件持有状态，类型化 API helper 承担请求；不引入字符串 DOM renderer、全局 HTML 替换或旧版兼容运行时。副作用使用 AbortController 或请求版本丢弃过期结果。会话操作拥有统一请求所有权，切换、退出和取消后旧响应不能回写；身份回调限定到发起操作的实例。可选浏览器存储不可用时仍可继续使用默认偏好。
 
 页面刷新保持已有数据和内容容器，避免空白闪烁。排序、筛选、分页不改变页面组件 identity。跨项目聚合采用有上限的 worker pool，单项完成即可补位，处理部分失败和权限限制。
 

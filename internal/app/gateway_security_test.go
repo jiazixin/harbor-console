@@ -170,7 +170,7 @@ func TestSystemCVEAllowlistUpdateRejectsFalseSuccessAfterVerification(t *testing
 	if recorder.Code == http.StatusOK {
 		t.Fatalf("false success reported after persistence mismatch: %s", recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), "未按请求持久化") {
+	if !strings.Contains(recorder.Body.String(), "Harbor 已接受写入") || !strings.Contains(recorder.Body.String(), "回读的 CVE Allowlist 与请求不一致") {
 		t.Fatalf("mismatch detail missing: %s", recorder.Body.String())
 	}
 }

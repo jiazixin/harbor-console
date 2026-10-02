@@ -54,7 +54,10 @@ func validatePreheatInstance(body map[string]any) error {
 }
 
 func validatePreheatInstancePing(body map[string]any) error {
-	if numberValue(body["id"]) > 0 {
+	if id, exists := body["id"]; exists {
+		if err := validatePositiveInteger(id, "P2P 实例 id"); err != nil {
+			return err
+		}
 		return validateAllowedFields(body, "id")
 	}
 	return validatePreheatInstance(body)
@@ -71,14 +74,15 @@ func validatePreheatPolicy(body map[string]any) error {
 	if !validPreheatName(name) {
 		return errors.New("预热策略名称只能使用字母、数字及单个点、下划线或连字符分隔")
 	}
-	if raw, ok := body["id"]; ok && numberValue(raw) <= 0 {
-		return errors.New("预热策略 id 必须是正整数")
+	for _, field := range []string{"id", "project_id"} {
+		if raw, exists := body[field]; exists {
+			if err := validatePositiveInteger(raw, "预热策略 "+field); err != nil {
+				return err
+			}
+		}
 	}
-	if raw, ok := body["project_id"]; ok && numberValue(raw) <= 0 {
-		return errors.New("预热策略 project_id 必须是正整数")
-	}
-	if numberValue(body["provider_id"]) <= 0 {
-		return errors.New("预热策略 provider_id 必须是正整数")
+	if err := validatePositiveInteger(body["provider_id"], "预热策略 provider_id"); err != nil {
+		return err
 	}
 	for _, field := range []string{"description", "filters", "trigger", "extra_attrs"} {
 		if raw, ok := body[field]; ok {

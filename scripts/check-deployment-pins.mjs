@@ -1,5 +1,9 @@
+import { fileURLToPath } from "node:url";
+
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+
+process.chdir(fileURLToPath(new URL("..", import.meta.url)));
 
 const findings = [];
 const workflowDirectory = ".github/workflows";

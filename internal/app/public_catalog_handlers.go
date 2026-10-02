@@ -39,6 +39,7 @@ func (a *app) handlePublicCatalog(w http.ResponseWriter, r *http.Request, resour
 		writeError(w, http.StatusBadRequest, "公开目录请求无效", err.Error())
 		return
 	}
+	defer current.Client.CloseIdleConnections()
 	response, err := a.harborRequest(r.Context(), current, http.MethodGet, path, query, nil, headers)
 	if err != nil {
 		writeUpstreamError(w, err)
@@ -86,6 +87,9 @@ func (a *app) buildPublicCatalogRequest(input publicCatalogRequest, resource str
 		if err := validateResourceName(project, "项目名称", 255, false); err != nil {
 			return nil, nil, "", nil, err
 		}
+		if err := validatePathParameter(project, "project"); err != nil {
+			return nil, nil, "", nil, err
+		}
 		headers.Set("X-Is-Resource-Name", "true")
 		base := "/api/v2.0/projects/" + url.PathEscape(project) + "/repositories"
 		if resource == "repositories" {
@@ -97,8 +101,8 @@ func (a *app) buildPublicCatalogRequest(input publicCatalogRequest, resource str
 		}
 		repository := strings.TrimSpace(input.Repository)
 		repository = strings.TrimPrefix(repository, project+"/")
-		if repository == "" || len(repository) > 1024 || strings.ContainsAny(repository, "\r\n\x00") {
-			return nil, nil, "", nil, errors.New("仓库名称无效")
+		if err := validatePathParameter(repository, "repository"); err != nil {
+			return nil, nil, "", nil, err
 		}
 		query.Set("sort", "-push_time")
 		query.Set("with_tag", "true")

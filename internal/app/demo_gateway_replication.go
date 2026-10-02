@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -121,122 +120,6 @@ func (state *demoState) handleReplicationControl(
 			break
 		}
 		data = logText
-
-	case "registries":
-		if method == http.MethodGet {
-			state.writeList(w, filterMaps(state.registries, query.Get("name"), "name"), query)
-			return
-		}
-		state.nextRegistryID++
-		registry := cloneMap(body)
-		registry["id"] = state.nextRegistryID
-		registry["status"] = "healthy"
-		registry["creation_time"] = time.Now().UTC().Format(time.RFC3339)
-		if credential, ok := registry["credential"].(map[string]any); ok {
-			credential["access_secret"] = ""
-		}
-		state.registries = append(state.registries, registry)
-		status, data = http.StatusCreated, registry
-
-	case "registry-adapters":
-		data = []any{"harbor", "docker-hub", "docker-registry", "ali-acr", "aws-ecr", "azure-acr", "google-gcr"}
-
-	case "registry-adapter-infos":
-		data = demoRegistryAdapterInfos()
-
-	case "registry-info":
-		data = demoRegistryInfo(parseDemoID(query.Get("id")))
-
-	case "permissions":
-		data = demoPermissionMetadata()
-
-	case "audit-logs":
-		items := mapsFromAny(demoAuditLogs())
-		if q := query.Get("q"); q != "" {
-			if username := demoQueryString(q, "username"); username != "" {
-				items = filterMaps(items, username, "username")
-			}
-			if resource := demoQueryString(q, "resource"); resource != "" {
-				items = filterMaps(items, resource, "resource")
-			}
-			if operation := demoQueryString(q, "operation"); operation != "" {
-				items = filterMaps(items, operation, "operation")
-			}
-			if result := demoQueryString(q, "op_result"); result != "" {
-				want := result == "true"
-				filtered := make([]map[string]any, 0, len(items))
-				for _, item := range items {
-					if item["operation_result"] == want {
-						filtered = append(filtered, item)
-					}
-				}
-				items = filtered
-			}
-			items = filterDemoAuditTimeRange(items, q)
-		}
-		state.writeList(w, items, query)
-		return
-
-	case "audit-log-events":
-		data = []any{
-			map[string]any{"event_type": "create_replication_policy"},
-			map[string]any{"event_type": "create_user"},
-			map[string]any{"event_type": "delete"},
-			map[string]any{"event_type": "pull"},
-			map[string]any{"event_type": "push"},
-			map[string]any{"event_type": "scan"},
-			map[string]any{"event_type": "update"},
-		}
-
-	case "project-audit-logs":
-		items := mapsFromAny(demoAuditLogs())
-		project := strings.TrimSpace(query.Get("project"))
-		if project != "" {
-			items = filterMaps(items, project+"/", "resource")
-		}
-		if q := query.Get("q"); q != "" {
-			if username := demoQueryString(q, "username"); username != "" {
-				items = filterMaps(items, username, "username")
-			}
-			if resource := demoQueryString(q, "resource"); resource != "" {
-				items = filterMaps(items, resource, "resource")
-			}
-			if operation := demoQueryString(q, "operation"); operation != "" {
-				items = filterMaps(items, operation, "operation")
-			}
-			if result := demoQueryString(q, "op_result"); result != "" {
-				filtered := make([]map[string]any, 0, len(items))
-				for _, item := range items {
-					if item["operation_result"] == (result == "true") {
-						filtered = append(filtered, item)
-					}
-				}
-				items = filtered
-			}
-		}
-		state.writeList(w, items, query)
-		return
-
-	case "registry":
-		index, found := findMapNumber(state.registries, "id", query.Get("id"))
-		if !found {
-			errStatus, errMessage = http.StatusNotFound, "远端仓库不存在"
-			break
-		}
-		if method == http.MethodGet {
-			data = state.registries[index]
-		} else if method == http.MethodPut {
-			for key, value := range body {
-				state.registries[index][key] = value
-			}
-			state.registries[index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
-			data = state.registries[index]
-		} else {
-			state.registries = append(state.registries[:index], state.registries[index+1:]...)
-		}
-
-	case "registry-ping":
-		data = map[string]any{"status": "healthy"}
 
 	default:
 		handled = false

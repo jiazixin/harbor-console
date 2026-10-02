@@ -21,6 +21,7 @@ func (a *app) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, current.DemoData.dashboard())
 		return
 	}
+	ctx := r.Context()
 
 	type target struct {
 		key   string
@@ -41,12 +42,9 @@ func (a *app) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for _, item := range targets {
-		item := item
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			var payload any
-			err := a.harborJSON(r.Context(), current, http.MethodGet, item.path, item.query, &payload)
+			err := a.harborJSON(ctx, current, http.MethodGet, item.path, item.query, &payload)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -54,12 +52,10 @@ func (a *app) handleDashboard(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			result[item.key] = payload
-		}()
+		})
 	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		projects, err := a.listAllProjects(r.Context(), current)
+	wg.Go(func() {
+		projects, err := a.listAllProjects(ctx, current)
 		mu.Lock()
 		defer mu.Unlock()
 		if err != nil {
@@ -67,10 +63,10 @@ func (a *app) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		result["projects"] = projects
-	}()
+	})
 	wg.Wait()
 	if projects, ok := result["projects"].([]any); ok {
-		if a.enrichProjectAssets(r.Context(), current, projects) {
+		if a.enrichProjectAssets(ctx, current, projects) {
 			warnings = append(warnings, "部分项目资产明细读取失败，排序数据可能不完整")
 		}
 		result["statistics"] = visibleProjectStatistics(projects)
@@ -111,7 +107,11 @@ func (a *app) enrichProjectAssets(ctx context.Context, current *session, project
 	var mu sync.Mutex
 	semaphore := make(chan struct{}, maxConcurrentProjectAssets)
 	hadError := false
+projectLoop:
 	for _, rawProject := range projects {
+		if ctx.Err() != nil {
+			break
+		}
 		project, ok := rawProject.(map[string]any)
 		if !ok {
 			continue
@@ -120,13 +120,15 @@ func (a *app) enrichProjectAssets(ctx context.Context, current *session, project
 		if strings.TrimSpace(name) == "" {
 			continue
 		}
-		semaphore <- struct{}{}
-		wg.Add(1)
-		go func(project map[string]any, projectName string) {
-			defer wg.Done()
+		select {
+		case semaphore <- struct{}{}:
+		case <-ctx.Done():
+			break projectLoop
+		}
+		wg.Go(func() {
 			defer func() { <-semaphore }()
 			headers := http.Header{"X-Is-Resource-Name": {"true"}}
-			encodedName := url.PathEscape(projectName)
+			encodedName := url.PathEscape(name)
 			summaryResponse, summaryErr := a.harborRequest(ctx, current, http.MethodGet, "/api/v2.0/projects/"+encodedName+"/summary", nil, nil, headers)
 			if summaryErr == nil {
 				var summary map[string]any
@@ -148,10 +150,10 @@ func (a *app) enrichProjectAssets(ctx context.Context, current *session, project
 				hadError = true
 				mu.Unlock()
 			}
-		}(project, name)
+		})
 	}
 	wg.Wait()
-	return hadError
+	return hadError || ctx.Err() != nil
 }
 
 func (a *app) projectArtifactCount(ctx context.Context, current *session, encodedProjectName string, headers http.Header) (int64, error) {

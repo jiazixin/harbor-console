@@ -332,17 +332,17 @@ npm test
 完整质量门：
 
 ```bash
-make check
+# 完整质量检查
 git diff --check
 ```
 
 信息性覆盖率：
 
 ```bash
-make coverage
+# 覆盖率检查
 ```
 
-`make check` 包含格式检查、空白检查、部署 pin 检查、Go module 检查、vet、race test、前端格式与语法、前端测试和生产构建。
+完整质量检查 包含格式检查、空白检查、部署 pin 检查、Go module 检查、vet、race test、前端格式与语法、前端测试和生产构建。
 
 当前 React 迁移基线为 20 条合同测试和 44 个文件中的 153 条组件测试。TypeScript 正式启用 `noUnusedLocals` 与 `noUnusedParameters`；数量会随功能增加而增长，验收报告必须记录实际命令输出，不能沿用旧数字。
 
@@ -401,7 +401,7 @@ npm run test:browser
 一项变更只有同时满足以下条件才算完成：
 
 - 实现符合 `DESIGN.md`。
-- focused tests 和 `make check` 通过。
+- focused tests 和 完整质量检查 通过。
 - UI 改动完成规定视口和双语渲染检查。
 - 真实 Harbor 相关写入已读取权威资源验证；无法访问时明确标记 BLOCKED，只完成部分范围时明确标记 IN PROGRESS，不能把局部流程扩大为完整 Gate 通过。
 - 没有新增凭据、日志、出站访问或破坏性操作风险。

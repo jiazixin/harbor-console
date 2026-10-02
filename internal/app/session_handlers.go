@@ -28,8 +28,12 @@ func (a *app) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := a.sessions.create(candidate); err != nil {
+		closeSessionClient(candidate)
 		writeError(w, http.StatusInternalServerError, "无法创建会话", "随机会话标识生成失败")
 		return
+	}
+	if previousID, ok := sessionIDFromRequest(r); ok {
+		a.sessions.delete(previousID)
 	}
 	a.setSessionCookie(w, r, candidate.ID)
 	writeJSON(w, http.StatusOK, sessionInfo(candidate))
@@ -55,9 +59,9 @@ func (a *app) prepareConnection(ctx context.Context, input connectRequest) (*ses
 	// credentials are actually valid before creating or adding a session.
 	var currentUser map[string]any
 	if err := a.harborJSON(ctx, candidate, http.MethodGet, "/api/v2.0/users/current", nil, &currentUser); err != nil {
+		closeSessionClient(candidate)
 		status := http.StatusBadGateway
-		var upstream *upstreamError
-		if errors.As(err, &upstream) && (upstream.StatusCode == http.StatusUnauthorized || upstream.StatusCode == http.StatusForbidden) {
+		if upstream, ok := errors.AsType[*upstreamError](err); ok && (upstream.StatusCode == http.StatusUnauthorized || upstream.StatusCode == http.StatusForbidden) {
 			status = http.StatusUnauthorized
 		}
 		return nil, status, errors.New(friendlyUpstreamError(err))
@@ -78,6 +82,9 @@ func (a *app) handleDemo(w http.ResponseWriter, r *http.Request) {
 	if err := a.sessions.create(demo); err != nil {
 		writeError(w, http.StatusInternalServerError, "无法创建演示会话", "随机会话标识生成失败")
 		return
+	}
+	if previousID, ok := sessionIDFromRequest(r); ok {
+		a.sessions.delete(previousID)
 	}
 	a.setSessionCookie(w, r, demo.ID)
 	writeJSON(w, http.StatusOK, sessionInfo(demo))
@@ -106,7 +113,7 @@ func (a *app) handleAddInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "请求来源无效", "请从当前控制台提交连接请求")
 		return
 	}
-	sessionID, ok := sessionIDFromRequest(r)
+	previous, ok := a.currentSession(r)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "会话已失效", "请重新连接 Harbor")
 		return
@@ -125,8 +132,9 @@ func (a *app) handleAddInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, status, "无法连接 Harbor", err.Error())
 		return
 	}
-	current, err := a.sessions.addInstance(sessionID, candidate)
+	current, err := a.sessions.addInstance(previous.ID, candidate)
 	if err != nil {
+		closeSessionClient(candidate)
 		writeInstanceStoreError(w, err)
 		return
 	}
@@ -138,24 +146,31 @@ func (a *app) handleAddDemoInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "请求来源无效", "请从当前控制台提交请求")
 		return
 	}
-	sessionID, ok := sessionIDFromRequest(r)
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "会话已失效", "请重新连接 Harbor")
-		return
-	}
 	current, ok := a.currentSession(r)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "会话已失效", "请重新连接 Harbor")
 		return
 	}
-	index := len(current.Instances) + 1
-	demo := &session{InstanceURL: fmt.Sprintf("https://harbor-demo-%d.local", index), Username: "demo-admin", Demo: true, DemoData: newDemoState()}
-	current, err := a.sessions.addInstance(sessionID, demo)
+	demo := &session{InstanceURL: nextDemoInstanceURL(current), Username: "demo-admin", Demo: true, DemoData: newDemoState()}
+	current, err := a.sessions.addInstance(current.ID, demo)
 	if err != nil {
 		writeInstanceStoreError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, sessionInfo(current))
+}
+
+func nextDemoInstanceURL(current *session) string {
+	connected := make(map[string]bool, len(current.Instances))
+	for _, instance := range current.Instances {
+		connected[instance.InstanceURL] = true
+	}
+	for index := 2; ; index++ {
+		candidate := fmt.Sprintf("https://harbor-demo-%d.local", index)
+		if !connected[candidate] {
+			return candidate
+		}
+	}
 }
 
 func (a *app) handleSwitchInstance(w http.ResponseWriter, r *http.Request) {

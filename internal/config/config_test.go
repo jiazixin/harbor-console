@@ -139,3 +139,52 @@ func mapEnvironment(values map[string]string) environmentLookup {
 		return value, ok
 	}
 }
+
+func TestLoadConfigurationPaths(t *testing.T) {
+	// Exercise public loading from an isolated working directory, never user config.
+	t.Chdir(t.TempDir())
+	t.Setenv("CONFIG_FILE", "")
+	if err := os.Unsetenv("CONFIG_FILE"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PORT", "9010")
+	if _, err := Load(); err != nil {
+		t.Fatalf("missing implicit config should use defaults: %v", err)
+	}
+	if err := os.WriteFile("config.yaml", []byte("health:\n  uri: /legacy-health\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil || cfg.Health.URI != Default().Health.URI {
+		t.Fatalf("root config must not be auto-loaded: %#v, %v", cfg, err)
+	}
+	if err := os.Mkdir("configs", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("configs/config.local.yaml", []byte("server:\n  port: 8088\nhealth:\n  uri: /local-health\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load()
+	if err != nil || cfg.Health.URI != "/local-health" || cfg.Server.Port != 9010 {
+		t.Fatalf("default configs path and environment precedence: %#v, %v", cfg, err)
+	}
+	absolute, err := filepath.Abs("configs/config.local.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"configs/config.local.yaml", absolute} {
+		t.Setenv("CONFIG_FILE", path)
+		cfg, err := Load()
+		if err != nil || cfg.Health.URI != "/local-health" || cfg.Server.Port != 9010 {
+			t.Fatalf("explicit config %q and environment precedence: %#v, %v", path, cfg, err)
+		}
+	}
+	t.Setenv("CONFIG_FILE", "configs/missing.yaml")
+	if _, err := Load(); err == nil {
+		t.Fatal("explicit missing config should fail")
+	}
+	t.Setenv("CONFIG_FILE", "")
+	if _, err := Load(); err == nil {
+		t.Fatal("explicit empty config should fail")
+	}
+}

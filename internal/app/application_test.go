@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"harbor-console/internal/webui"
+	"harbor-console/web"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -89,14 +89,14 @@ func TestEmbeddedFrontendIsOfflineAndCSPCompatible(t *testing.T) {
 		}
 		return nil
 	}); err != nil {
-		t.Fatalf("walk embedded frontend: %v", err)
+		t.Fatalf("walk embedded web: %v", err)
 	}
 
 	contents := make(map[string]string, len(paths))
 	for _, path := range paths {
 		content, err := webui.ReadFile(path)
 		if err != nil {
-			t.Fatalf("read embedded frontend %s: %v", path, err)
+			t.Fatalf("read embedded web %s: %v", path, err)
 		}
 		contents[path] = string(content)
 		// CSP blocks inline style attributes in rendered HTML. Bundled JavaScript may
@@ -106,14 +106,17 @@ func TestEmbeddedFrontendIsOfflineAndCSPCompatible(t *testing.T) {
 		}
 	}
 	if _, err := webui.ReadFile("date-utils.test.cjs"); err == nil {
-		t.Fatal("frontend test source must not be embedded in the production binary")
+		t.Fatal("web test source must not be embedded in the production binary")
 	}
 
 	index := contents["index.html"]
 	for _, remoteReference := range []string{`src="http://`, `src="https://`, `href="http://`, `href="https://`, `//cdn.`} {
 		if strings.Contains(index, remoteReference) {
-			t.Fatalf("index contains remote frontend dependency %q", remoteReference)
+			t.Fatalf("index contains remote web dependency %q", remoteReference)
 		}
+	}
+	if err := validateEmbeddedResourceGraph(contents); err != nil {
+		t.Fatal(err)
 	}
 	application, err := newApp()
 	if err != nil {
@@ -122,9 +125,6 @@ func TestEmbeddedFrontendIsOfflineAndCSPCompatible(t *testing.T) {
 	for _, path := range paths {
 		if path == "index.html" {
 			continue
-		}
-		if !strings.Contains(index, `"/`+path+`"`) {
-			t.Fatalf("index is missing embedded resource %q", path)
 		}
 		asset := httptest.NewRecorder()
 		application.routes().ServeHTTP(asset, httptest.NewRequest(http.MethodGet, "/"+path, nil))
@@ -136,12 +136,12 @@ func TestEmbeddedFrontendIsOfflineAndCSPCompatible(t *testing.T) {
 	application.routes().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
 	csp := recorder.Header().Get("Content-Security-Policy")
 	if !strings.Contains(csp, "style-src 'self'") || strings.Contains(csp, "'unsafe-inline'") {
-		t.Fatalf("unexpected frontend CSP: %q", csp)
+		t.Fatalf("unexpected web CSP: %q", csp)
 	}
 	testSource := httptest.NewRecorder()
 	application.routes().ServeHTTP(testSource, httptest.NewRequest(http.MethodGet, "/date-utils.test.cjs", nil))
 	if testSource.Code != http.StatusNotFound {
-		t.Fatalf("frontend test source status = %d, want %d", testSource.Code, http.StatusNotFound)
+		t.Fatalf("web test source status = %d, want %d", testSource.Code, http.StatusNotFound)
 	}
 }
 

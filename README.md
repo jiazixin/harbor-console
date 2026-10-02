@@ -9,7 +9,7 @@ preheating, users, scanners, audit data, and system operations.
 
 The application is distributed as a single Go binary. Its React production bundle,
 styles, translations, and demo data are embedded, so it can run in isolated
-environments without a frontend service, package registry, or external CDN at runtime.
+environments without a web service, package registry, or external CDN at runtime.
 
 ## Highlights
 
@@ -40,7 +40,7 @@ older Harbor APIs are intentionally not included.
 ## Requirements
 
 - Go 1.26.6 or newer
-- Node.js 22 or newer for frontend checks
+- Node.js 22.22.2+ (22.x), 24.15.0+ (24.x), or 26+ for web checks
 - Docker or another OCI builder for container images
 
 ## Quick Start
@@ -48,6 +48,9 @@ older Harbor APIs are intentionally not included.
 Run with built-in defaults:
 
 ```bash
+go mod download
+npm --prefix web ci --ignore-scripts
+npm --prefix web run build
 go run ./cmd/harbor-console
 ```
 
@@ -58,8 +61,8 @@ without contacting Harbor.
 To use a configuration file:
 
 ```bash
-cp configs/config.example.yaml config.yaml
-CONFIG_FILE=./config.yaml go run ./cmd/harbor-console
+cp configs/config.example.yaml configs/config.local.yaml
+CONFIG_FILE="$PWD/configs/config.local.yaml" go run ./cmd/harbor-console
 ```
 
 ## Configuration
@@ -68,7 +71,7 @@ YAML values can be overridden with environment variables.
 
 | Environment variable  | Purpose                                | Default                    |
 | --------------------- | -------------------------------------- | -------------------------- |
-| `CONFIG_FILE`         | YAML configuration path                | `config.yaml` when present |
+| `CONFIG_FILE`         | YAML configuration path                | `configs/config.local.yaml` when present |
 | `LISTEN`              | Listener address                       | `127.0.0.1`                |
 | `PORT`                | Listener port                          | `8080`                     |
 | `HEALTH_URI`          | Health endpoint                        | `/health`                  |
@@ -98,7 +101,7 @@ Mount a custom configuration when needed:
 
 ```bash
 docker run --rm -p 127.0.0.1:8080:8080 \
-  -v "$PWD/config.yaml:/etc/harbor-console/config.yaml:ro" \
+  -v "$PWD/configs/config.local.yaml:/etc/harbor-console/config.yaml:ro" \
   harbor-console:local
 ```
 
@@ -131,12 +134,39 @@ cmd/harbor-console/     executable entry point
 internal/app/           HTTP application, sessions, gateway, and demo orchestration
 internal/config/        YAML and environment configuration
 internal/observability/ structured logging and access logs
-frontend/               React, TypeScript, shared components, feature pages, styles, and tests
-internal/webui/         generated Vite assets and the Go embed boundary
+web/                   React, TypeScript, shared components, feature pages, styles, and tests
+web/embed.go           Go embed boundary (package webui)
+web/dist/              generated Vite output (ignored)
+internal/buildinfo/    build version metadata
 configs/                deployment configuration examples
 docs/                   architecture decisions and acceptance guidance
 scripts/                repository quality tooling
 ```
+
+The layout follows [目录规范.md](目录规范.md). `web/` owns npm manifests, its lockfile,
+tool configuration, source, public resources, unit/contract tests and E2E tests.
+The Go embed entry lives beside the generated resources because embed paths cannot
+traverse parent directories. `internal/app` retains its shared internal domain types.
+
+Run all documented commands from the repository root. Install dependencies first,
+then run `npm --prefix web run build` to generate `web/dist/` before Go
+build/run/test/vet and browser checks. Generated assets are not tracked.
+CI/CD directly orchestrates checks, tests and builds in `.github/workflows/ci.yml`.
+Go coverage reports belong in `coverage/go.out`; configuration and runtime data
+must be preserved when cleaning generated files.
+
+Configuration precedence is environment > YAML > built-in defaults. Relative
+`CONFIG_FILE` paths resolve against the process working directory; use absolute paths
+in deployments. Explicit empty or missing paths fail. An unset `CONFIG_FILE` reads
+optional `configs/config.local.yaml` relative to the working directory and uses defaults
+if absent. Local configuration belongs in this ignored path; root and `bin/` configuration
+files are not automatically discovered.
+Vite reads local environment files from `web/`; these are excluded from Git and Docker.
+
+Sessions and demo state are in memory and reset on restart. Logs go to stdout; this
+service creates no database or upload directory. Harbor owns and backs up its persistent
+data. Only configuration needs an optional read-only mount. Archived documents and older
+plans retain historical paths; use the current README and development guide for commands.
 
 ## Security Model
 
@@ -171,12 +201,15 @@ instance, never for production or untrusted endpoints.
 ## Development
 
 ```bash
-make format       # format Go source
-make check        # run the complete local quality gate
-make security-check # audit npm and reachable Go vulnerabilities
-make coverage     # generate and print Go coverage
-make build        # build bin/harbor-console
-make docker-build # build the container image
+npm --prefix web run dev    # Vite
+npm --prefix web run build  # web/dist; required before Go commands
+npm --prefix web run check
+npm --prefix web test
+go vet ./cmd/... ./internal/... ./web
+go test -race ./cmd/... ./internal/... ./web -count=1
+mkdir -p bin
+CGO_ENABLED=0 go build -trimpath -o bin/harbor-console ./cmd/harbor-console
+docker build -t harbor-console:dev .
 ```
 
 The GitHub Actions workflow runs the same quality gate and dependency vulnerability audit,
@@ -198,11 +231,8 @@ for review.
 
 ## Project Status
 
-The current worktree uses typed React for the application root, session state, routing,
-pages, dialogs, and global overlays. The classic runtime and compatibility renderer have
-been removed. Local quality, API contract, security, bilingual Chromium/Firefox/WebKit,
-real Harbor v2.15.2, and container runtime gates all pass. Real Harbor acceptance covers
-the anonymous catalog and the complete project, identity, artifact, policy, replication,
-scanner, P2P, quota, and recoverable system-settings workflows, including authoritative
-read-back, restoration, and cleanup. The current acceptance conclusion is `ACCEPTED` for
-the implemented scope; native OIDC login remains explicitly outside that scope.
+The application uses typed React for sessions, routes, pages, dialogs, and global
+overlays. Results, fixes, and remaining deployment checks for the current pre-release
+review are recorded in [ACCEPTANCE.md](docs/ACCEPTANCE.md). Historical Harbor and
+container results do not certify the current worktree. Validate the target Harbor
+instance and container environment before release.

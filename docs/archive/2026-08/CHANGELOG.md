@@ -27,7 +27,7 @@
 - 从当前 CSS、typed React 和前端合同/组件测试中提取 UI 规范，新增 UI-001 至 UI-012，专门防止布局塌陷、字体不一致、原生 select 差异、文字重叠、表格压缩、焦点和整页重绘问题复发。
 - 明确区分历史 Commit、当前迁移提交、本地测试、真实 Harbor 验收和发布 Gate，避免文档再次混淆“实现完成”“提交完成”和“已发布”。
 
-本地证据：2026-08-04 执行 `make check`，Go vet/race、前端格式和语法、20 条合同测试、44 个文件中的 153 条组件测试及生产构建全部通过。
+本地证据：2026-08-04 执行 完整质量检查，Go vet/race、前端格式和语法、20 条合同测试、44 个文件中的 153 条组件测试及生产构建全部通过。
 
 ## 2.1 2026-08-03 至 2026-08-04：React 全量迁移完成
 
@@ -41,7 +41,7 @@
 - `internal/webui/assets/` 是纯 Vite 生成目录，Go embed 递归嵌入 hashed bundle，不再包含 runtime 兼容资源。
 - 清理 `internal/webui/` 下仍引用旧 `app.js` / `control-ui.js` 等已删除资源且未被质量门执行的 `.cjs` 死测试；新增架构合同，限制该目录只能包含 `embed.go` 和生成资产。
 - 生产 bundle 按业务领域拆分，最大 JavaScript chunk 从约 849 kB 降至 181.71 kB raw，消除 500 kB 构建警告。
-- Docker 和 Makefile 在 Go 编译前执行 `npm ci` / `npm run build`。
+- 容器构建流程 在 Go 编译前执行 `npm ci` / `npm run build`。
 
 ### 原因
 
@@ -59,8 +59,8 @@
 ### 当前验证
 
 - 20 条 React 架构/样式/i18n 合同测试与 44 个文件中的 153 条组件测试通过，共 0 failed。
-- 完整 `make check` 通过，覆盖 Go vet/race、前端检查/测试/构建与生产二进制构建。
-- 信息性 `make coverage` 通过，总语句覆盖率 61.5%；稳定 API 合同独立复验确认 198 个非废弃 operation fixture 与实现一致。
+- 完整 完整质量检查 通过，覆盖 Go vet/race、前端检查/测试/构建与生产二进制构建。
+- 信息性 覆盖率检查 通过，总语句覆盖率 61.5%；稳定 API 合同独立复验确认 198 个非废弃 operation fixture 与实现一致。
 - 本轮构建二进制的 Local runtime Gate 通过：health、405、CSP、内嵌资源、demo Cookie、logout 后 401、访问日志和 SIGTERM 零退出均已实际验证。
 - 迁移前基线与 React 生产入口完成 24 条认证后路由、两种语言和 1440x900、1280x800、390x844、360x800 四个视口的同矩阵比较，共 384 项检查，0 failure、0 unexpected console issue。
 - React 生产入口完成 47 条页面/页签状态 × Chromium/Firefox/WebKit × 两种语言 × 四个视口的正式矩阵，共 1,128 次认证后路由检查，24/24 场景通过；该命令已接入独立 CI Browser Job。
@@ -69,8 +69,8 @@
 - 所有矩阵视口均无 document/main 页面级横向溢出。
 - 搜索结果、`Escape`、outside click、焦点恢复、账号、实例切换、操作中心和偏好 Dialog 均有组件或浏览器证据。
 - 安全筛选、项目代理配置和用户组来源等普通单选均已迁移到共享 `UnifiedSelect`；桌面和 390px 移动端浏览器复验无页面级溢出或控制台错误。
-- `make security-check` 通过：npm 依赖 0 个高危漏洞，`govulncheck` 未发现可达 Go 漏洞。
-- `make browser-test` 通过：Chromium、Firefox、WebKit 的 24/24 双语四视口场景全部通过。
+- 依赖安全扫描 通过：npm 依赖 0 个高危漏洞，`govulncheck` 未发现可达 Go 漏洞。
+- 浏览器测试 通过：Chromium、Firefox、WebKit 的 24/24 双语四视口场景全部通过。
 
 ## 2.2 2026-08-04：公开目录补全与真实 Harbor 边界验收
 
@@ -115,7 +115,7 @@
 状态：当前迁移提交；当前实施范围综合结论为 `ACCEPTED`。
 
 - 通过 Homebrew 安装 Docker CLI 29.7.1 与 Colima 0.10.3，并使用 Docker server 29.5.2 执行本地 container runtime Gate。
-- `make docker-build VERSION=dev` 成功；构建阶段和 distroless 运行阶段均使用 Dockerfile 固定的不可变镜像 digest。
+- 容器构建 成功；构建阶段和 distroless 运行阶段均使用 Dockerfile 固定的不可变镜像 digest。
 - `harbor-console:dev` 的 image/container user 均为 `nonroot:nonroot`，PID 1 实际 UID 为 65532。
 - 容器读取 `/etc/harbor-console/config.yaml`，仅映射到主机 loopback；health、生产 HTML、favicon 和全部 hashed JavaScript/CSS bundle 均返回 200，并保留严格 CSP 与 `Cache-Control: no-store`。
 - 向容器发送 SIGTERM 后日志记录 `server_stopped`，容器状态为 exited，退出码为 0。
@@ -310,7 +310,7 @@
 ### 验证
 
 - 复制弹窗与复制页面定向组件测试：7/7 通过；Prettier 检查通过。
-- `make build` 成功，生成嵌入式 Vite 资源和 `bin/harbor-console`。
+- 生产构建 成功，生成嵌入式 Vite 资源和 `bin/harbor-console`。
 - Codex 内置浏览器在 `http://127.0.0.1:9999/#/replication?tab=executions` 演示会话中复验：1280x720 下任务表 `1040px`，列起点独立、操作单行、状态居中、结束时间单行，document overflow 为 `0`；390x844 下 Dialog `374px`，任务表由 `.table-scroll` 局部滚动，document/main overflow 均为 `0`。
 
 ### 剩余风险
@@ -357,7 +357,7 @@
 - 日志迁移至 `internal/observability`。
 - 构建信息增加 `internal/buildinfo`。
 - Web 资源迁移至 `internal/webui/assets` 并继续嵌入单二进制。
-- Docker、Makefile 和 CI 统一构建 `./cmd/harbor-console`。
+- Docker 和 CI 统一构建 `./cmd/harbor-console`。
 
 防复发：仓库根目录不再放业务 Go 源码；新逻辑进入明确 owner package；不为了拆包导出无必要类型。
 
@@ -391,13 +391,13 @@
 
 新增或完善：
 
-- `Makefile` 统一 format、whitespace、deployment pin、mod、vet、race、frontend 和 build。
+- 当时的质量流程统一 format、whitespace、deployment pin、mod、vet、race、frontend 和 build。
 - `package.json` 使用 Prettier、Node syntax check 和 `node --test`。
 - GitHub Actions 使用不可变 SHA 和基础镜像 digest。
 - Dependabot 每周检查 Actions 和 Docker digest。
 - Docker 多阶段构建、非 root 运行、健康检查和优雅退出 smoke test。
 
-防复发：CI 输入不得使用可移动 tag；本地 `make check` 与 CI 核心质量门保持一致。
+防复发：CI 输入不得使用可移动 tag；本地 完整质量检查 与 CI 核心质量门保持一致。
 
 ## 4. UI 问题沉淀与修复记录
 

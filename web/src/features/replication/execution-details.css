@@ -1,0 +1,43 @@
+.replication-task-table-grid {
+  table-layout: fixed;
+}
+
+.replication-task-table-grid :is(th, td) {
+  padding-inline: 10px;
+}
+
+.replication-task-table-grid .id-column {
+  width: 76px;
+}
+
+.replication-task-table-grid
+  :is(.replication-task-source, .replication-task-target) {
+  width: 190px;
+}
+
+.replication-task-table-grid .replication-task-operation {
+  width: 78px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.replication-task-table-grid .replication-task-status {
+  width: 100px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.replication-task-table-grid .replication-task-status .status-badge {
+  margin-inline: auto;
+}
+
+.replication-task-table-grid
+  :is(.replication-task-start-time, .replication-task-end-time) {
+  width: 130px;
+}
+
+.replication-task-table-grid .replication-task-log {
+  width: 48px;
+  padding-inline: 0;
+  text-align: center;
+}

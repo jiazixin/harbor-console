@@ -1,0 +1,40 @@
+@media (max-width: 1080px) {
+  .dashboard-grid,
+  .split-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .dashboard-grid > .panel:first-child .panel-head {
+    min-height: 0;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 11px;
+    padding-block: 13px;
+  }
+
+  .dashboard-grid > .panel:first-child .panel-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .dashboard-grid > .panel:first-child .panel-actions .toolbar-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard-grid > .panel:first-child .panel-link {
+    white-space: nowrap;
+  }
+
+  .risk-layout {
+    grid-template-columns: 116px minmax(0, 1fr);
+    padding: 18px 14px;
+  }
+
+  .risk-ring {
+    width: 108px;
+  }
+}

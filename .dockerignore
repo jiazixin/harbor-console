@@ -1,9 +1,21 @@
 .git
-.gitignore
+.github
 docs
-coverage.out
-harbor-console
 bin
-node_modules
-.DS_Store
+harbor-console
+**/node_modules
 **/.DS_Store
+**/.env
+**/.env.*
+configs/*.local.yaml
+coverage.out
+web/dist
+web/coverage
+web/test-results
+web/playwright-report
+**/*.tsbuildinfo
+coverage
+
+# Application state and tool caches
+**/data
+**/.cache

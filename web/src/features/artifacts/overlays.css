@@ -1,0 +1,34 @@
+.artifact-filter-toolbar {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.artifact-filter-toolbar .control-search-form {
+  flex: 0 1 280px;
+  width: min(280px, 100%);
+}
+
+.artifact-filter-toolbar .toolbar-field {
+  flex: 0 1 148px;
+}
+
+.artifact-filter-toolbar .toolbar-select {
+  min-width: 104px;
+}
+
+.artifact-select-table .selection-cell {
+  width: 42px;
+  padding-inline: 12px 4px;
+  text-align: center;
+}
+
+.artifact-select-table .selection-cell input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.artifact-select-table tr.selected-row > td {
+  background: color-mix(in srgb, var(--orange-soft) 44%, var(--surface));
+}

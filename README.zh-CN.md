@@ -36,7 +36,7 @@ Harbor Console 目前通过 Harbor Basic Auth 访问上游。OIDC 用户可以�
 ## 环境要求
 
 - Go 1.26.6 或更高版本
-- Node.js 22 或更高版本，用于前端检查
+- Node.js 22.22.2+（22 系列）、24.15.0+（24 系列）或 26+，用于前端检查
 - Docker 或其他 OCI 镜像构建工具
 
 ## 快速开始
@@ -44,6 +44,9 @@ Harbor Console 目前通过 Harbor Basic Auth 访问上游。OIDC 用户可以�
 使用内置默认配置运行：
 
 ```bash
+go mod download
+npm --prefix web ci --ignore-scripts
+npm --prefix web run build
 go run ./cmd/harbor-console
 ```
 
@@ -53,8 +56,8 @@ go run ./cmd/harbor-console
 使用配置文件：
 
 ```bash
-cp configs/config.example.yaml config.yaml
-CONFIG_FILE=./config.yaml go run ./cmd/harbor-console
+cp configs/config.example.yaml configs/config.local.yaml
+CONFIG_FILE="$PWD/configs/config.local.yaml" go run ./cmd/harbor-console
 ```
 
 ## 配置
@@ -63,7 +66,7 @@ YAML 配置可以被环境变量覆盖。
 
 | 环境变量              | 作用                               | 默认值                   |
 | --------------------- | ---------------------------------- | ------------------------ |
-| `CONFIG_FILE`         | YAML 配置文件路径                  | 存在时读取 `config.yaml` |
+| `CONFIG_FILE`         | YAML 配置文件路径                  | 存在时读取 `configs/config.local.yaml` |
 | `LISTEN`              | 监听地址                           | `127.0.0.1`              |
 | `PORT`                | 监听端口                           | `8080`                   |
 | `HEALTH_URI`          | 健康检查路径                       | `/health`                |
@@ -93,7 +96,7 @@ docker run --rm -p 127.0.0.1:8080:8080 harbor-console:local
 
 ```bash
 docker run --rm -p 127.0.0.1:8080:8080 \
-  -v "$PWD/config.yaml:/etc/harbor-console/config.yaml:ro" \
+  -v "$PWD/configs/config.local.yaml:/etc/harbor-console/config.yaml:ro" \
   harbor-console:local
 ```
 
@@ -125,12 +128,22 @@ cmd/harbor-console/     可执行程序入口
 internal/app/           HTTP 应用、会话、网关和演示编排
 internal/config/        YAML 与环境变量配置
 internal/observability/ 结构化日志与访问日志
-frontend/               React、TypeScript、共享组件、领域页面、样式与测试
-internal/webui/         Vite 生成产物与 Go 嵌入边界
+web/                   React、TypeScript、共享组件、领域页面、样式与测试
+web/embed.go           Go 嵌入入口（包名 webui）
+web/dist/              Vite 生成产物（不提交）
+internal/buildinfo/    构建版本元数据
 configs/                部署配置示例
 docs/                   架构决策与验收说明
 scripts/                仓库质量检查工具
 ```
+
+目录布局遵循根目录 [目录规范.md](目录规范.md)。`web/` 独立拥有 npm 清单、锁文件、Vite/TypeScript/ESLint 配置、`src/`、`public/`、`tests/` 和 `e2e/`；Go 单元测试靠近源码，固定测试数据放 `internal/app/testdata/`。`internal/app` 的网关、会话和演示逻辑共享内部类型，保留单包边界。
+
+所有示例命令均从仓库根目录执行。先安装依赖，再运行 `npm --prefix web run build` 生成 `web/dist/`，然后执行 Go 构建、启动、测试、vet 或浏览器测试。生成资源不提交；CI/CD 在 `.github/workflows/ci.yml` 中直接编排检查、测试和构建。Go 覆盖率报告放在 `coverage/go.out`，清理产物时必须保留配置和业务数据。
+
+配置优先级为环境变量 > YAML > 内置默认值。`CONFIG_FILE` 相对路径以进程工作目录为基准，部署时建议使用绝对路径；显式指定空路径或不存在的文件会报错。未设置该变量时读取工作目录下的 `configs/config.local.yaml`（不存在则使用默认值）。本地配置统一放在被忽略的 `configs/config.local.yaml`，不自动查找根目录或 `bin/` 下的旧配置。Vite 的本地环境文件位于 `web/.env*`，不进入 Git 或容器上下文。
+
+应用会话与演示状态保存在内存，日志输出到标准输出，不创建本地数据库或上传目录；重启会丢失会话。外部 Harbor 持久数据由 Harbor 自身负责备份，部署本项目仅需按需只读挂载配置。历史记录和已完成计划归入 `docs/archive/`，当前操作以 README 和开发文档为准。
 
 ## 安全边界
 
@@ -161,12 +174,15 @@ Harbor；生产环境或不可信目标不得启用。
 ## 开发命令
 
 ```bash
-make format       # 格式化 Go 源码
-make check        # 执行完整本地质量门
-make security-check # 审计 npm 与可达 Go 漏洞
-make coverage     # 生成并打印 Go 覆盖率
-make build        # 构建 bin/harbor-console
-make docker-build # 构建容器镜像
+npm --prefix web run dev    # Vite
+npm --prefix web run build  # web/dist; required before Go commands
+npm --prefix web run check
+npm --prefix web test
+go vet ./cmd/... ./internal/... ./web
+go test -race ./cmd/... ./internal/... ./web -count=1
+mkdir -p bin
+CGO_ENABLED=0 go build -trimpath -o bin/harbor-console ./cmd/harbor-console
+docker build -t harbor-console:dev .
 ```
 
 GitHub Actions 使用同一套质量门和依赖漏洞审计，并在 Chromium、Firefox 和 WebKit
@@ -184,9 +200,7 @@ Vite 产物。Dependabot 检查 Actions、Go 模块、npm 依赖和 Docker 基�
 
 ## 项目状态
 
-当前工作区已经由类型化 React 接管应用根节点、会话状态、路由、页面、Dialog 和全局
-浮层，classic runtime 与兼容渲染器均已删除。本地质量、API 合同、安全、Chromium、
-Firefox、WebKit 双语桌面/移动端、真实 Harbor v2.15.2 和容器运行 Gate 均已通过。
-真实 Harbor 验收覆盖匿名目录，以及项目、身份、制品、策略、复制、扫描器、P2P、配额
-和可恢复系统设置的完整流程，并包含权威回读、原值恢复和清理。当前实施范围的正式验收
-结论为 `ACCEPTED`；原生 OIDC 登录明确不在本次实施范围内。
+当前应用使用类型化 React 管理会话、路由、页面、Dialog 和全局浮层。
+本轮上线前检查的结果、修复及未完成的部署验证统一记录在
+[验收记录](docs/ACCEPTANCE.md)。历史真实 Harbor 或容器通过记录不能替代当前工作区
+的发布验证；上线前须完成目标 Harbor 和容器环境的验收。

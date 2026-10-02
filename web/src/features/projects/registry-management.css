@@ -1,0 +1,25 @@
+.control-dialog-error,
+.destructive-message,
+.info-banner {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+  padding: 9px 11px;
+  border-left: 3px solid var(--red);
+  background: var(--red-soft);
+  color: var(--red);
+  font-size: 11px;
+}
+
+.info-banner {
+  border-left-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.info-banner .icon {
+  width: 16px;
+  height: 16px;
+}

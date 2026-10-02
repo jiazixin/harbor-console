@@ -1,0 +1,62 @@
+.directory-selection-row input,
+.member-type-switch input {
+  width: 16px;
+  height: 16px;
+  justify-self: center;
+  margin: 0;
+  accent-color: var(--orange);
+  box-shadow: none;
+}
+
+.member-type-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.member-type-switch label {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  cursor: pointer;
+}
+
+.member-type-switch label:has(input:checked) {
+  border-color: var(--orange);
+  background: var(--orange-soft);
+}
+
+.member-type-switch label > span {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 7px;
+}
+
+.member-type-switch label > span .icon {
+  grid-row: 1 / span 2;
+}
+
+.member-type-switch b {
+  font-size: 12px;
+}
+
+.member-type-switch small {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.member-directory-panel {
+  min-height: 84px;
+}
+
+.member-role-field {
+  margin-top: 16px;
+}

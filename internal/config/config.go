@@ -79,7 +79,7 @@ func Default() Config {
 func Load() (Config, error) {
 	configPath, explicitlyConfigured := os.LookupEnv("CONFIG_FILE")
 	if !explicitlyConfigured {
-		configPath = "config.yaml"
+		configPath = "configs/config.local.yaml"
 	}
 	return loadRuntimeConfig(strings.TrimSpace(configPath), explicitlyConfigured, os.LookupEnv)
 }

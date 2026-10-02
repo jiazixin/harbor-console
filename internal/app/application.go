@@ -8,19 +8,20 @@ import (
 
 	"harbor-console/internal/config"
 	"harbor-console/internal/observability"
-	"harbor-console/internal/webui"
+	"harbor-console/web"
 )
 
 type app struct {
-	sessions     *sessionStore
-	loginLimits  *rateLimiter
-	publicLimits *rateLimiter
-	web          http.Handler
-	newClient    func(skipTLSVerify bool) *http.Client
-	healthURI    string
-	startedAt    time.Time
-	logger       *slog.Logger
-	logging      config.Logging
+	sessions        *sessionStore
+	loginLimits     *rateLimiter
+	publicLimits    *rateLimiter
+	web             http.Handler
+	newClient       func(skipTLSVerify bool) *http.Client
+	healthURI       string
+	startedAt       time.Time
+	logger          *slog.Logger
+	logging         config.Logging
+	upstreamTimeout time.Duration
 }
 
 type connectRequest struct {
@@ -69,16 +70,18 @@ func newAppWithConfig(runtimeConfig config.Config, logger *slog.Logger) (*app, e
 	if err != nil {
 		return nil, err
 	}
+	writeTimeout := time.Duration(runtimeConfig.Server.WriteTimeout)
 	return &app{
-		sessions:     newSessionStore(),
-		loginLimits:  newRateLimiter(30, time.Minute),
-		publicLimits: newRateLimiter(180, time.Minute),
-		web:          http.FileServer(http.FS(webRoot)),
-		newClient:    newHarborClient,
-		healthURI:    runtimeConfig.Health.URI,
-		startedAt:    time.Now(),
-		logger:       logger,
-		logging:      runtimeConfig.Logging,
+		sessions:        newSessionStore(),
+		loginLimits:     newRateLimiter(30, time.Minute),
+		publicLimits:    newRateLimiter(180, time.Minute),
+		web:             staticFiles(webRoot),
+		newClient:       newHarborClient,
+		healthURI:       runtimeConfig.Health.URI,
+		startedAt:       time.Now(),
+		logger:          logger,
+		logging:         runtimeConfig.Logging,
+		upstreamTimeout: min(harborRequestTimeout, writeTimeout-writeTimeout/10),
 	}, nil
 }
 
@@ -103,6 +106,7 @@ func (a *app) routes() http.Handler {
 	mux.HandleFunc("/api/control/{operation}", a.handleControl)
 	mux.HandleFunc("GET /api/search", a.handleSearch)
 	mux.Handle("/", a.web)
-	handler := observability.AccessLog(mux, a.logger, a.logging, a.healthURI)
+	handler := upstreamRequestBudget(mux, a.upstreamTimeout)
+	handler = observability.AccessLog(handler, a.logger, a.logging, a.healthURI)
 	return securityHeaders(handler, a.healthURI)
 }

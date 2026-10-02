@@ -22,7 +22,7 @@
 
 ### 1. Lock The Baseline
 
-- Run `make check` before modifying frontend sources.
+- Run 完整质量检查 before modifying frontend sources.
 - Capture the login, overview, project table, a dialog, and mobile shell in a real browser.
 - Record console errors, visible DOM identity, focus behavior, and responsive overflow.
 
@@ -31,7 +31,7 @@
 - Create `frontend/index.html`, `frontend/src/main.tsx`, and typed Vite configuration.
 - Add React, Vite, TypeScript, ESLint, Vitest, Testing Library, and Playwright dependencies.
 - Build into a temporary directory and copy only generated assets into `internal/webui/assets/`.
-- Update `Makefile`, Docker build stages, Go embed patterns, ignore rules, and quality checks.
+- Update build orchestration, Docker build stages, Go embed patterns, ignore rules, and quality checks.
 
 ### 3. Build Shared Application Infrastructure
 
@@ -60,7 +60,7 @@
 
 ## Completion Evidence
 
-- `make check`: PASS, including Go vet/race, frontend checks/tests/build, and production binary build.
+- 完整质量检查: PASS, including Go vet/race, frontend checks/tests/build, and production binary build.
 - Frontend: 20 contract tests and 153 component tests across 44 files, all passing; TypeScript enforces unused-local and unused-parameter errors.
 - Production build: domain chunks, maximum JavaScript chunk 181.71 kB raw / 57.17 kB gzip, no 500 kB warning.
 - Production browser: an authenticated legacy/React matrix covered 24 routes, Chinese and English, and 1440x900, 1280x800, 390x844, and 360x800 viewports: 384 checks, zero failures, and zero unexpected console issues.

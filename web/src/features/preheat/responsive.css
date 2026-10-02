@@ -1,0 +1,15 @@
+@media (max-width: 620px) {
+  .preheat-provider-band {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .preheat-provider-list {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .preheat-provider-badge {
+    min-width: 0;
+  }
+}
