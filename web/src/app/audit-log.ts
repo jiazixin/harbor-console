@@ -130,11 +130,15 @@ export function auditResourceTypeLabel(
   const label =
     {
       artifact: "制品",
+      configuration: "系统配置",
       image: "镜像",
+      member: "项目成员",
       project: "项目",
-      registry: "镜像仓库",
+      registry: "远端仓库",
       replication: "复制任务",
       repository: "仓库",
+      robot: "机器人账号",
+      tag: "Tag",
       user: "用户",
     }[value?.toLowerCase() ?? ""] ?? value;
   return label ? translate(label) : translate("其他");

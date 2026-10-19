@@ -11,6 +11,7 @@ import { formatBytes, formatDate, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type { Dashboard, Session, SystemVolumes } from "../../app/models";
 import { DefinitionList } from "../../components/definition-list";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
 import {
   DemoBanner,
@@ -141,7 +142,7 @@ export function SystemPage({
       />
       {session.demo ? <DemoBanner /> : null}
       {(dashboard.warnings ?? []).map((warning) => (
-        <div className="warning-banner" key={warning}>
+        <div className="notice notice-warning" key={warning}>
           <Icon name="alert" />
           <span>{warning}</span>
         </div>
@@ -207,16 +208,18 @@ export function SystemPage({
                 </div>
               ))
             ) : (
-              <div className="empty-inline">
-                {t("当前账号无法读取组件详情")}
-              </div>
+              <EmptyState
+                title="组件详情不可用"
+                description="当前账号无法读取组件详情"
+                icon="shield"
+              />
             )}
           </div>
         </section>
         <section className="panel">
           <PanelHeader title="存储容量" subtitle="制品存储后端" />
           {volumeError ? (
-            <div className="warning-banner warning-banner-inset">
+            <div className="notice notice-warning notice-inset">
               <Icon name="alert" />
               <span>{volumeError}</span>
             </div>
@@ -241,7 +244,7 @@ export function SystemPage({
               </p>
             </div>
           ) : volumes ? (
-            <div className="warning-banner warning-banner-inset">
+            <div className="notice notice-warning notice-inset">
               <Icon name="alert" />
               <span>
                 {t(

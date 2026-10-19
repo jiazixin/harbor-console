@@ -1,5 +1,6 @@
 import type {
   ArtifactPlatform,
+  ArtifactReference,
   ArtifactVulnerabilityCounts,
   HarborArtifact,
   Locale,
@@ -97,10 +98,30 @@ export function artifactScanState(
   };
 }
 
+// BuildKit stores provenance and SBOM attestations as extra index entries with
+// an "unknown/unknown" platform. They are not runnable images, so platform
+// counts and lists leave them out, matching the Harbor portal.
+export function isAttestationReference(reference: ArtifactReference): boolean {
+  return (
+    reference.annotations?.["vnd.docker.reference.type"] ===
+      "attestation-manifest" ||
+    (reference.platform?.os === "unknown" &&
+      reference.platform.architecture === "unknown")
+  );
+}
+
+export function artifactPlatformReferences(
+  artifact: HarborArtifact,
+): ArtifactReference[] {
+  return (artifact.references ?? []).filter(
+    (reference) => !isAttestationReference(reference),
+  );
+}
+
 export function artifactPlatforms(
   artifact: HarborArtifact,
 ): NormalizedArtifactPlatform[] {
-  const references = artifact.references ?? [];
+  const references = artifactPlatformReferences(artifact);
   if (references.length) {
     return references.map((reference) => ({
       ...normalizePlatform(reference.platform),
@@ -199,4 +220,18 @@ export function artifactSignatureState(
     return "signed";
   }
   return "unsigned";
+}
+
+/** Scan states that Harbor can still stop. */
+const stoppableScanStatuses = new Set([
+  "running",
+  "pending",
+  "queued",
+  "scheduled",
+  "in_progress",
+  "inprogress",
+]);
+
+export function isStoppableScanStatus(status: string): boolean {
+  return stoppableScanStatuses.has(status.toLowerCase());
 }

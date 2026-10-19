@@ -320,9 +320,16 @@ export function AddProjectMemberDialog({
                       type="radio"
                       value={index}
                     />
+                    <span className="user-avatar-small" aria-hidden="true">
+                      {user.username.slice(0, 1).toUpperCase()}
+                    </span>
                     <span className="cell-stack">
                       <strong>{user.username}</strong>
-                      <small>{firstNonEmpty(user.realname, user.email)}</small>
+                      {user.realname?.trim() || user.email?.trim() ? (
+                        <small>
+                          {firstNonEmpty(user.realname, user.email)}
+                        </small>
+                      ) : null}
                     </span>
                   </label>
                 ))}
@@ -406,6 +413,9 @@ export function AddProjectMemberDialog({
                       type="radio"
                       value={index}
                     />
+                    <span className="user-avatar-small" aria-hidden="true">
+                      <Icon name="users" />
+                    </span>
                     <span className="cell-stack">
                       <strong>
                         {firstNonEmpty(group.group_name, group.ldap_group_dn)}
@@ -519,7 +529,7 @@ export function DeleteProjectMemberDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>

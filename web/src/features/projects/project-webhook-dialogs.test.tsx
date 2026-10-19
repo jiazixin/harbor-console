@@ -19,8 +19,8 @@ import { IconSprite } from "../../components/icons";
 import {
   DeleteProjectWebhookDialog,
   ProjectWebhookDialog,
-  WebhookHistoryDialog,
 } from "./project-webhook-dialogs";
+import { WebhookHistoryDialog } from "./project-webhook-history";
 
 const metadata: WebhookEventMetadata = {
   event_type: [

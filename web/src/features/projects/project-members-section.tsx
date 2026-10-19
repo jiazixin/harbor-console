@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
-
 import { formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type { ControlPagination, ProjectMember } from "../../app/models";
 import { Pagination } from "../../components/data-table";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
 import { OverflowText } from "../../components/overflow-text";
 import { ToolbarSearchForm } from "../../components/toolbar-search-form";
+import { useResettableState } from "../../components/use-resettable-state";
 
 const roleLabels: Partial<Record<number, string>> = {
   1: "项目管理员",
@@ -37,9 +37,7 @@ export function ProjectMembersSection({
   onDeleteMember: (project: string, member: ProjectMember) => void;
 }) {
   const { locale, t } = useLocale();
-  const [query, setQuery] = useState(initialQuery);
-
-  useEffect(() => setQuery(initialQuery), [initialQuery]);
+  const [query, setQuery] = useResettableState(initialQuery);
 
   return (
     <section className="table-shell">
@@ -63,15 +61,11 @@ export function ProjectMembersSection({
       </div>
       <div className="table-scroll">
         {!members.length ? (
-          <div className="empty-state">
-            <div>
-              <span className="state-icon">
-                <Icon name="users" />
-              </span>
-              <h2>{t("暂无成员")}</h2>
-              <p>{t("当前项目中没有匹配的成员。")}</p>
-            </div>
-          </div>
+          <EmptyState
+            title="暂无成员"
+            description="当前项目中没有匹配的成员。"
+            icon="users"
+          />
         ) : (
           <table>
             <thead>

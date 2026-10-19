@@ -77,6 +77,28 @@ describe("artifact utilities", () => {
     ).toBe("unsigned");
   });
 
+  it("leaves BuildKit attestation manifests out of the platform list", () => {
+    const indexWithAttestations: HarborArtifact = {
+      ...artifact,
+      references: [
+        ...(artifact.references ?? []),
+        {
+          child_digest: "sha256:attestation",
+          platform: { os: "unknown", architecture: "unknown" },
+          annotations: {
+            "vnd.docker.reference.type": "attestation-manifest",
+          },
+        },
+      ],
+    };
+    expect(
+      artifactPlatforms(indexWithAttestations).map(artifactPlatformLabel),
+    ).toEqual(["linux/amd64", "linux/arm64/v8"]);
+    expect(artifactArchitectureSummary(indexWithAttestations)).toBe(
+      "多架构 · 2 个平台",
+    );
+  });
+
   it("matches the legacy scan filter rules", () => {
     expect(artifactMatchesScanStatus(artifact, "success")).toBe(true);
     expect(artifactMatchesScanStatus(artifact, "error")).toBe(false);

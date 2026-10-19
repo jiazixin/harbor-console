@@ -143,7 +143,7 @@ export function ReplicationPolicyDialog({
     >
       <div className="replication-policy-form">
         {capabilityError ? (
-          <div className="warning-banner replication-capability-warning">
+          <div className="notice notice-warning replication-capability-warning">
             <Icon name="alert" />
             <span>{capabilityError}</span>
           </div>
@@ -468,7 +468,7 @@ function PolicyRulesSection({
               <input
                 name="dest_namespace"
                 maxLength={255}
-                pattern="[a-z0-9]+(?:[/._-][a-z0-9]+)*"
+                pattern="[a-z0-9]+(?:[\/._\-][a-z0-9]+)*"
                 value={namespace}
                 placeholder={t("留空保持原路径")}
                 autoComplete="off"

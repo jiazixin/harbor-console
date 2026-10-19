@@ -1,0 +1,96 @@
+/* Design tokens: colors, spacing, radii, typography and motion values for light and dark themes. */
+
+:root {
+  color-scheme: light;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-subtle: #f1f3f6;
+  --surface-raised: #ffffff;
+  --code-bg: #151515;
+  --ink: #20252d;
+  --ink-soft: #505966;
+  --ink-faint: #656e7b;
+  --line: #dfe4ea;
+  --line-strong: #c2cad4;
+  --orange: #f48120;
+  --orange-strong: #b64d08;
+  --orange-soft: #fff1e3;
+  --green: #13784a;
+  --green-soft: #e9f6ef;
+  --red: #c73a3a;
+  --red-soft: #fcecec;
+  --amber: #9a6700;
+  --amber-soft: #fff7d6;
+  --blue: #3569a8;
+  --blue-soft: #edf4fb;
+  --sidebar-width: 248px;
+  --topbar-height: 60px;
+  --shadow: 0 10px 30px rgba(22, 22, 22, 0.09);
+  --motion-instant: 120ms;
+  --motion-fast: 160ms;
+  --motion-standard: 220ms;
+  --motion-content: 220ms;
+  --motion-global: 220ms;
+  --motion-distance-small: 2px;
+  --motion-distance-medium: 4px;
+  --motion-linear: linear;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --motion-spin: 900ms;
+  --radius-small: 4px;
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --radius-dialog: 12px;
+  --shadow-panel: 0 1px 2px rgb(20 30 45 / 3%);
+  --shadow-dialog: 0 24px 64px rgb(15 23 42 / 22%);
+  --control-height: 42px;
+  --control-height-compact: 34px;
+  --font-body:
+    "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    sans-serif;
+  --font-mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", monospace;
+  --font-weight-toolbar-search: 650;
+  /*
+   * Spacing between controls. 4px: compact icon clusters; 8px: controls in
+   * the same action group; 16px: separation between distinct control groups.
+   * Joined controls such as segmented switches keep a zero gap because their
+   * shared border already reads as one control.
+   */
+  --space-control-compact: 4px;
+  --space-control: 8px;
+  --space-control-group: 16px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14171c;
+  --surface: #1c2027;
+  --surface-subtle: #252a33;
+  --surface-raised: #222730;
+  --ink: #f4f4f2;
+  --ink-soft: #c0c7d1;
+  --ink-faint: #a0aab7;
+  --line: #343b46;
+  --line-strong: #515b6a;
+  --orange: #fa9135;
+  --orange-strong: #ffab61;
+  --orange-soft: #3b291c;
+  --green: #4fca8d;
+  --green-soft: #1b3528;
+  --red: #f17171;
+  --red-soft: #3b2222;
+  --amber: #efbd54;
+  --amber-soft: #382f1c;
+  --blue: #78a7dd;
+  --blue-soft: #202f40;
+  --shadow: 0 14px 36px rgba(0, 0, 0, 0.32);
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 12%);
+  --shadow-dialog: 0 24px 64px rgb(0 0 0 / 40%);
+}
+
+:root[data-theme="dark"] .button-primary:not(:disabled):hover {
+  color: #171717;
+}
+
+:root[data-theme="dark"] .connect-view::before {
+  background: rgba(23, 23, 23, 0.88);
+}

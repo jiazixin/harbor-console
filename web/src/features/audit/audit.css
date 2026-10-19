@@ -1,0 +1,37 @@
+/* Audit log page styles. */
+
+.audit-filter-form {
+  flex-wrap: wrap;
+}
+
+.audit-filter-form .toolbar-search {
+  flex: 0 1 220px;
+}
+
+.audit-filter-form .audit-resource-search {
+  flex: 1 1 240px;
+}
+
+.audit-filter-form .toolbar-field .toolbar-select {
+  min-width: 118px;
+}
+
+.audit-filter-form .filter-toolbar-controls {
+  gap: 10px;
+}
+
+.audit-filter-form .filter-toolbar-query {
+  gap: 10px;
+}
+
+.audit-filter-form .audit-operation-filter .toolbar-select {
+  width: 237px;
+  min-width: 237px;
+}
+
+@media (max-width: 620px) {
+  .audit-filter-form .toolbar-search,
+  .audit-filter-form .audit-resource-search {
+    flex: 1 1 100%;
+  }
+}

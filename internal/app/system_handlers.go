@@ -27,7 +27,7 @@ func (a *app) handleAbout(w http.ResponseWriter, _ *http.Request) {
 			"build_date": buildinfo.BuildDate, "deployment": "single-binary", "offline": true,
 		},
 		"harbor": map[string]any{
-			"target_version": "v2.15.2", "api_version": "v2.0",
+			"target_version": "v2.15.x", "api_version": "v2.0",
 			"license": map[string]string{"name": "Apache License 2.0", "spdx": "Apache-2.0"},
 		},
 		"public_catalog": []map[string]any{

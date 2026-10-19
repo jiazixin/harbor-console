@@ -19,24 +19,32 @@ function AsyncContentState({
 }) {
   const { t } = useLocale();
   const reload = () => window.location.reload();
-  const title = failed ? "无法加载页面" : "正在加载页面";
-  const message = failed
-    ? "加载页面时发生错误。请重新加载后重试。"
-    : "正在准备页面内容...";
   if (onClose) {
+    // Dialog modules load on demand; the placeholder keeps the overlay open
+    // and closable while the module downloads.
     return (
       <ControlDialog
-        title={title}
-        submitLabel="重试"
+        title={failed ? "无法打开对话框" : "正在打开对话框"}
+        submitLabel="重新加载"
         submitDisabled={!failed}
         onClose={onClose}
         onSubmit={reload}
         initialFocusSelector={null}
       >
-        <p role={failed ? "alert" : "status"}>{t(message)}</p>
+        <p role={failed ? "alert" : "status"}>
+          {t(
+            failed
+              ? "加载对话框时发生错误。请重新加载页面后重试。"
+              : "正在准备对话框内容...",
+          )}
+        </p>
       </ControlDialog>
     );
   }
+  const title = failed ? "无法加载页面" : "正在加载页面";
+  const message = failed
+    ? "加载页面时发生错误。请重新加载后重试。"
+    : "正在准备页面内容...";
   return failed ? (
     <ErrorView title={title} message={t(message)} retry={reload} />
   ) : (

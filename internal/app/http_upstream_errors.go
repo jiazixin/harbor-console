@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -72,12 +73,17 @@ func friendlyUpstreamError(err error) string {
 		case http.StatusConflict:
 			return "资源已存在或当前状态发生冲突：" + upstream.Message
 		case http.StatusPreconditionFailed:
-			return "资源当前不可删除或前置条件未满足：" + upstream.Message
+			return "Harbor 前置条件未满足：" + upstream.Message
 		case http.StatusUnprocessableEntity:
 			return "Harbor 无法处理该操作：" + upstream.Message
 		case http.StatusTooManyRequests:
 			return "Harbor 请求过于频繁，请稍后重试"
 		default:
+			if upstream.StatusCode >= http.StatusInternalServerError {
+				// Harbor reports failures of services it calls on the user's behalf,
+				// such as an unreachable scanner adapter or registry, as HTTP 500.
+				return fmt.Sprintf("Harbor 服务端错误（HTTP %d）：%s。请检查 Harbor 日志，以及 Harbor 能否访问所填写的外部地址", upstream.StatusCode, upstream.Message)
+			}
 			return "Harbor 返回 " + strconv.Itoa(upstream.StatusCode) + ": " + upstream.Message
 		}
 	}

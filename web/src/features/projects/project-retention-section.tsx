@@ -1,4 +1,4 @@
-import { formatDate, formatNumber } from "../../app/formatters";
+import { formatDate, formatNumber, formatCount } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type {
   ControlPagination,
@@ -8,9 +8,12 @@ import type {
   RetentionRule,
 } from "../../app/models";
 import { Pagination } from "../../components/data-table";
+import { EmptyState } from "../../components/empty-state";
+import { PanelTitle } from "../../components/page-elements";
 import { Icon } from "../../components/icons";
 import { OverflowText } from "../../components/overflow-text";
 import { StatusBadge } from "../../components/status-badge";
+import { retentionTemplateSummary } from "./rule-labels";
 
 export type ProjectRetentionAction =
   | {
@@ -66,20 +69,6 @@ function firstRepositorySelector(rule: RetentionRule) {
 
 function firstTagSelector(rule: RetentionRule) {
   return rule.tag_selectors?.[0];
-}
-
-function retentionTemplateLabel(template: string | undefined): string {
-  return (
-    {
-      latestPushedK: "最近推送",
-      latestPulledN: "最近拉取",
-      nDaysSinceLastPush: "推送时间范围",
-      nDaysSinceLastPull: "拉取时间范围",
-      always: "永久保留",
-    }[template ?? ""] ??
-    template ??
-    "保留规则"
-  );
 }
 
 function retentionRuleParameter(
@@ -143,7 +132,7 @@ export function ProjectRetentionSection({
     return (
       <section className="table-shell retention-empty">
         <div className="table-toolbar">
-          <strong>{t("Tag 保留策略")}</strong>
+          <PanelTitle title="Tag 保留策略" />
           <div className="toolbar-spacer" />
           <button
             className="button button-small button-primary"
@@ -163,14 +152,13 @@ export function ProjectRetentionSection({
           </button>
         </div>
         {metadataNotice ? (
-          <p className="section-notice warning-notice">{metadataNotice}</p>
+          <p className="notice notice-warning">{metadataNotice}</p>
         ) : null}
-        <div className="empty-table">
-          <strong>{t("尚未配置 Tag 保留")}</strong>
-          <span>
-            {t("创建策略后，Harbor 会按规则自动清理不再需要的 Tag。")}
-          </span>
-        </div>
+        <EmptyState
+          title="尚未配置 Tag 保留"
+          description="创建策略后，Harbor 会按规则自动清理不再需要的 Tag。"
+          icon="history"
+        />
       </section>
     );
   }
@@ -265,7 +253,7 @@ export function ProjectRetentionSection({
 
       <section className="table-shell">
         <div className="table-toolbar">
-          <strong>{t("保留规则")}</strong>
+          <PanelTitle title="保留规则" />
           <div className="toolbar-spacer" />
           <button
             className="button button-small button-primary"
@@ -286,14 +274,15 @@ export function ProjectRetentionSection({
           </button>
         </div>
         {metadataNotice ? (
-          <p className="section-notice warning-notice">{metadataNotice}</p>
+          <p className="notice notice-warning">{metadataNotice}</p>
         ) : null}
         <div className="table-scroll">
           {!rules.length ? (
-            <div className="empty-table">
-              <strong>{t("暂无保留规则")}</strong>
-              <span>{t("策略至少需要一条启用或停用的保留规则。")}</span>
-            </div>
+            <EmptyState
+              title="暂无保留规则"
+              description="策略至少需要一条启用或停用的保留规则。"
+              icon="history"
+            />
           ) : (
             <table>
               <thead>
@@ -311,7 +300,7 @@ export function ProjectRetentionSection({
                     <td>
                       <div className="cell-stack">
                         <strong>
-                          {t(retentionTemplateLabel(rule.template))}
+                          {t(retentionTemplateSummary(rule.template))}
                         </strong>
                         <small>{retentionRuleParameter(rule, locale, t)}</small>
                       </div>
@@ -383,18 +372,23 @@ export function ProjectRetentionSection({
 
       <section className="table-shell">
         <div className="table-toolbar">
-          <strong>{t("执行历史")}</strong>
-          <div className="toolbar-spacer" />
-          <span className="muted">
-            {formatNumber(pagination.total, locale)} {t("次执行")}
-          </span>
+          <PanelTitle
+            title="执行历史"
+            count={formatCount(
+              pagination.total,
+              locale,
+              "次执行",
+              "executions",
+            )}
+          />
         </div>
         <div className="table-scroll">
           {!executions.length ? (
-            <div className="empty-table">
-              <strong>{t("暂无执行记录")}</strong>
-              <span>{t("执行演练或正式清理后会显示在这里。")}</span>
-            </div>
+            <EmptyState
+              title="暂无执行记录"
+              description="执行演练或正式清理后会显示在这里。"
+              icon="history"
+            />
           ) : (
             <table>
               <thead>

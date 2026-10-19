@@ -83,7 +83,7 @@ function DeleteDialog({
       onClose={onClose}
       onSubmit={onSubmit}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>
@@ -158,7 +158,7 @@ function UserDialog({
                 name="username"
                 required
                 maxLength={255}
-                pattern="[A-Za-z0-9_.-]+"
+                pattern="[A-Za-z0-9_.\-]+"
                 autoComplete="off"
               />
             </label>
@@ -393,7 +393,7 @@ function ToggleUserAdminDialog({
         onCompleted("用户系统权限已更新");
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>
           {t(
@@ -1032,7 +1032,7 @@ function SystemRobotDialog({
               </div>
             </div>
           ) : (
-            <div className="warning-banner">
+            <div className="notice notice-warning">
               <Icon name="alert" />
               <span>{t("当前账号看不到可授权的项目。")}</span>
             </div>
@@ -1188,7 +1188,7 @@ export function AdministrationDialog({
           });
         }}
       >
-        <div className="destructive-message">
+        <div className="notice notice-danger">
           <Icon name="alert" />
           <span>{t("使用旧密钥的流水线需要同步更新")}</span>
         </div>

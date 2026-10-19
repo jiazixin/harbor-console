@@ -93,7 +93,7 @@ describe("security page", () => {
     expect(
       await screen.findByRole("button", { name: "每页条数" }),
     ).toHaveTextContent("每页 50 条");
-    expect(screen.getByText("第 0-0 项，共 0 项")).toBeVisible();
+    expect(screen.getByText("共 0 项")).toBeVisible();
   });
 
   it("changes vulnerability page size from the shared pagination footer", async () => {

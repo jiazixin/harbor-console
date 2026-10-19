@@ -1,6 +1,0 @@
-@media (max-width: 620px) {
-  .audit-filter-form .toolbar-search,
-  .audit-filter-form .audit-resource-search {
-    flex: 1 1 100%;
-  }
-}

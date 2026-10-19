@@ -8,7 +8,7 @@ import type {
   Session,
 } from "./models";
 
-type ConsoleData = {
+export type ConsoleData = {
   dashboard: Dashboard;
   identity?: HarborIdentity;
   permissions: HarborPermission[];

@@ -1,24 +1,25 @@
-import { ContentTransition } from "../../components/content-transition";
 import {
-  type ReactNode,
   useCallback,
   useEffect,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
+import { ContentTransition } from "../../components/content-transition";
 
-import { controlApi } from "../../app/api-client";
+import { ApiError, controlApi } from "../../app/api-client";
 import { formatBytes, formatDate, formatNumber } from "../../app/formatters";
 import type { ConsoleRoute } from "../../app/hash-router";
 import { useLocale } from "../../app/locale-context";
 import type {
   AuditPurgeJob,
   ControlList,
+  CveAllowlist,
   GarbageCollectionJob,
+  HarborConfiguration,
+  HarborScheduleConfiguration,
   HarborUser,
   HarborUserGroup,
-  HarborScheduleConfiguration,
-  HarborConfiguration,
   JobServicePool,
   JobServiceQueue,
   JobServiceSchedule,
@@ -29,24 +30,21 @@ import type {
   ProjectQuota,
   ProjectSummary,
   ScanAllMetrics,
-  CveAllowlist,
   SystemRobot,
 } from "../../app/models";
 import { Pagination } from "../../components/data-table";
 import { EmptyState } from "../../components/empty-state";
+import { ErrorView } from "../../components/feedback";
 import { Icon, type IconName } from "../../components/icons";
 import { OverflowText } from "../../components/overflow-text";
-import { ToolbarSearchForm } from "../../components/toolbar-search-form";
 import {
   DemoBanner,
   PageHeader,
   RefreshButton,
   SectionHeading,
 } from "../../components/page-elements";
-import {
-  AdministrationDialog,
-  type AdministrationAction,
-} from "./administration-resource-dialogs";
+import { ToolbarSearchForm } from "../../components/toolbar-search-form";
+import { useResettableState } from "../../components/use-resettable-state";
 import {
   AdministrationConfigurationSection,
   type ConfigurationData,
@@ -59,6 +57,10 @@ import {
   type MaintenanceData,
   type PurgeData,
 } from "./administration-operations";
+import {
+  AdministrationDialog,
+  type AdministrationAction,
+} from "./administration-resource-dialogs";
 
 export type AdministrationSection =
   | "users"
@@ -158,7 +160,7 @@ async function loadOptionalObject<T extends object>(
   parameters: Record<string, boolean | number | string> = {},
   fallback: T,
   signal: AbortSignal,
-): Promise<T & { load_error?: string }> {
+): Promise<T & { load_error?: string; load_status?: number }> {
   try {
     return (
       (await controlApi.data<T>(operation, parameters, signal)) ?? fallback
@@ -166,7 +168,11 @@ async function loadOptionalObject<T extends object>(
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError")
       throw error;
-    return { ...fallback, load_error: loadErrorMessage(error) };
+    return {
+      ...fallback,
+      load_error: loadErrorMessage(error),
+      load_status: error instanceof ApiError ? error.status : undefined,
+    };
   }
 }
 
@@ -407,19 +413,6 @@ async function loadAdministrationData(
   };
 }
 
-function EmptyTable({
-  title,
-  message,
-  icon,
-}: {
-  title: string;
-  message: string;
-  icon: IconName;
-}) {
-  const { t } = useLocale();
-  return <EmptyState title={t(title)} description={t(message)} icon={icon} />;
-}
-
 function SearchToolbar({
   filter,
   placeholder,
@@ -431,8 +424,7 @@ function SearchToolbar({
   action: ReactNode;
   onSearch: (value: string) => void;
 }) {
-  const [value, setValue] = useState(filter);
-  useEffect(() => setValue(filter), [filter]);
+  const [value, setValue] = useResettableState(filter);
 
   return (
     <div className="table-toolbar">
@@ -539,9 +531,9 @@ function UsersTable({
   const { locale, t } = useLocale();
   if (!users.length) {
     return (
-      <EmptyTable
+      <EmptyState
         title="暂无用户"
-        message="当前条件下没有匹配的 Harbor 用户。"
+        description="当前条件下没有匹配的 Harbor 用户。"
         icon="users"
       />
     );
@@ -638,9 +630,9 @@ function GroupsTable({
     ({ 1: "LDAP", 2: "HTTP", 3: "OIDC" })[value ?? 0] ?? t("未知");
   if (!groups.length) {
     return (
-      <EmptyTable
+      <EmptyState
         title="暂无用户组"
-        message="用户组可用于批量授予项目权限。"
+        description="用户组可用于批量授予项目权限。"
         icon="users"
       />
     );
@@ -704,9 +696,9 @@ function RobotsTable({
   const { locale, t } = useLocale();
   if (!robots.length) {
     return (
-      <EmptyTable
+      <EmptyState
         title="暂无系统机器人"
-        message="系统机器人可跨项目执行镜像分发和系统管理操作。"
+        description="系统机器人可跨项目执行镜像分发和系统管理操作。"
         icon="terminal"
       />
     );
@@ -833,9 +825,9 @@ function LabelsTable({
   const { locale, t } = useLocale();
   if (!labels.length) {
     return (
-      <EmptyTable
+      <EmptyState
         title="暂无全局标签"
-        message="全局标签可绑定到所有项目中的制品。"
+        description="全局标签可绑定到所有项目中的制品。"
         icon="tag"
       />
     );
@@ -904,9 +896,9 @@ function QuotasTable({
   const { locale, t } = useLocale();
   if (!quotas.length) {
     return (
-      <EmptyTable
+      <EmptyState
         title="暂无配额"
-        message="当前实例未返回项目配额。"
+        description="当前实例未返回项目配额。"
         icon="database"
       />
     );
@@ -941,7 +933,9 @@ function QuotasTable({
                     <strong>
                       {fallbackText(quota.ref?.name, t("未命名项目"))}
                     </strong>
-                    <small>{fallbackText(quota.ref?.owner_name)}</small>
+                    {quota.ref?.owner_name?.trim() ? (
+                      <small>{quota.ref.owner_name}</small>
+                    ) : null}
                   </span>
                 </div>
               </td>
@@ -1124,33 +1118,26 @@ function ResourceSection({
     );
     table = <LabelsTable labels={data.collection.items} onAction={onAction} />;
   } else {
-    toolbar = (
-      <div className="table-toolbar">
-        <strong>{t("项目存储配额")}</strong>
-        <div className="toolbar-spacer" />
-        <span className="toolbar-note">
-          {t("配额由 Harbor Quota API 管理")}
-        </span>
-      </div>
-    );
     table = <QuotasTable quotas={data.collection.items} onAction={onAction} />;
   }
 
   return (
-    <section className="table-shell">
-      {toolbar}
+    <>
       <SectionHeading
         title={heading.title}
         total={data.collection.pagination.total}
         zhUnit={heading.zhUnit}
         enUnit={heading.enUnit}
       />
-      <div className="table-scroll">{table}</div>
-      <Pagination
-        pagination={data.collection.pagination}
-        onPageChange={pageChange}
-      />
-    </section>
+      <section className="table-shell">
+        {toolbar}
+        <div className="table-scroll">{table}</div>
+        <Pagination
+          pagination={data.collection.pagination}
+          onPageChange={pageChange}
+        />
+      </section>
+    </>
   );
 }
 
@@ -1240,20 +1227,11 @@ export function AdministrationPage({
       <AdministrationTabs selected={section} />
       <ContentTransition mode={section}>
         {error ? (
-          <div className="loading-state">
-            <div>
-              <Icon name="alert" />
-              <h2>{t("系统管理数据载入失败")}</h2>
-              <p>{error}</p>
-              <button
-                className="button button-small"
-                type="button"
-                onClick={reload}
-              >
-                {t("重试")}
-              </button>
-            </div>
-          </div>
+          <ErrorView
+            title="系统管理数据载入失败"
+            message={error}
+            retry={reload}
+          />
         ) : !implementedSections.has(section) || data?.section !== section ? (
           <section className="table-shell">
             <div

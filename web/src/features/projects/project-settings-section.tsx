@@ -4,12 +4,16 @@ import { controlApi } from "../../app/api-client";
 import { useLocale } from "../../app/locale-context";
 import type {
   CveAllowlist,
+  ProjectMetadata,
   ProjectQuota,
   ProjectScanner,
   ProjectSummary,
   Registry,
 } from "../../app/models";
-import { CveAllowlistEditor } from "../../components/cve-allowlist-editor";
+import {
+  CveAllowlistEditor,
+  useCveAllowlistDraft,
+} from "../../components/cve-allowlist-editor";
 import { Icon } from "../../components/icons";
 import { ToggleSetting } from "../../components/toggle-setting";
 import { UnifiedSelect } from "../../components/unified-select";
@@ -27,40 +31,6 @@ export type ProjectSettingsData = {
 
 function metadataBoolean(value: string | undefined): boolean {
   return value === "true";
-}
-
-function expirationInputValue(value: number | null | undefined): string {
-  if (!value) return "";
-  const date = new Date(value * 1000);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-    .toISOString()
-    .slice(0, 10);
-}
-
-function parseCveItems(value: string): { cve_id: string }[] {
-  const unique = [
-    ...new Set(
-      value
-        .split(/[\s,;]+/)
-        .map((item) => item.trim().toUpperCase())
-        .filter(Boolean),
-    ),
-  ];
-  const invalid = unique.find((item) => !/^CVE-\d{4}-\d{4,}$/.test(item));
-  if (invalid) {
-    throw new Error(`CVE 编号 ${invalid} 格式无效，应类似 CVE-2026-1842`);
-  }
-  if (unique.length > 1000) throw new Error("CVE 白名单最多包含 1000 项");
-  return unique.map((cve_id) => ({ cve_id }));
-}
-
-function expirationTimestamp(permanent: boolean, expiresAt: string) {
-  if (permanent) return null;
-  if (!expiresAt) throw new Error("非永久白名单必须选择到期日期");
-  const value = new Date(`${expiresAt}T23:59:59`).getTime();
-  if (!Number.isFinite(value)) throw new Error("白名单到期日期无效");
-  return Math.floor(value / 1000);
 }
 
 function quotaGiB(quota: ProjectQuota | undefined): number {
@@ -93,6 +63,111 @@ function scannerLabel(
   return scanner.is_default ? `${label}${translate("（系统默认）")}` : label;
 }
 
+/** Project metadata switches edited with a toggle, in display order. */
+const policyToggles = [
+  {
+    name: "public",
+    title: "项目公开",
+    description: "允许未登录用户拉取制品",
+  },
+  {
+    name: "auto_scan",
+    title: "推送后自动扫描",
+    description: "新制品入库后自动触发漏洞扫描",
+  },
+  {
+    name: "auto_sbom_generation",
+    title: "自动生成 SBOM",
+    description: "新制品入库后生成软件物料清单",
+  },
+  {
+    name: "enable_content_trust",
+    title: "Notary 内容信任",
+    description: "要求 Notary 签名验证",
+  },
+  {
+    name: "enable_content_trust_cosign",
+    title: "Cosign 内容信任",
+    description: "要求 Cosign 签名验证",
+  },
+  {
+    name: "prevent_vul",
+    title: "阻止高风险制品拉取",
+    description: "按下方风险级别阻止拉取",
+  },
+  {
+    name: "reuse_sys_cve_allowlist",
+    title: "继承系统 CVE 白名单",
+    description: "关闭后使用此项目的独立白名单",
+  },
+] as const;
+
+type PolicyName =
+  (typeof policyToggles)[number]["name"] | "proxy_cache_local_on_not_found";
+type ProjectPolicies = Record<PolicyName, boolean>;
+
+function projectPolicies(metadata: ProjectMetadata): ProjectPolicies {
+  return {
+    public: metadataBoolean(metadata.public),
+    auto_scan: metadataBoolean(metadata.auto_scan),
+    auto_sbom_generation: metadataBoolean(metadata.auto_sbom_generation),
+    enable_content_trust: metadataBoolean(metadata.enable_content_trust),
+    enable_content_trust_cosign: metadataBoolean(
+      metadata.enable_content_trust_cosign,
+    ),
+    prevent_vul: metadataBoolean(metadata.prevent_vul),
+    // Harbor treats a missing value as inheriting the system allowlist.
+    reuse_sys_cve_allowlist: metadata.reuse_sys_cve_allowlist !== "false",
+    proxy_cache_local_on_not_found: metadataBoolean(
+      metadata.proxy_cache_local_on_not_found,
+    ),
+  };
+}
+
+function ProjectModeSummary({
+  project,
+  settings,
+}: {
+  project: ProjectSummary;
+  settings: ProjectSettingsData;
+}) {
+  const { t } = useLocale();
+  const proxyCache = (project.registry_id ?? 0) > 0;
+  const proxyName =
+    settings.proxyRegistry?.name ??
+    `${t("代理远端仓库")} #${String(project.registry_id)}`;
+  return (
+    <>
+      <section className="project-mode-summary">
+        <div>
+          <span className="cell-icon">
+            <Icon name={proxyCache ? "refresh" : "folder"} />
+          </span>
+          <div>
+            <strong>{t(proxyCache ? "镜像代理项目" : "普通项目")}</strong>
+            <small>
+              {proxyCache
+                ? `${proxyName} · ${settings.proxyRegistry?.url ?? t("地址未返回")}`
+                : t("项目创建后不能切换为镜像代理模式")}
+            </small>
+          </div>
+        </div>
+        <span className={`badge ${proxyCache ? "badge-orange" : ""}`}>
+          {proxyCache ? "Proxy Cache" : "Standard"}
+        </span>
+      </section>
+      {settings.proxyRegistryError ? (
+        <div className="notice notice-warning settings-warning">
+          <Icon name="alert" />
+          <span>
+            {t("镜像代理仓库信息载入失败")}：{settings.proxyRegistryError}
+          </span>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function ProjectSettingsSection({
   project,
   settings,
@@ -110,29 +185,9 @@ export function ProjectSettingsSection({
   const metadata = project.metadata ?? {};
   const allowlist: CveAllowlist = project.cve_allowlist ?? {};
   const proxyCache = (project.registry_id ?? 0) > 0;
-  const initialPermanent = !allowlist.expires_at;
-  const [publicProject, setPublicProject] = useState(
-    metadataBoolean(metadata.public),
-  );
-  const [autoScan, setAutoScan] = useState(metadataBoolean(metadata.auto_scan));
-  const [autoSbom, setAutoSbom] = useState(
-    metadataBoolean(metadata.auto_sbom_generation),
-  );
-  const [notaryTrust, setNotaryTrust] = useState(
-    metadataBoolean(metadata.enable_content_trust),
-  );
-  const [cosignTrust, setCosignTrust] = useState(
-    metadataBoolean(metadata.enable_content_trust_cosign),
-  );
-  const [preventVulnerability, setPreventVulnerability] = useState(
-    metadataBoolean(metadata.prevent_vul),
-  );
-  const [reuseSystemAllowlist, setReuseSystemAllowlist] = useState(
-    metadata.reuse_sys_cve_allowlist !== "false",
-  );
-  const [proxyFallback, setProxyFallback] = useState(
-    metadataBoolean(metadata.proxy_cache_local_on_not_found),
-  );
+  const [policies, setPolicies] = useState(() => projectPolicies(metadata));
+  const setPolicy = (name: PolicyName, enabled: boolean) =>
+    setPolicies((current) => ({ ...current, [name]: enabled }));
   const [severity, setSeverity] = useState(metadata.severity ?? "critical");
   const [storageLimit, setStorageLimit] = useState(
     String(quotaGiB(settings.quota)),
@@ -142,16 +197,7 @@ export function ProjectSettingsSection({
     metadata.max_upstream_conn ?? "-1",
   );
   const [scannerId, setScannerId] = useState(settings.scanner?.uuid ?? "");
-  const [permanent, setPermanent] = useState(initialPermanent);
-  const [expiresAt, setExpiresAt] = useState(
-    expirationInputValue(allowlist.expires_at),
-  );
-  const [cves, setCves] = useState(
-    (allowlist.items ?? [])
-      .map((item) => item.cve_id?.trim() ?? "")
-      .filter(Boolean)
-      .join("\n"),
-  );
+  const allowlistDraft = useCveAllowlistDraft(allowlist);
   const [saving, setSaving] = useState(false);
   const scannerOptions = useMemo(() => {
     const scanners = new Map<string, ProjectScanner>();
@@ -175,17 +221,21 @@ export function ProjectSettingsSection({
       const requestedQuota = quotaAvailable ? quotaBytes(storageLimit) : null;
       const nextMetadata = {
         ...metadata,
-        public: String(publicProject),
-        auto_scan: String(autoScan),
-        auto_sbom_generation: String(autoSbom),
-        prevent_vul: String(preventVulnerability),
+        public: String(policies.public),
+        auto_scan: String(policies.auto_scan),
+        auto_sbom_generation: String(policies.auto_sbom_generation),
+        prevent_vul: String(policies.prevent_vul),
         severity,
-        reuse_sys_cve_allowlist: String(reuseSystemAllowlist),
-        enable_content_trust: String(notaryTrust),
-        enable_content_trust_cosign: String(cosignTrust),
+        reuse_sys_cve_allowlist: String(policies.reuse_sys_cve_allowlist),
+        enable_content_trust: String(policies.enable_content_trust),
+        enable_content_trust_cosign: String(
+          policies.enable_content_trust_cosign,
+        ),
         ...(proxyCache
           ? {
-              proxy_cache_local_on_not_found: String(proxyFallback),
+              proxy_cache_local_on_not_found: String(
+                policies.proxy_cache_local_on_not_found,
+              ),
               proxy_speed_kb: String(integerLimit(proxySpeed, "上游带宽限制")),
               max_upstream_conn: String(
                 integerLimit(maxUpstreamConnections, "上游最大连接数"),
@@ -194,11 +244,8 @@ export function ProjectSettingsSection({
           : {}),
       };
       const payload: Record<string, unknown> = { metadata: nextMetadata };
-      if (!reuseSystemAllowlist) {
-        payload.cve_allowlist = {
-          expires_at: expirationTimestamp(permanent, expiresAt),
-          items: parseCveItems(cves),
-        };
+      if (!policies.reuse_sys_cve_allowlist) {
+        payload.cve_allowlist = allowlistDraft.toPayload();
       }
       await controlApi.mutate(
         "project",
@@ -246,57 +293,7 @@ export function ProjectSettingsSection({
     }
   }
 
-  const toggles = [
-    {
-      name: "public",
-      title: "项目公开",
-      description: "允许未登录用户拉取制品",
-      checked: publicProject,
-      setChecked: setPublicProject,
-    },
-    {
-      name: "auto_scan",
-      title: "推送后自动扫描",
-      description: "新制品入库后自动触发漏洞扫描",
-      checked: autoScan,
-      setChecked: setAutoScan,
-    },
-    {
-      name: "auto_sbom_generation",
-      title: "自动生成 SBOM",
-      description: "新制品入库后生成软件物料清单",
-      checked: autoSbom,
-      setChecked: setAutoSbom,
-    },
-    {
-      name: "enable_content_trust",
-      title: "Notary 内容信任",
-      description: "要求 Notary 签名验证",
-      checked: notaryTrust,
-      setChecked: setNotaryTrust,
-    },
-    {
-      name: "enable_content_trust_cosign",
-      title: "Cosign 内容信任",
-      description: "要求 Cosign 签名验证",
-      checked: cosignTrust,
-      setChecked: setCosignTrust,
-    },
-    {
-      name: "prevent_vul",
-      title: "阻止高风险制品拉取",
-      description: "按下方风险级别阻止拉取",
-      checked: preventVulnerability,
-      setChecked: setPreventVulnerability,
-    },
-    {
-      name: "reuse_sys_cve_allowlist",
-      title: "继承系统 CVE 白名单",
-      description: "关闭后使用此项目的独立白名单",
-      checked: reuseSystemAllowlist,
-      setChecked: setReuseSystemAllowlist,
-    },
-  ];
+  const reuseSystemAllowlist = policies.reuse_sys_cve_allowlist;
 
   return (
     <section className="settings-layout">
@@ -322,41 +319,16 @@ export function ProjectSettingsSection({
             <span>{t(saving ? "正在保存" : "保存设置")}</span>
           </button>
         </div>
-        <section className="project-mode-summary">
-          <div>
-            <span className="cell-icon">
-              <Icon name={proxyCache ? "refresh" : "folder"} />
-            </span>
-            <div>
-              <strong>{t(proxyCache ? "镜像代理项目" : "普通项目")}</strong>
-              <small>
-                {proxyCache
-                  ? `${settings.proxyRegistry?.name ?? `${t("远端仓库")} #${String(project.registry_id)}`} · ${settings.proxyRegistry?.url ?? t("地址未返回")}`
-                  : t("项目创建后不能切换为镜像代理模式")}
-              </small>
-            </div>
-          </div>
-          <span className={`badge ${proxyCache ? "badge-orange" : ""}`}>
-            {proxyCache ? "Proxy Cache" : "Standard"}
-          </span>
-        </section>
-        {settings.proxyRegistryError ? (
-          <div className="warning-banner settings-warning">
-            <Icon name="alert" />
-            <span>
-              {t("镜像代理仓库信息载入失败")}：{settings.proxyRegistryError}
-            </span>
-          </div>
-        ) : null}
+        <ProjectModeSummary project={project} settings={settings} />
         <div className="settings-grid">
-          {toggles.map((toggle) => (
+          {policyToggles.map((toggle) => (
             <ToggleSetting
               key={toggle.name}
               name={toggle.name}
               title={t(toggle.title)}
               description={t(toggle.description)}
-              checked={toggle.checked}
-              onChange={toggle.setChecked}
+              checked={policies[toggle.name]}
+              onChange={(enabled) => setPolicy(toggle.name, enabled)}
             />
           ))}
           {proxyCache ? (
@@ -366,8 +338,10 @@ export function ProjectSettingsSection({
               description={t(
                 "远端返回未找到时，允许继续从本项目的本地缓存读取。",
               )}
-              checked={proxyFallback}
-              onChange={setProxyFallback}
+              checked={policies.proxy_cache_local_on_not_found}
+              onChange={(enabled) =>
+                setPolicy("proxy_cache_local_on_not_found", enabled)
+              }
             />
           ) : null}
         </div>
@@ -479,18 +453,13 @@ export function ProjectSettingsSection({
           </div>
           <fieldset disabled={reuseSystemAllowlist}>
             <CveAllowlistEditor
-              permanent={permanent}
-              expiresAt={expiresAt}
-              cves={cves}
+              {...allowlistDraft.editorProps}
               disabled={reuseSystemAllowlist}
-              onPermanentChange={setPermanent}
-              onExpiresAtChange={setExpiresAt}
-              onCvesChange={setCves}
             />
           </fieldset>
         </section>
         {scannerError ? (
-          <div className="warning-banner settings-warning">
+          <div className="notice notice-warning settings-warning">
             <Icon name="alert" />
             <span>
               {t("扫描器配置载入失败")}：{scannerError}

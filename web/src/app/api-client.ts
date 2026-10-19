@@ -15,6 +15,8 @@ import type {
   PublicCatalogRequest,
   RepositorySummary,
 } from "./models";
+import { readStoredLocale } from "./locale-context";
+import { translateServerMessage } from "./server-messages";
 
 type QueryValue = boolean | number | string | null | undefined;
 
@@ -43,7 +45,9 @@ function errorMessage(payload: unknown, status: number): string {
     if (value.details) return value.details;
     if (value.error) return value.error;
   }
-  return `请求失败（${String(status)}）`;
+  return readStoredLocale() === "en-US"
+    ? `Request failed (${String(status)})`
+    : `请求失败（${String(status)}）`;
 }
 
 export async function request<T>(
@@ -61,7 +65,13 @@ export async function request<T>(
   });
   const payload = await parseResponse(response);
   if (!response.ok)
-    throw new ApiError(errorMessage(payload, response.status), response.status);
+    throw new ApiError(
+      translateServerMessage(
+        errorMessage(payload, response.status),
+        readStoredLocale(),
+      ),
+      response.status,
+    );
   return payload as T;
 }
 

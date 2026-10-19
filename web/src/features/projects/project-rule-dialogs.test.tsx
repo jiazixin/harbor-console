@@ -150,7 +150,7 @@ describe("project rule dialogs", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: /暂时停用规则/ }));
     fireEvent.click(screen.getByRole("button", { name: "Tag 条件" }));
-    fireEvent.click(screen.getByRole("option", { name: "excludes" }));
+    fireEvent.click(screen.getByRole("option", { name: "排除" }));
     fireEvent.click(screen.getByRole("button", { name: "保存规则" }));
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled());

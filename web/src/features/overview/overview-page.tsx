@@ -14,6 +14,7 @@ import type {
   ReplicationPolicy,
   Session,
 } from "../../app/models";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
 import {
   DemoBanner,
@@ -106,21 +107,6 @@ function RiskRing({ demo }: { demo: boolean }) {
   );
 }
 
-function EmptyReplicationTable() {
-  const { t } = useLocale();
-  return (
-    <div className="empty-state">
-      <div>
-        <span className="state-icon">
-          <Icon name="refresh" />
-        </span>
-        <h2>{t("暂无复制记录")}</h2>
-        <p>{t("策略执行后，同步结果会显示在这里。")}</p>
-      </div>
-    </div>
-  );
-}
-
 function ReplicationTable({
   executions,
   policies,
@@ -132,7 +118,14 @@ function ReplicationTable({
   const policyNames = new Map(
     policies.map((policy) => [String(policy.id), policy.name]),
   );
-  if (!executions.length) return <EmptyReplicationTable />;
+  if (!executions.length)
+    return (
+      <EmptyState
+        title="暂无复制记录"
+        description="策略执行后，同步结果会显示在这里。"
+        icon="refresh"
+      />
+    );
   return (
     <table>
       <thead>
@@ -271,7 +264,7 @@ export function OverviewPage({
       />
       {session.demo ? <DemoBanner /> : null}
       {(dashboard.warnings ?? []).map((warning) => (
-        <div className="warning-banner" key={warning}>
+        <div className="notice notice-warning" key={warning}>
           <Icon name="alert" />
           <span>
             <strong>{t("部分数据未载入。")}</strong> {warning}

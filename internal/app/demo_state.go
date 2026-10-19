@@ -357,7 +357,7 @@ func newDemoState() *demoState {
 				artifactLimit = len(artifacts)
 			}
 			visibleArtifacts := append([]map[string]any(nil), artifacts[:artifactLimit]...)
-			state.artifacts[repositoryName] = append(visibleArtifacts, demoChildArtifacts(visibleArtifacts[0])...)
+			state.artifacts[repositoryName] = append(visibleArtifacts, demoChildArtifacts(name, repositoryName, visibleArtifacts[0])...)
 			repository["artifact_count"] = len(visibleArtifacts)
 		}
 		metadata, _ := project["metadata"].(map[string]any)

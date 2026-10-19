@@ -11,6 +11,7 @@ import type {
 import { ControlDialog } from "../../components/control-dialog";
 import { Icon } from "../../components/icons";
 import { UnifiedSelect } from "../../components/unified-select";
+import { selectorDecorationLabel } from "./rule-labels";
 
 const fallbackRepositoryDecorations = ["repoMatches", "repoExcludes"];
 const fallbackTagDecorations = ["matches", "excludes"];
@@ -116,7 +117,7 @@ export function ImmutableTagRuleDialog({
             value={repositoryDecoration}
             options={repositoryDecorations.map((value) => ({
               value,
-              label: value,
+              label: t(selectorDecorationLabel(value)),
             }))}
             onChange={setRepositoryDecoration}
           />
@@ -140,7 +141,10 @@ export function ImmutableTagRuleDialog({
             ariaLabel={t("Tag 条件")}
             name="tag_decoration"
             value={tagDecoration}
-            options={tagDecorations.map((value) => ({ value, label: value }))}
+            options={tagDecorations.map((value) => ({
+              value,
+              label: t(selectorDecorationLabel(value)),
+            }))}
             onChange={setTagDecoration}
           />
         </label>
@@ -200,7 +204,7 @@ export function DeleteImmutableTagRuleDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>
@@ -309,7 +313,7 @@ export function DeleteProjectLabelDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>

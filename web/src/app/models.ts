@@ -402,6 +402,7 @@ export type HarborScheduleConfiguration = {
   parameters?: Record<string, unknown>;
   job_parameters?: Record<string, unknown> | string;
   load_error?: string;
+  load_status?: number;
 };
 
 export type GarbageCollectionJob = {
@@ -433,6 +434,7 @@ export type ScanAllMetrics = {
   completed?: number;
   metrics?: Record<string, number>;
   load_error?: string;
+  load_status?: number;
 };
 
 export type JobServicePool = {
@@ -853,6 +855,7 @@ export type ArtifactReference = {
   child_id?: number;
   child_digest?: string;
   platform?: ArtifactPlatform;
+  annotations?: Record<string, string>;
 };
 
 export type ArtifactAccessory = {
@@ -881,6 +884,7 @@ export type HarborArtifact = {
   pull_time?: string;
   extra_attrs?: ArtifactPlatform;
   annotations?: Record<string, string>;
+  addition_links?: Record<string, { href?: string; absolute?: boolean }>;
   tags?: ArtifactTag[];
   labels?: ProjectLabel[];
   scan_overview?: Record<string, ArtifactScanOverview>;
@@ -978,6 +982,7 @@ export type ReplicationExecution = {
   total?: number;
   start_time?: string;
   end_time?: string;
+  status_text?: string;
 };
 
 export type ReplicationTask = {

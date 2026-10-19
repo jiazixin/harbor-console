@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-
 import {
   projectAuditDescriptionLabel,
   projectAuditOperationLabel,
@@ -8,8 +6,9 @@ import { useLocale } from "../../app/locale-context";
 import type { AuditLog, ControlPagination } from "../../app/models";
 import { AuditLogTable } from "../../components/audit-log-table";
 import { Pagination } from "../../components/data-table";
-import { Icon } from "../../components/icons";
+import { ErrorView } from "../../components/feedback";
 import { ToolbarSearchForm } from "../../components/toolbar-search-form";
+import { useResettableState } from "../../components/use-resettable-state";
 
 export type ProjectAuditError = {
   message: string;
@@ -34,39 +33,26 @@ export function ProjectAuditSection({
   onRetry: () => void;
 }) {
   const { t } = useLocale();
-  const [query, setQuery] = useState(initialQuery);
-
-  useEffect(() => setQuery(initialQuery), [initialQuery]);
+  const [query, setQuery] = useResettableState(initialQuery);
 
   if (error) {
     const permissionDenied = error.status === 403;
     const unsupported = error.status === 404;
     return (
       <section className="table-shell">
-        <div className="empty-table permission-table">
-          <strong>
-            {t(
-              permissionDenied ? "没有访问项目审计的权限" : "项目审计载入失败",
-            )}
-          </strong>
-          <span>
-            {t(
-              permissionDenied
-                ? "当前账号没有查看此项目审计记录的权限。"
-                : unsupported
-                  ? "当前 Harbor 实例不支持项目级审计接口。"
-                  : error.message,
-            )}
-          </span>
-          <button
-            className="button button-small"
-            type="button"
-            onClick={onRetry}
-          >
-            <Icon name="refresh" />
-            <span>{t("重试")}</span>
-          </button>
-        </div>
+        <ErrorView
+          title={
+            permissionDenied ? "没有访问项目审计的权限" : "项目审计载入失败"
+          }
+          message={t(
+            permissionDenied
+              ? "当前账号没有查看此项目审计记录的权限。"
+              : unsupported
+                ? "当前 Harbor 实例不支持项目级审计接口。"
+                : error.message,
+          )}
+          retry={onRetry}
+        />
       </section>
     );
   }

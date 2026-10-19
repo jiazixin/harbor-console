@@ -1,60 +1,59 @@
 # 上线前验收记录
 
-本轮日期：2026-10-02。验证对象为 `780a1e5` 之上的当前工作区，包括此前未提交的目录迁移与可读性调整。本轮保留本地配置和已有改动，不提交、合并或部署。
+本轮日期：2026-10-19。验证对象为 `4714a6b` 之上的当前工作区（未提交）。计划见 [1.0 上线前最终检查](plans/2026-10-19-release-1.0-check.md)。
 
-**发布结论：PROVISIONAL。** 本地质量、离线资源、演示 UI、干净副本、独立二进制与容器运行检查通过。用户确认暂无真实 Harbor 测试环境，该项记录为上线前待验收；不能沿用历史验收宣称正式上线通过。
+**发布结论：可发布 1.0，附 3 项部署前确认。** 本地质量检查、依赖与漏洞扫描、三引擎浏览器矩阵全部通过；真实 Harbor v2.15.4 上的主要读写流程已逐项回读验证。下文“发布剩余条件”中的项目未在本环境执行，不能视为已通过。
 
 ## 本轮结果
 
 | 检查 | 结果 | 命令与证据范围 |
 | --- | --- | --- |
 | Web 格式、lint、类型 | PASS | `npm --prefix web run check` |
-| Web 合同与组件 | PASS | `npm --prefix web test`；29 合同、54 文件 / 210 测试 |
+| Web 合同与组件 | PASS | `npm --prefix web test`；33 项合同，58 个文件 / 226 项组件测试 |
 | Web 生产构建 | PASS | `npm --prefix web run build`；仅生成 `web/dist/` |
-| Go 格式、模块、vet | PASS | gofmt；`go mod tidy -diff`；`go vet ./cmd/... ./internal/... ./web` |
-| Go 竞态与覆盖率 | PASS | Go 1.26.6，`go test -race ./cmd/... ./internal/... ./web -count=1 -coverprofile=coverage/go.out`；总语句覆盖率 64.6% |
-| npm 漏洞审计 | PASS | `npm --prefix web run audit`；0 漏洞 |
-| Go 漏洞扫描 | PASS | `GOTOOLCHAIN=go1.26.6 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./cmd/... ./internal/... ./web`；未发现漏洞 |
-| Chromium / Firefox / WebKit | PASS | 最终源码及生产资源，48/48 场景；独立服务、每引擎 16 场景 |
-| 实际视觉复查 | PASS | 已查看两引擎双语桌面、暗色、390/360 移动端、弹窗、720×450 有效视口截图 |
-| 独立二进制运行 | PASS | 从无关临时目录启动；health、HTML/CSP、39 个静态资源逐字节一致、缓存、Cookie/Origin、注销后 401、SIGTERM exit 0 |
-| 干净副本 | PASS | 不含依赖、产物、本地配置的当前源码副本；冻结安装、check/build/test、Go tidy/vet/race/build、40 文件含 HTML 比对及独立启动/退出全部通过 |
-| Docker 构建与运行 | PASS | 原 Dockerfile 与固定基础镜像；linux/arm64、nonroot；health、39 静态资源、CSP/缓存、Cookie/Origin、注销及 SIGTERM exit 0 |
-| 目录、文档与发布配置 | PASS | whitespace、部署 pin、`git diff --check`、当前文档链接、CI 配置审查 |
-| 真实 Harbor v2.15.2 | 未执行 | 用户确认暂无真实测试环境，记录为上线前待验收项 |
+| Go 格式、模块、vet | PASS | gofmt；Go 1.26.9 下 `go mod tidy -diff`、`go vet ./cmd/... ./internal/... ./web` |
+| Go 竞态测试 | PASS | Go 1.26.9 下 `go test -race ./cmd/... ./internal/... ./web -count=1` |
+| Go 覆盖率 | 记录 | 本机 Go 1.27.2 下语句覆盖率 64.7%（`coverage/go.out`） |
+| npm 漏洞审计 | PASS | `npm --prefix web run audit`；生产依赖 0 漏洞；开发依赖 `source-map-js` 的高危通告已通过 `npm audit fix` 更新锁文件消除 |
+| Go 漏洞扫描 | PASS | 原 Go 1.26.6 有 10 个可达的标准库漏洞（net/http、crypto/tls、net/textproto，修复版本 1.26.9）；升级后 `GOTOOLCHAIN=go1.26.9 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./cmd/... ./internal/... ./web` 未发现漏洞 |
+| 部署固定版本 | PASS | `node scripts/check-deployment-pins.mjs`；Dockerfile 改用 `golang:1.26.9-alpine3.23`，digest 取自 Docker Registry 返回的 OCI index |
+| 空白与差异检查 | PASS | `node scripts/check-whitespace.mjs`；`git diff --check` |
+| Chromium / Firefox / WebKit | PASS | `npm --prefix web run test:browser`，48/48；最终源码连续两次运行。路由矩阵新增每个表格表头与单元格 `text-align` 一致的断言 |
+| 真实 Harbor API 合同 | PASS | 真实 v2.15.4 swagger 与固定的 198 个非废弃操作逐项一致；仅多出已废弃的旧审计日志接口 |
+| 真实 Harbor 读写流程 | PASS | 见下节；每次写入后经 Harbor API 回读确认 |
+| Docker 构建与运行 | 未执行 | 本轮升级了 builder 镜像，需在部署前重新构建并 smoke test |
 
-本机 Web 验证使用 Node 26.8.2，Go 验证与二进制使用项目最低版本 Go 1.26.6，容器前端构建使用 Node 24.18.1 / npm 11.11.0。Node 22.22.2 的全部锁定依赖 engines 兼容检查通过，CI 固定该版本；本轮未在 Node 22.22.2 上实际执行。浏览器安装及监听测试使用允许网络和本地端口的环境；Go 构建缓存使用可写临时目录，不更改项目配置协议。
+本机 Web 验证使用 Node 26.12.0 / npm 11.20.0、Playwright 1.62.1。真实 Harbor 为用户专门提供的测试实例 `hba.jzxk.cc`（Harbor v2.15.4）。凭据只经脚本调用 `/api/connect`，未写入仓库或浏览器表单。
 
-最终容器镜像为 `sha256:f90fcbe9156674cf78b1b961c0c1f89c7e5a398cf16dd0ae88f72ed9c6b7fdf7`，构建元数据为 `release-validation / worktree / 2026-10-02T15:18:51Z`，实际验证平台为 linux/arm64。测试容器已删除，镜像保留；Colima 恢复原先 Stopped 状态，Docker context 保持 default。
+## 真实 Harbor 验证
 
-本轮源码清单包含 324 个源文件、测试及构建输入，清单 SHA256 为 `6fb5c78d63b61db8aebece50141d300b17aa16452a5ca5de4b4666a05aad8dd3`，不包含个人配置、运行数据或生成产物。
+通过控制台（生产构建的单二进制）执行，并用 Harbor API 回读：
+
+- **用户、项目与成员：** 创建本地用户、带配额的项目；添加成员、修改角色、移除成员。
+- **项目治理：** 机器人账号、Webhook、不可变 Tag 规则、项目标签、Tag 保留策略与演练执行。
+- **制品：** 仓库与制品列表、添加/删除 Tag、绑定标签、跨项目复制、不可变 Tag 保护、批量操作。
+- **复制与远端仓库：** 创建远端仓库、复制策略、手动执行与执行详情、镜像代理项目。
+- **系统管理：** 全局标签、项目配额、系统机器人、垃圾清理与审计清理演练、配置修改后还原、Job Service。
+- **安全与分发：** 扫描器注册失败提示、系统 CVE 白名单增删、无扫描器时的 CVE 导出提示、P2P 预热实例。
+- **最终回归（中英文各一轮）：** 镜像仓库搜索与卡片/列表切换、制品筛选/选择/批量扫描、制品详情页签、系统/认证/安全/项目设置原样保存后 Harbor 状态不变、非法 CVE 校验、Webhook / 预热 / Tag 保留 / 复制执行详情、顶栏偏好与实例面板的焦点恢复。英文界面下动态提示（如 “Vulnerability scanning finished; 1 failed”）均已翻译，浏览器无未处理异常。
+
+环境限制如实记录：该 Harbor 实例没有可用扫描器（扫描返回 412 “no available scanner”），且无法访问外部网络——复制拉取外部仓库返回 401、外部扫描器注册返回 500、Dragonfly 预热无法启动执行。因此真实的扫描结果、复制传输与预热执行链路未验证；控制台对这些失败的提示已验证正确。
 
 ## 修复与优化
 
-- **会话与凭据：** 统一前端请求所有权和取消；退出、切换、重复刷新、StrictMode、旧闭包及身份更新不能回写另一实例。密码/CLI Secret 更新绑定原连接；失效会话添加实例在访问上游前拒绝。
-- **后端可靠性：** 优雅退出等待在途请求，超过期限关闭连接；全部 API 上游阶段共享总预算并停止已取消任务，Dashboard、密码/CLI Secret 预检和 CVE Allowlist 多阶段请求不会重置截止时间；预算到期即使预检迟到成功也不继续写入。Allowlist 已接受写入但回读失败时明确提示状态待确认，不自动重试；失败与被替换连接清理闲置 HTTP 资源。
-- **请求边界：** 拒绝点路径跳转、非法分页及被截断的非整数 ID/角色/时长；补充身份写入字段校验和数字项目名称头；修复删除演示实例后添加冲突。
-- **前端交互：** 修复非法/不可用浏览器存储、UTC 偏好不生效、未知路由永久加载、禁用下拉项键盘焦点；懒加载错误可见且可重试，弹窗加载仍可关闭和恢复焦点。
-- **实际 UI 缺陷：** 项目表固定列挤压名称列，导致名称与可见性重叠；名称列改用剩余空间，该表最小 1100px，保持局部滚动。新增每行名称宽度与相邻 badge 分离断言及中英 720×450 场景，没有缩小字号或放宽容差。
-- **重复请求：** 扫描器刷新从两次相同 GET 降为一次；主题切换零 API 请求。漏洞页仍随实际项目 ID 和查询变化重新加载。
-- **资源性能：** 页面及弹窗动态导入，移除强制按业务目录打包导致的全量 preload，保留显式 CSS 覆盖顺序；哈希资源一年 immutable 缓存、HTML 重新验证、404 不缓存。
-- **依赖与发布：** `brace-expansion` 5.0.9 → 5.0.12，`undici` 8.9.0 → 8.11.2；只更新这两项传递依赖。Node engines 与实际依赖一致，Playwright 禁止静默复用旧服务、固定三个 worker并捕获启动错误；容器构建日期改为实际 UTC 时间。
-- **组织与文档：** 保留 Go 内部包与 Web 业务域边界，新增技术逻辑有明确职责和实际调用方；旧验收及完成计划进入归档，删除文档缓存文件，双语 README 不再沿用历史 `ACCEPTED`。
+改动明细见 [变更记录](CHANGELOG.md)。本轮在真实环境或测试中发现并修复的缺陷：
 
-## UI 与性能证据
-
-本轮矩阵覆盖 Chromium/Firefox/WebKit、简中/英文、1440×900、1280×800、390×844、360×800，以及中英文项目表 720×450 有效视口。检查路由/各页签，确认加载完成且无错误态，检查页面溢出、局部滚动、列中轴、名称列、分页菜单、搜索、键盘焦点、暗色弹窗、刷新生命周期和减少动态效果。失败态与恢复由组件测试验证，本轮未做浏览器网络故障注入。
-
-最终 Firefox/WebKit 未登录首屏实际加载 **6 个 JS / 386,606 解码字节**；之前全量加载 16 个 JS / 869,538 字节，减少 **55.54%**。HTML 直接引用从 16 个 JS / 869,538 字节降至 2 个 / 358,841 字节；其余登录模块按需加载。这是资源体积与请求量证据，不是公网延迟、生产并发吞吐或 LCP 保证。
-
-已实际查看最终中文亮色桌面概览/项目/弹窗、英文暗色复制/制品，以及移动表格两端与弹窗截图。720×450、DPR2 为有效布局验证，未控制浏览器原生 200% 缩放；不能将其声明为原生缩放通过。
-
-运行日志、源码哈希清单和截图存于被忽略的 `.cache/release-validation/`；测试输出位于 `web/test-results/`，覆盖率位于 `coverage/go.out`。干净副本日志位于 `/tmp/harbor-release-clean.5rBatW/.cache/release-validation/`，临时路径只用于本轮证据。
+- 英文界面约 140 条提示、弹窗标题、校验信息和带名称/数量的动态提示仍显示中文；错误视图与弹窗错误未经翻译。现以统一翻译器（含 `%s`/`%d` 模板）处理，并由合同测试扫描全部源码防止回退。
+- 筛选表单与搜索框在挂载后立即输入时，可能被延迟执行的同步 effect 清空（审计页测试偶发失败即此原因）；审计、安全、系统管理及项目成员/审计/预热共 7 个组件改用渲染期重置的 `useResettableState`，新拆分的 3 个筛选表单使用同一 Hook。
+- 仓库制品页离开时，提前发起的请求在取消后产生未处理的 Promise 拒绝；改为所有请求进入同一个 `Promise.all`。
+- P2P 预热任务类型列在英文界面未翻译；预热执行详情缺少返回执行列表的入口，现与 Webhook 一致。
 
 ## 发布剩余条件
 
-1. 在明确授权的目标 Harbor v2.15.2 环境执行权限受限、空资源、部分失败及写入回读/清理验证；外部复制、预热、Webhook、扫描器链路须真实验证。
-2. 目标部署验证 HTTPS 反向代理、Cookie/Origin、出站访问策略和运行资源配额；本轮本地 HTTP/demo 不替代生产网络边界。
-3. Node 最低版本执行、生产负载压测及原生缩放本轮未完成；其他目标架构未实际运行，当前证据范围不得扩大。
+1. 部署前用当前 Dockerfile（Go 1.26.9 builder）重新构建镜像，执行 health、静态资源、Cookie/Origin 与 SIGTERM smoke test。
+2. 在能访问扫描器与外部仓库的目标环境，验证扫描、复制传输与 P2P 预热执行的真实链路，以及 HTTPS 反向代理与出站策略。
+3. Node 22 最低版本运行、生产负载压测和浏览器原生缩放本轮未执行；原生 OIDC 登录与多副本共享会话不在实现范围。
 
-原生 OIDC 登录和多副本共享会话仍不在实现范围。[历史验收](archive/README.md)仅供追溯。
+测试过程在 Harbor 上留下以 `e2e-` 为前缀的项目、用户、机器人、标签、Webhook、远端仓库、复制策略与预热实例，以及 `public-tools/alpine-copy`。该实例为测试专用，可整体保留或按名称清理。
+
+运行日志与截图位于会话临时目录，测试输出位于 `web/test-results/`，覆盖率位于 `coverage/go.out`。[历史归档](archive/README.md)仅供追溯。

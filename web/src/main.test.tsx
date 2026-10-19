@@ -59,7 +59,9 @@ describe("React application root", () => {
     expect(
       await screen.findByRole("heading", { name: "页面不存在" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "返回概览" }),
+    ).toBeInTheDocument();
     expect(document.title).toBe("页面不存在 · Harbor 控制台");
   });
 });

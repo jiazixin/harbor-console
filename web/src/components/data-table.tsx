@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { formatNumber } from "../app/formatters";
+import { formatItemRange, formatNumber } from "../app/formatters";
 import { useLocale } from "../app/locale-context";
 import type { ControlPagination } from "../app/models";
 import { Icon } from "./icons";
@@ -191,10 +191,7 @@ export function Pagination({
     pagination.total,
     pagination.page * pagination.page_size,
   );
-  const summary =
-    locale === "en-US"
-      ? `Items ${formatNumber(start, locale)}-${formatNumber(end, locale)} of ${formatNumber(pagination.total, locale)}`
-      : `第 ${formatNumber(start, locale)}-${formatNumber(end, locale)} 项，共 ${formatNumber(pagination.total, locale)} 项`;
+  const summary = formatItemRange(start, end, pagination.total, locale);
   const pageLabel =
     locale === "en-US"
       ? `Page ${formatNumber(pagination.page, locale)} of ${formatNumber(totalPages, locale)}`

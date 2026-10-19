@@ -16,10 +16,10 @@ import type {
 } from "../../app/models";
 import { IconSprite } from "../../components/icons";
 import {
-  PreheatExecutionsDialog,
   PreheatPolicyDialog,
   RunPreheatPolicyDialog,
 } from "./project-preheat-dialogs";
+import { PreheatExecutionsDialog } from "./project-preheat-executions";
 
 const policy: PreheatPolicy = {
   id: 81,

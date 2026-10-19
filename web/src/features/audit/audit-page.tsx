@@ -7,16 +7,17 @@ import {
   useState,
 } from "react";
 
+import { ApiError, controlApi } from "../../app/api-client";
 import {
   globalAuditDescriptionLabel,
   globalAuditOperationLabel,
 } from "../../app/audit-log";
-import { ApiError, controlApi } from "../../app/api-client";
 import type { ConsoleRoute } from "../../app/hash-router";
 import { useLocale } from "../../app/locale-context";
 import type { AuditLog, AuditLogEvent, ControlList } from "../../app/models";
 import { AuditLogTable } from "../../components/audit-log-table";
 import { Pagination } from "../../components/data-table";
+import { ErrorView } from "../../components/feedback";
 import { Icon } from "../../components/icons";
 import {
   DemoBanner,
@@ -25,6 +26,7 @@ import {
   SectionHeading,
 } from "../../components/page-elements";
 import { UnifiedSelect } from "../../components/unified-select";
+import { useResettableState } from "../../components/use-resettable-state";
 
 type AuditResultFilter = "" | "failed" | "success";
 
@@ -111,15 +113,12 @@ function AuditFilterForm({
   navigate: (path: string) => void;
 }) {
   const { locale, t } = useLocale();
-  const [resource, setResource] = useState(values.resource);
-  const [username, setUsername] = useState(values.username);
-  const [operation, setOperation] = useState(values.operation);
-  const [result, setResult] = useState<AuditResultFilter>(values.result);
-
-  useEffect(() => setResource(values.resource), [values.resource]);
-  useEffect(() => setUsername(values.username), [values.username]);
-  useEffect(() => setOperation(values.operation), [values.operation]);
-  useEffect(() => setResult(values.result), [values.result]);
+  const [resource, setResource] = useResettableState(values.resource);
+  const [username, setUsername] = useResettableState(values.username);
+  const [operation, setOperation] = useResettableState(values.operation);
+  const [result, setResult] = useResettableState<AuditResultFilter>(
+    values.result,
+  );
 
   const activeFilters = Boolean(
     values.username || values.resource || values.operation || values.result,
@@ -378,84 +377,70 @@ export function AuditPage({
         </section>
       ) : null}
       {error ? (
-        <div className="error-state" role="alert">
-          <div>
-            <span className="state-icon">
-              <Icon name="alert" />
-            </span>
-            <h2>
-              {t(
-                error.status === 403 ? "无权访问审计日志" : "审计日志载入失败",
-              )}
-            </h2>
-            <p>{error.message}</p>
-            <button
-              className="button button-small"
-              type="button"
-              onClick={() => {
-                reload();
-                onRefresh();
-              }}
-            >
-              <Icon name="refresh" />
-              <span>{t("重试")}</span>
-            </button>
-          </div>
-        </div>
+        <ErrorView
+          title="审计日志载入失败"
+          message={error.message}
+          retry={() => {
+            reload();
+            onRefresh();
+          }}
+        />
       ) : null}
       {collection ? (
-        <section className="table-shell">
-          <AuditFilterForm
-            values={values}
-            operations={operations}
-            navigate={navigate}
-          />
+        <>
           <SectionHeading
             title="审计日志"
             total={collection.pagination.total}
             zhUnit="条"
             enUnit="entries"
           />
-          <div>
-            <div className="table-scroll audit-table-scroll">
-              <AuditLogTable
-                logs={logs}
-                emptyTitle={
-                  activeFilters ? "没有匹配的审计记录" : "暂无可见审计记录"
-                }
-                emptyDescription={
-                  activeFilters
-                    ? "调整筛选条件后重新查询。"
-                    : "当前 Harbor 实例没有返回该账号可见的审计记录。"
-                }
-                emptyIcon="history"
-                sort={values.sort}
-                onSort={(sort) =>
-                  navigate(
-                    auditPath(
-                      1,
-                      values.pageSize,
-                      values,
-                      sort as "op_time" | "-op_time",
-                    ),
-                  )
-                }
-                operationLabel={globalAuditOperationLabel}
-                descriptionLabel={globalAuditDescriptionLabel}
-              />
+          <section className="table-shell">
+            <AuditFilterForm
+              values={values}
+              operations={operations}
+              navigate={navigate}
+            />
+            <div>
+              <div className="table-scroll audit-table-scroll">
+                <AuditLogTable
+                  logs={logs}
+                  emptyTitle={
+                    activeFilters ? "没有匹配的审计记录" : "暂无可见审计记录"
+                  }
+                  emptyDescription={
+                    activeFilters
+                      ? "调整筛选条件后重新查询。"
+                      : "当前 Harbor 实例没有返回该账号可见的审计记录。"
+                  }
+                  emptyIcon="history"
+                  sort={values.sort}
+                  onSort={(sort) =>
+                    navigate(
+                      auditPath(
+                        1,
+                        values.pageSize,
+                        values,
+                        sort as "op_time" | "-op_time",
+                      ),
+                    )
+                  }
+                  operationLabel={globalAuditOperationLabel}
+                  descriptionLabel={globalAuditDescriptionLabel}
+                />
+              </div>
             </div>
-          </div>
-          <Pagination
-            pagination={collection.pagination}
-            onPageChange={(page) =>
-              navigate(auditPath(page, values.pageSize, values, values.sort))
-            }
-            pageSizeOptions={[20, 50, 100]}
-            onPageSizeChange={(pageSize) =>
-              navigate(auditPath(1, pageSize, values, values.sort))
-            }
-          />
-        </section>
+            <Pagination
+              pagination={collection.pagination}
+              onPageChange={(page) =>
+                navigate(auditPath(page, values.pageSize, values, values.sort))
+              }
+              pageSizeOptions={[20, 50, 100]}
+              onPageSizeChange={(pageSize) =>
+                navigate(auditPath(1, pageSize, values, values.sort))
+              }
+            />
+          </section>
+        </>
       ) : null}
     </>
   );

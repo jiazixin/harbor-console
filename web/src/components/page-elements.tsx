@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 
 import { useLocale } from "../app/locale-context";
-import { formatNumber } from "../app/formatters";
+import { formatCount } from "../app/formatters";
 import { Icon, type IconName } from "./icons";
 
 export function PageHeader({
@@ -76,7 +76,7 @@ export function RefreshButton({
 export function DemoBanner() {
   const { t } = useLocale();
   return (
-    <div className="demo-banner">
+    <div className="notice notice-info">
       <Icon name="alert" />
       <span>
         <strong>{t("当前为演示模式。")}</strong>{" "}
@@ -109,6 +109,23 @@ export function StatCell({
   );
 }
 
+/** Title of a panel's toolbar, optionally followed by a muted count. */
+export function PanelTitle({
+  title,
+  count,
+}: {
+  title: string;
+  count?: string;
+}) {
+  const { t } = useLocale();
+  return (
+    <div className="panel-title">
+      <strong>{t(title)}</strong>
+      {count ? <span className="section-count">{count}</span> : null}
+    </div>
+  );
+}
+
 export function SectionHeading({
   title,
   total,
@@ -129,9 +146,7 @@ export function SectionHeading({
     ? t("正在载入")
     : error || total === undefined
       ? t("统计不可用")
-      : locale === "en-US"
-        ? `${formatNumber(total, locale)} ${enUnit}`
-        : `${formatNumber(total, locale)} ${t(zhUnit)}`;
+      : formatCount(total, locale, zhUnit, enUnit);
   return (
     <div className="section-heading">
       <h2>

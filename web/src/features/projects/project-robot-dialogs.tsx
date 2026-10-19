@@ -246,7 +246,7 @@ export function ResetRobotSecretDialog({
         onReset({ name: robot.name, secret });
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("使用旧密钥的流水线需要同步更新")}</span>
       </div>
@@ -282,7 +282,7 @@ export function DeleteProjectRobotDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>

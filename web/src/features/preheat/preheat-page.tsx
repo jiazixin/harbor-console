@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { controlApi } from "../../app/api-client";
-import { formatNumber } from "../../app/formatters";
+import { formatNumber, formatCount } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type {
   PreheatInstance,
@@ -14,6 +14,7 @@ import {
   DemoBanner,
   PageHeader,
   RefreshButton,
+  PanelTitle,
 } from "../../components/page-elements";
 import { StatusBadge } from "../../components/status-badge";
 
@@ -94,7 +95,7 @@ export function PreheatPage({
           ];
         });
         if (errors.length === 2) {
-          setFatalError(errors.join("；"));
+          setFatalError([...new Set(errors)].join("；"));
           setProviders([]);
           setInstances([]);
           return;
@@ -174,6 +175,7 @@ export function PreheatPage({
       ) : null}
       {!initialLoading && fatalError ? (
         <ErrorView
+          title="P2P 分发载入失败"
           message={`${fatalError}。${t("当前 Harbor 版本可能未启用分布式分发模块，或当前账号没有系统级预热实例权限。")}`}
           retry={reload}
         />
@@ -181,7 +183,7 @@ export function PreheatPage({
       {!fatalError && providers !== undefined && instances !== undefined ? (
         <div aria-busy={loading}>
           {warnings.length ? (
-            <div className="warning-banner preheat-warning">
+            <div className="notice notice-warning preheat-warning">
               <Icon name="alert" />
               <span>{warnings.join("；")}</span>
             </div>
@@ -216,13 +218,15 @@ export function PreheatPage({
           </section>
           <section className="table-shell">
             <div className="table-toolbar">
-              <strong>{t("P2P Provider 实例")}</strong>
-              <div className="toolbar-spacer" />
-              <span className="muted">
-                {locale === "en-US"
-                  ? `${formatNumber(instanceItems.length, locale)} ${instanceItems.length === 1 ? "instance" : "instances"}`
-                  : `${formatNumber(instanceItems.length, locale)} 个实例`}
-              </span>
+              <PanelTitle
+                title="P2P Provider 实例"
+                count={formatCount(
+                  instanceItems.length,
+                  locale,
+                  "个实例",
+                  instanceItems.length === 1 ? "instance" : "instances",
+                )}
+              />
             </div>
             <div className="table-scroll">
               {!instanceItems.length ? (

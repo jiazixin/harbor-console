@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md) | **English**
 
-Harbor Console is a self-contained administration interface for Harbor v2.15.2. It
+Harbor Console is a self-contained administration interface for Harbor v2.15.x. It
 connects to Harbor through a typed, server-side API gateway and provides one consistent
 workspace for projects, repositories, artifacts, security, replication, retention,
 preheating, users, scanners, audit data, and system operations.
@@ -20,7 +20,7 @@ environments without a web service, package registry, or external CDN at runtime
   connections and switch between them. Credentials are accepted during connection but
   are never returned to the browser or persisted in browser storage.
 - **Typed upstream gateway:** the browser can call only explicitly declared Harbor
-  v2.15.2 operations. Arbitrary upstream URL and method proxying is not available.
+  v2.15 operations. Arbitrary upstream URL and method proxying is not available.
 - **Bilingual interface:** Simplified Chinese and English with persisted language,
   timezone, CLI, theme, and repository-view preferences.
 - **Offline-ready:** all UI assets are embedded in the executable.
@@ -34,12 +34,13 @@ Harbor Console currently authenticates upstream requests with Harbor Basic Auth.
 user can connect with their Harbor username and CLI secret. Native browser-based OIDC
 login, OIDC onboarding, and database self-registration are not implemented.
 
-The project targets non-deprecated operations in Harbor v2.15.2. Compatibility shims for
-older Harbor APIs are intentionally not included.
+The project targets the non-deprecated operations of Harbor v2.15. The operation contract
+was captured from v2.15.2 and is identical in v2.15.4, the newest release verified against
+a live instance. Compatibility shims for older Harbor APIs are intentionally not included.
 
 ## Requirements
 
-- Go 1.26.6 or newer
+- Go 1.26.9 or newer
 - Node.js 22.22.2+ (22.x), 24.15.0+ (24.x), or 26+ for web checks
 - Docker or another OCI builder for container images
 
@@ -118,7 +119,7 @@ Browser
    v
 Harbor Console (Go)
    |-- HTTP handlers and in-memory connection sessions
-   |-- typed Harbor v2.15.2 gateway
+   |-- typed Harbor v2.15 gateway
    |-- embedded bilingual web client
    |-- isolated demo state
    |
@@ -134,12 +135,12 @@ cmd/harbor-console/     executable entry point
 internal/app/           HTTP application, sessions, gateway, and demo orchestration
 internal/config/        YAML and environment configuration
 internal/observability/ structured logging and access logs
-web/                   React, TypeScript, shared components, feature pages, styles, and tests
-web/embed.go           Go embed boundary (package webui)
-web/dist/              generated Vite output (ignored)
-internal/buildinfo/    build version metadata
+internal/buildinfo/     build version metadata
+web/                    React, TypeScript, shared components, feature pages, styles, and tests
+web/embed.go            Go embed boundary (package webui)
+web/dist/               generated Vite output (ignored)
 configs/                deployment configuration examples
-docs/                   architecture decisions and acceptance guidance
+docs/                   design, development, acceptance, and change records
 scripts/                repository quality tooling
 ```
 

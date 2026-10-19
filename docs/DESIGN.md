@@ -1,10 +1,10 @@
 # 架构与边界
 
-维护基线：2026-10-02。视觉与交互规范独立放在 [UI.md](UI.md)。
+维护基线：2026-10-19。视觉与交互规范独立放在 [UI.md](UI.md)。
 
 ## 产品范围
 
-Harbor Console 是面向 Harbor v2.15.2 的单进程管理控制台：项目、仓库、制品、扫描与 SBOM、复制、保留、Webhook、机器人、P2P 预热、审计及系统管理。支持简体中文/英文、亮色/暗色和多实例连接。
+Harbor Console 是面向 Harbor v2.15.x 的单进程管理控制台：项目、仓库、制品、扫描与 SBOM、复制、保留、Webhook、机器人、P2P 预热、审计及系统管理。支持简体中文/英文、亮色/暗色和多实例连接。
 
 浏览器提交 Basic Auth 密码或 Harbor CLI Secret 建立连接。原生 OIDC 跳转、OIDC onboarding、数据库账号自助注册、旧版废弃 API 和多副本共享会话不在当前实现范围内。
 
@@ -19,7 +19,7 @@ Go HTTP 服务
     ├─ 固定类型化 Harbor API 网关
     └─ embed 嵌入 Vite 生产资源
     │ 服务端 Basic Auth / CLI Secret
-Harbor v2.15.2
+Harbor v2.15.x
 ```
 
 | 目录 | 职责 |
@@ -41,7 +41,7 @@ React、翻译、图标和样式都嵌入二进制，生产运行不需要 npm�
 
 ## API 合同
 
-- 198 个非废弃 method/path 操作由 `internal/app/testdata/harbor-v2.15.2-stable-operations.txt` 与合同测试固定。
+- 198 个非废弃 method/path 操作由 `internal/app/testdata/harbor-v2.15.2-stable-operations.txt` 与合同测试固定。2026-10-19 对真实 Harbor v2.15.4 的 swagger 比对：非废弃操作完全一致，v2.15.4 仅多出已废弃的旧审计日志接口，控制台不使用。
 - `harbor_operations.go` 声明上游方法、路径、路径/查询参数、请求体验证和响应语义。新增能力必须显式注册，不接受任意 URL、method/path 代理。
 - HEAD 与 GET 独立；列表统一 `items + pagination`，总数来自上游 `X-Total-Count`。
 - 项目名、仓库路径、digest、reference、metadata name 按各自语义验证与转义。仓库路径的双重编码不能简化为通用字符串替换。

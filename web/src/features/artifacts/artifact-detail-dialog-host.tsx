@@ -10,7 +10,7 @@ import {
   RemoveArtifactLabelDialog,
   StopArtifactScanDialog,
 } from "../artifacts/artifact-detail-dialogs";
-import { type ArtifactDetailAction } from "../artifacts/artifact-detail-page";
+import type { ArtifactDetailAction } from "./artifact-detail-data";
 
 export function ArtifactDetailDialogHost({
   action,

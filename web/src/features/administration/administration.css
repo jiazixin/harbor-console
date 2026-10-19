@@ -1,20 +1,94 @@
-.user-avatar-small {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-control);
-  background: var(--surface-subtle);
-  color: var(--orange-strong);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 800;
+/* Administration center styles. */
+.directory-selection-row .global-label-color-field {
+  min-width: 0;
 }
 
-.toolbar-note,
-.field-help {
+.global-label-palette {
+  display: grid;
+  grid-template-columns: repeat(12, 30px);
+  gap: 7px;
+}
+
+.global-label-color-swatch {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: #fff;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #fff 35%, transparent),
+    0 0 0 1px color-mix(in srgb, #000 18%, transparent);
+}
+
+.global-label-preset-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.global-label-preset-check {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+}
+
+.global-label-color-swatch:hover {
+  transform: translateY(-1px);
+}
+
+.global-label-color-swatch[aria-pressed="true"] {
+  border-color: var(--surface-raised);
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.global-label-color-swatch:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.global-label-color-swatch .icon {
+  width: 15px;
+  height: 15px;
+  stroke-width: 3;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+
+.global-label-custom-color {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+.global-label-custom-color input[type="color"] {
+  width: 54px;
+  min-height: 32px;
+  padding: 3px;
+}
+
+.global-label-custom-color code {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.toolbar-note {
   color: var(--ink-faint);
   font-size: 11px;
 }
@@ -67,8 +141,11 @@
   gap: 18px;
 }
 
+/* Cards share a row height; actions stay on the bottom edge of each card. */
 .maintenance-card {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
@@ -135,7 +212,8 @@
 .maintenance-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 7px;
+  margin-top: auto;
+  gap: var(--space-control);
   padding-top: 14px;
   border-top: 1px solid var(--line);
 }
@@ -212,7 +290,7 @@
 .configuration-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-control);
 }
 
 .configuration-group {
@@ -412,4 +490,100 @@
 .system-project-empty span {
   max-width: 260px;
   font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .maintenance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .maintenance-history {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .audit-event-config .check-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .configuration-actions {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .configuration-actions .button {
+    flex: 1 1 150px;
+  }
+
+  .system-certificate-row {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .system-certificate-row .button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .global-label-palette {
+    grid-template-columns: repeat(6, 30px);
+  }
+
+  .scope-select {
+    width: 100%;
+  }
+
+  .system-project-editor {
+    min-height: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .system-project-list {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .system-project-details {
+    max-height: none;
+    padding: 10px;
+  }
+
+  .system-project-empty {
+    min-height: 150px;
+  }
+
+  .maintenance-facts {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .maintenance-facts > div,
+  .maintenance-facts > div:first-child {
+    padding: 0;
+    border-left: 0;
+  }
+
+  .maintenance-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .administration-tabs {
+    gap: 20px;
+  }
+}
+
+/* Interaction motion has one owner. Only progress indicators use linear timing. */
+.config-subtabs a,
+.administration-tabs a,
+.administration-tabs button {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }

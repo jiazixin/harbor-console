@@ -112,6 +112,25 @@ async function verifyRoute(page: Page, route: string) {
     1,
   );
   expect(overflow.main, `${route} main overflow`).toBeLessThanOrEqual(1);
+
+  // Every column aligns its header the same way as its values.
+  const misalignedColumns = await page.evaluate(() =>
+    [...document.querySelectorAll("main table")].flatMap((table) => {
+      const headers = [...table.querySelectorAll("thead tr:last-child th")];
+      const firstRow = table.querySelector("tbody tr");
+      if (firstRow?.children.length !== headers.length) return [];
+      return headers.flatMap((header, column) => {
+        const headerAlign = getComputedStyle(header).textAlign;
+        const cellAlign = getComputedStyle(firstRow.children[column]).textAlign;
+        return headerAlign === cellAlign
+          ? []
+          : [
+              `${table.className} column ${String(column + 1)} "${header.textContent.trim()}": header ${headerAlign}, cell ${cellAlign}`,
+            ];
+      });
+    }),
+  );
+  expect(misalignedColumns, `${route} table column alignment`).toEqual([]);
 }
 
 async function verifySearchFocus(page: Page, locale: string) {

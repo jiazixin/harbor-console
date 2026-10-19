@@ -379,7 +379,7 @@ export function DeleteRegistryDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>

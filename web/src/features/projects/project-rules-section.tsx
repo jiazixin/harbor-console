@@ -6,6 +6,7 @@ import type {
   ProjectLabel,
   RetentionMetadata,
 } from "../../app/models";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
 import { OverflowText } from "../../components/overflow-text";
 
@@ -89,7 +90,7 @@ export function ProjectRulesSection({
           </button>
         </div>
         {!metadataAvailable ? (
-          <p className="section-notice warning-notice">
+          <p className="notice notice-warning">
             {metadata.load_error ??
               t(
                 "当前 Harbor 实例未提供 selector metadata，不可变规则编辑已禁用。",
@@ -99,10 +100,11 @@ export function ProjectRulesSection({
         <div className="table-shell">
           <div className="table-scroll">
             {!rules.length ? (
-              <div className="empty-table">
-                <strong>{t("暂无不可变规则")}</strong>
-                <span>{t("创建规则后，匹配的 Tag 将禁止覆盖或删除。")}</span>
-              </div>
+              <EmptyState
+                title="暂无不可变规则"
+                description="创建规则后，匹配的 Tag 将禁止覆盖或删除。"
+                icon="shield"
+              />
             ) : (
               <table>
                 <thead>
@@ -191,10 +193,11 @@ export function ProjectRulesSection({
         <div className="table-shell">
           <div className="table-scroll">
             {!labels.length ? (
-              <div className="empty-table">
-                <strong>{t("暂无项目标签")}</strong>
-                <span>{t("标签可用于标记和筛选制品。")}</span>
-              </div>
+              <EmptyState
+                title="暂无项目标签"
+                description="标签可用于标记和筛选制品。"
+                icon="tag"
+              />
             ) : (
               <table>
                 <thead>

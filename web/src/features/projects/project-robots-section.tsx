@@ -2,6 +2,8 @@ import { formatDate, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type { ControlPagination, ProjectRobot } from "../../app/models";
 import { Pagination } from "../../components/data-table";
+import { PanelTitle } from "../../components/page-elements";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
 import { OverflowText } from "../../components/overflow-text";
 
@@ -52,7 +54,7 @@ export function ProjectRobotsSection({
   return (
     <section className="table-shell">
       <div className="table-toolbar">
-        <strong>{t("项目机器人账号")}</strong>
+        <PanelTitle title="项目机器人账号" />
         <div className="toolbar-spacer" />
         <button
           className="button button-small button-primary"
@@ -65,15 +67,11 @@ export function ProjectRobotsSection({
       </div>
       <div className="table-scroll">
         {!robots.length ? (
-          <div className="empty-state">
-            <div>
-              <span className="state-icon">
-                <Icon name="terminal" />
-              </span>
-              <h2>{t("暂无机器人账号")}</h2>
-              <p>{t("创建项目机器人账号后可用于 CI/CD 拉取和推送。")}</p>
-            </div>
-          </div>
+          <EmptyState
+            title="暂无机器人账号"
+            description="创建项目机器人账号后可用于 CI/CD 拉取和推送。"
+            icon="terminal"
+          />
         ) : (
           <table>
             <thead>

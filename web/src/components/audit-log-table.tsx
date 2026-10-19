@@ -3,6 +3,7 @@ import { useLocale } from "../app/locale-context";
 import type { AuditLog, Locale } from "../app/models";
 import { SortableHeader, StableTableColumns } from "./data-table";
 import { EmptyState } from "./empty-state";
+import { OverflowText } from "./overflow-text";
 import type { IconName } from "./icons";
 
 type Translate = (source: string) => string;
@@ -49,7 +50,7 @@ export function AuditLogTable({
   return (
     <table className="data-table-stable audit-log-table">
       <StableTableColumns
-        widths={["144px", "12%", "24%", "9%", "10%", "22%", "96px"]}
+        widths={["144px", "12%", "24%", "112px", "10%", "22%", "96px"]}
       />
       <thead>
         <tr>
@@ -119,7 +120,9 @@ export function AuditLogTable({
               </td>
               <td>{auditResourceTypeLabel(log.resource_type, t)}</td>
               <td>
-                <span className="mono">{log.resource ?? "-"}</span>
+                <OverflowText className="mono">
+                  {log.resource ?? "-"}
+                </OverflowText>
               </td>
               <td className="id-cell">#{log.id}</td>
             </tr>

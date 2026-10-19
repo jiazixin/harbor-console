@@ -152,7 +152,7 @@ export function CopyArtifactDialog({
             name="project"
             required
             maxLength={255}
-            pattern="[a-z0-9]+([._-][a-z0-9]+)*"
+            pattern="[a-z0-9]+([._\-][a-z0-9]+)*"
             defaultValue={project}
           />
         </label>
@@ -162,7 +162,7 @@ export function CopyArtifactDialog({
             name="repository"
             required
             maxLength={255}
-            pattern="[a-z0-9]+([/._-][a-z0-9]+)*"
+            pattern="[a-z0-9]+([\/._\-][a-z0-9]+)*"
             defaultValue={repositoryDisplayName(project, repository)}
           />
         </label>
@@ -221,7 +221,7 @@ export function DeleteArtifactsDialog({
         onDeleted(failures);
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>
           {t("此操作无法撤销。请输入")} <code>{confirmation}</code>{" "}

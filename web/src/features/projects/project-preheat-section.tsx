@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { formatDate } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
@@ -10,8 +10,10 @@ import type {
   PreheatTrigger,
 } from "../../app/models";
 import { Pagination } from "../../components/data-table";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
 import { ToolbarSearchForm } from "../../components/toolbar-search-form";
+import { useResettableState } from "../../components/use-resettable-state";
 
 export type ProjectPreheatAction =
   | {
@@ -91,7 +93,7 @@ export function ProjectPreheatSection({
   onAction: (action: ProjectPreheatAction) => void;
 }) {
   const { locale, t } = useLocale();
-  const [query, setQuery] = useState(initialQuery);
+  const [query, setQuery] = useResettableState(initialQuery);
   const providerNames = useMemo(
     () =>
       new Map(
@@ -103,12 +105,10 @@ export function ProjectPreheatSection({
     [providers],
   );
 
-  useEffect(() => setQuery(initialQuery), [initialQuery]);
-
   return (
     <div className="preheat-project-layout">
       {errors.length ? (
-        <div className="warning-banner preheat-warning">
+        <div className="notice notice-warning preheat-warning">
           <Icon name="alert" />
           <span>{errors.join("；")}</span>
         </div>
@@ -148,12 +148,11 @@ export function ProjectPreheatSection({
         </div>
         <div className="table-scroll">
           {!policies.length ? (
-            <div className="empty-table">
-              <strong>{t("暂无预热策略")}</strong>
-              <span>
-                {t("创建策略后可按仓库、Tag 和标签将镜像预热到 P2P 节点。")}
-              </span>
-            </div>
+            <EmptyState
+              title="暂无预热策略"
+              description="创建策略后可按仓库、Tag 和标签将镜像预热到 P2P 节点。"
+              icon="play"
+            />
           ) : (
             <table>
               <thead>

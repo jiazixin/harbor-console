@@ -2,6 +2,8 @@ import { formatDate, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type { ControlPagination, ProjectWebhook } from "../../app/models";
 import { Pagination } from "../../components/data-table";
+import { PanelTitle } from "../../components/page-elements";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
 import { OverflowText } from "../../components/overflow-text";
 
@@ -32,7 +34,7 @@ export function ProjectWebhooksSection({
   return (
     <section className="table-shell">
       <div className="table-toolbar">
-        <strong>{t("Webhook 策略")}</strong>
+        <PanelTitle title="Webhook 策略" />
         <div className="toolbar-spacer" />
         <button
           className="button button-small button-primary"
@@ -45,15 +47,11 @@ export function ProjectWebhooksSection({
       </div>
       <div className="table-scroll">
         {!webhooks.length ? (
-          <div className="empty-state">
-            <div>
-              <span className="state-icon">
-                <Icon name="refresh" />
-              </span>
-              <h2>{t("暂无 Webhook")}</h2>
-              <p>{t("创建 Webhook 后可将 Harbor 事件发送到外部系统。")}</p>
-            </div>
-          </div>
+          <EmptyState
+            title="暂无 Webhook"
+            description="创建 Webhook 后可将 Harbor 事件发送到外部系统。"
+            icon="refresh"
+          />
         ) : (
           <table>
             <thead>

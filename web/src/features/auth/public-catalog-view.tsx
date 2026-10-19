@@ -23,6 +23,8 @@ import type {
 import { loadPreferences } from "../../app/preferences";
 import { Pagination } from "../../components/data-table";
 import { HarborBrand } from "../../components/harbor-brand";
+import { ErrorView } from "../../components/feedback";
+import { EmptyState } from "../../components/empty-state";
 import { Icon } from "../../components/icons";
 import { LanguageSwitch } from "../../components/language-switch";
 import { SeverityBadge } from "../../components/status-badge";
@@ -31,7 +33,10 @@ import {
   removeStoredItem,
   writeStoredItem,
 } from "../../lib/browser-storage/storage";
-import { shortDigest } from "../artifacts/artifact-utils";
+import {
+  artifactPlatformReferences,
+  shortDigest,
+} from "../artifacts/artifact-utils";
 
 const historyKey = "harborPublicCatalog";
 const reloadKey = "harbor-console-public-catalog-reload";
@@ -228,27 +233,6 @@ function LoadingRows() {
   );
 }
 
-function EmptyCatalog({
-  icon,
-  title,
-  description,
-}: {
-  icon: "folder" | "package";
-  title: string;
-  description: string;
-}) {
-  const { t } = useLocale();
-  return (
-    <div className="empty-state">
-      <span className="state-icon">
-        <Icon name={icon} />
-      </span>
-      <h2>{t(title)}</h2>
-      <p>{t(description)}</p>
-    </div>
-  );
-}
-
 function PublicProjectsTable({
   items,
   openProject,
@@ -259,7 +243,7 @@ function PublicProjectsTable({
   const { locale, t } = useLocale();
   if (!items.length) {
     return (
-      <EmptyCatalog
+      <EmptyState
         icon="folder"
         title="没有公开项目"
         description="当前 Harbor 实例没有返回可匿名访问的项目。"
@@ -337,7 +321,7 @@ function PublicRepositoriesTable({
   const { locale, t } = useLocale();
   if (!items.length) {
     return (
-      <EmptyCatalog
+      <EmptyState
         icon="package"
         title="没有公开仓库"
         description="该项目当前没有可匿名读取的镜像仓库。"
@@ -405,7 +389,7 @@ function PublicRepositoriesTable({
 
 function ArtifactArchitecture({ artifact }: { artifact: HarborArtifact }) {
   const { locale, t } = useLocale();
-  const referenceCount = artifact.references?.length ?? 0;
+  const referenceCount = artifactPlatformReferences(artifact).length;
   const mediaType = artifact.manifest_media_type ?? "";
   if (
     referenceCount ||
@@ -457,7 +441,7 @@ function PublicArtifactsTable({
 
   if (!items.length) {
     return (
-      <EmptyCatalog
+      <EmptyState
         icon="package"
         title="没有公开制品"
         description="该仓库当前没有可匿名读取的制品。"
@@ -813,23 +797,11 @@ export function PublicCatalogView({
         >
           {loading ? <LoadingRows /> : null}
           {!loading && error ? (
-            <div className="error-state public-catalog-error" role="alert">
-              <div>
-                <span className="state-icon">
-                  <Icon name="alert" />
-                </span>
-                <h2>{t("公开目录载入失败")}</h2>
-                <p>{error}</p>
-                <button
-                  className="button button-small"
-                  type="button"
-                  onClick={() => changePage(catalog.page)}
-                >
-                  <Icon name="refresh" />
-                  <span>{t("重新尝试")}</span>
-                </button>
-              </div>
-            </div>
+            <ErrorView
+              title="公开目录载入失败"
+              message={error}
+              retry={() => changePage(catalog.page)}
+            />
           ) : null}
           {!loading && !error && catalog.level === "projects" ? (
             <PublicProjectsTable

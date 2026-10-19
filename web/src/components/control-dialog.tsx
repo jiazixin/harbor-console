@@ -91,9 +91,13 @@ export function ControlDialog({
         tabIndex={-1}
       >
         <form ref={formRef} onSubmit={(event) => void handleSubmit(event)}>
-          <header>
+          <header className="control-dialog-header">
             <div>
-              <h2 id="control-dialog-title" title={t(title)}>
+              <h2
+                id="control-dialog-title"
+                className="control-dialog-title"
+                title={t(title)}
+              >
                 {t(title)}
               </h2>
               {subtitle ? (
@@ -114,13 +118,13 @@ export function ControlDialog({
           </header>
           <div className="control-dialog-body">
             {error ? (
-              <div className="control-dialog-error" role="alert">
-                {error}
+              <div className="notice notice-danger" role="alert">
+                {t(error)}
               </div>
             ) : null}
             {children}
           </div>
-          <footer>
+          <footer className="control-dialog-footer">
             {showCancel ? (
               <button
                 className="button button-small"

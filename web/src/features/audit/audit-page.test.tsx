@@ -114,7 +114,9 @@ describe("audit page", () => {
       target: { value: "release-engineer" },
     });
     fireEvent.click(screen.getByRole("button", { name: "筛选" }));
-    expect(navigate).toHaveBeenCalledWith("audit?username=release-engineer");
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith("audit?username=release-engineer"),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "每页条数" }));
     fireEvent.click(screen.getByRole("option", { name: "每页 20 条" }));

@@ -5,32 +5,45 @@ import { useLocale } from "../app/locale-context";
 import type { HarborPermission, RobotAccess } from "../app/models";
 import { Icon } from "./icons";
 
+// Labels for every resource Harbor 2.15 reports from GET /permissions.
 const resourceLabels: Record<string, string> = {
-  repository: "镜像仓库",
-  artifact: "制品",
-  tag: "Tag",
-  scan: "漏洞扫描",
-  sbom: "SBOM",
-  label: "标签",
   accessory: "附件",
+  artifact: "制品",
   "artifact-addition": "制品附加信息",
   "artifact-label": "制品标签",
-  "preheat-policy": "预热策略",
+  "audit-log": "审计日志",
+  catalog: "镜像目录",
+  "export-cve": "CVE 导出",
+  "garbage-collection": "垃圾清理",
   "immutable-tag": "不可变 Tag",
+  "jobservice-monitor": "任务监控",
+  label: "标签",
+  "ldap-user": "LDAP 用户",
   log: "日志",
-  "notification-policy": "Webhook 策略",
-  quota: "配额",
-  robot: "机器人账号",
   member: "项目成员",
   metadata: "元数据",
+  "notification-policy": "Webhook 策略",
+  "preheat-instance": "P2P 实例",
+  "preheat-policy": "预热策略",
   project: "项目",
-  "audit-log": "审计日志",
+  "purge-audit": "审计日志清理",
+  quota: "配额",
+  registry: "远端仓库",
+  replication: "复制执行",
+  "replication-adapter": "复制适配器",
+  "replication-policy": "复制策略",
+  repository: "镜像仓库",
+  robot: "机器人账号",
+  sbom: "SBOM",
+  scan: "漏洞扫描",
+  "scan-all": "全量扫描",
+  scanner: "扫描器",
+  "security-hub": "安全中心",
+  "system-volumes": "存储容量",
+  tag: "Tag",
+  "tag-retention": "Tag 保留",
   user: "用户",
   "user-group": "用户组",
-  registry: "远端仓库",
-  replication: "复制策略",
-  "replication-policy": "复制策略",
-  scanner: "扫描器",
 };
 
 const actionLabels: Record<string, string> = {
@@ -115,7 +128,7 @@ export function RobotPermissionMatrix({
 
   if (!groups.length) {
     return (
-      <div className="warning-banner">
+      <div className="notice notice-warning">
         <Icon name="alert" />
         <span>{t("Harbor 未返回可分配的权限元数据。")}</span>
       </div>

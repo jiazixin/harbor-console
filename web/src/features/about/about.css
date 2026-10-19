@@ -1,0 +1,127 @@
+/* About page styles. */
+
+@media (max-width: 760px) {
+  .about-contract {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+.about-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.about-product-band {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--orange);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.about-product-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-panel);
+  color: #fff;
+  background: var(--orange);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.about-product-band h2,
+.about-product-band p {
+  margin: 0;
+}
+
+.about-product-band h2 {
+  margin: 2px 0;
+  font-size: 18px;
+}
+
+.about-product-band p {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.about-contract {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-raised);
+}
+
+.about-contract h2,
+.about-contract p {
+  margin: 0;
+}
+
+.about-contract h2 {
+  font-size: 13px;
+}
+
+.about-contract p {
+  margin-top: 3px;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.about-contract > div {
+  min-width: 0;
+}
+
+.about-swagger-url,
+.about-swagger-unavailable {
+  max-width: 100%;
+  display: block;
+  margin-top: 9px;
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+.about-swagger-url {
+  width: fit-content;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface-subtle);
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 760px) {
+  .about-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .about-product-band {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .about-product-band > .badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .about-contract .button {
+    justify-content: center;
+  }
+}

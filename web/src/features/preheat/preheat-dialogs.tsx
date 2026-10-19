@@ -151,7 +151,9 @@ export function PreheatInstanceDialog({
       }}
     >
       {testError ? (
-        <div className="control-dialog-error">{testError}</div>
+        <div className="notice notice-danger" role="alert">
+          {testError}
+        </div>
       ) : null}
       <div className="form-grid two-columns">
         <label className="field">
@@ -173,7 +175,7 @@ export function PreheatInstanceDialog({
             name="name"
             required
             maxLength={255}
-            pattern="[A-Za-z0-9]+([._-][A-Za-z0-9]+)*"
+            pattern="[A-Za-z0-9]+([._\-][A-Za-z0-9]+)*"
             autoComplete="off"
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
@@ -329,7 +331,7 @@ export function DeletePreheatInstanceDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>
           {locale === "en-US"

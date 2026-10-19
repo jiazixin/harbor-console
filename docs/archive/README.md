@@ -5,3 +5,4 @@
 - [2026 年 8 月](2026-08/README.md)：React 迁移、历史设计与缺陷证据。
 - [2026 年 9 月验收](2026-09/ACCEPTANCE.md)：目录迁移、UI 改进及可读性调整的验证记录。
 - [质量改进计划](2026-09/plans/2026-09-12-console-quality.md)、[目录迁移计划](2026-09/plans/2026-09-17-directory-layout.md)、[可读性计划](2026-09/plans/2026-09-20-code-readability.md)：已完成计划，保留当时路径与命令。
+- [2026 年 10 月 2 日验收](2026-10/ACCEPTANCE.md)与[当时的检查计划](2026-10/plans/2026-10-02-release-validation.md)：本地与演示环境的上线前检查，真实 Harbor 当时未覆盖。

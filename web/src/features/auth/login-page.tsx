@@ -289,7 +289,7 @@ export function LoginPage({
                 {busy === "connect" ? t("正在验证连接...") : t("连接实例")}
               </span>
               {busy === "connect" ? (
-                <span className="spinner spinner-small" />
+                <span className="spinner button-spinner" />
               ) : (
                 <Icon name="arrow-right" />
               )}

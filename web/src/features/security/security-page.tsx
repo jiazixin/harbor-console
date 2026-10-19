@@ -1,4 +1,3 @@
-import { ContentTransition } from "../../components/content-transition";
 import {
   type FormEvent,
   useCallback,
@@ -6,9 +5,15 @@ import {
   useRef,
   useState,
 } from "react";
+import { ContentTransition } from "../../components/content-transition";
 
 import { controlApi } from "../../app/api-client";
-import { formatDate, formatDuration, formatNumber } from "../../app/formatters";
+import {
+  formatCount,
+  formatDate,
+  formatDuration,
+  formatNumber,
+} from "../../app/formatters";
 import type { ConsoleRoute } from "../../app/hash-router";
 import { useLocale } from "../../app/locale-context";
 import type {
@@ -23,10 +28,12 @@ import type {
 } from "../../app/models";
 import { Pagination } from "../../components/data-table";
 import { EmptyState } from "../../components/empty-state";
-import { ToolbarSearchForm } from "../../components/toolbar-search-form";
+import { ErrorView } from "../../components/feedback";
+import { Icon } from "../../components/icons";
 import {
   DemoBanner,
   PageHeader,
+  PanelTitle,
   RefreshButton,
   StatCell,
 } from "../../components/page-elements";
@@ -35,8 +42,9 @@ import {
   StatusBadge,
   triggerLabel,
 } from "../../components/status-badge";
-import { Icon } from "../../components/icons";
+import { ToolbarSearchForm } from "../../components/toolbar-search-form";
 import { UnifiedSelect } from "../../components/unified-select";
+import { useResettableState } from "../../components/use-resettable-state";
 import { shortDigest } from "../artifacts/artifact-utils";
 
 export type SecurityAction =
@@ -456,14 +464,11 @@ function VulnerabilitiesSection({
       "tag",
     ].map((key) => [key, route.query.get(key) ?? ""]),
   );
-  const [projectFilter, setProjectFilter] = useState(values.project);
-  const [severityFilter, setSeverityFilter] = useState(values.severity);
-  const [statusFilter, setStatusFilter] = useState(values.status);
-  useEffect(() => {
-    setProjectFilter(values.project);
-    setSeverityFilter(values.severity);
-    setStatusFilter(values.status);
-  }, [values.project, values.severity, values.status]);
+  const [projectFilter, setProjectFilter] = useResettableState(values.project);
+  const [severityFilter, setSeverityFilter] = useResettableState(
+    values.severity,
+  );
+  const [statusFilter, setStatusFilter] = useResettableState(values.status);
   const active = Object.values(values).some(Boolean);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -717,8 +722,7 @@ function ScannersSection({
 }) {
   const { locale, t } = useLocale();
   const filter = route.query.get("filter") ?? "";
-  const [query, setQuery] = useState(filter);
-  useEffect(() => setQuery(filter), [filter]);
+  const [query, setQuery] = useResettableState(filter);
   async function ping(scanner: ScannerRegistration) {
     try {
       await controlApi.mutate("scanner-ping", {}, "POST", {
@@ -979,13 +983,15 @@ function ExportsSection({
       </section>
       <section className="table-shell">
         <div className="table-toolbar">
-          <strong>{t("导出执行记录")}</strong>
-          <div className="toolbar-spacer" />
-          <span className="muted">
-            {locale === "en-US"
-              ? `${formatNumber(executions.length, locale)} executions`
-              : `${formatNumber(executions.length, locale)} 次执行`}
-          </span>
+          <PanelTitle
+            title="导出执行记录"
+            count={formatCount(
+              executions.length,
+              locale,
+              "次执行",
+              "executions",
+            )}
+          />
         </div>
         <div className="table-scroll">
           {executions.length ? (
@@ -1307,23 +1313,7 @@ export function SecurityPage({
       <SecurityTabs selected={section} />
       <ContentTransition mode={section}>
         {error ? (
-          <section className="security-module-state" role="alert">
-            <span className="state-icon">
-              <Icon name="alert" />
-            </span>
-            <div>
-              <h2>{t("安全模块载入失败")}</h2>
-              <p>{error}</p>
-            </div>
-            <button
-              className="button button-small"
-              type="button"
-              onClick={reload}
-            >
-              <Icon name="refresh" />
-              <span>{t("重新尝试")}</span>
-            </button>
-          </section>
+          <ErrorView title="安全模块载入失败" message={error} retry={reload} />
         ) : null}
         {!data && !error ? (
           <section className="table-shell">

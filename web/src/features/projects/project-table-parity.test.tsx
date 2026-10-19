@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "../../app/locale-context";
 import { IconSprite } from "../../components/icons";
+import { ProjectTable } from "./project-list-views";
 import { ProjectMembersSection } from "./project-members-section";
 import { ProjectPreheatSection } from "./project-preheat-section";
 import { ProjectRobotsSection } from "./project-robots-section";
@@ -273,5 +274,50 @@ describe("project detail legacy table parity", () => {
     screen
       .getAllByText(selector)
       .forEach((element) => expect(element).toHaveAttribute("title", selector));
+  });
+});
+
+describe("project center table alignment", () => {
+  it("pairs header and body alignment classes for every column", () => {
+    renderLocalized(
+      <ProjectTable
+        projects={[
+          {
+            project_id: 7,
+            name: "platform",
+            owner_name: "admin",
+            repo_count: 3,
+            metadata: { public: "true", auto_scan: "true" },
+            update_time: "2026-10-19T12:00:00Z",
+          },
+        ]}
+        selectedIds={new Set()}
+        sort="name"
+        onSort={vi.fn()}
+        onSelect={vi.fn()}
+        onSelectAll={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+    const table = screen.getByRole("table");
+    const alignment = (cell: Element) =>
+      ["table-cell-center", "table-cell-number", "table-cell-time"].find(
+        (name) => cell.classList.contains(name),
+      );
+    const headers = [...table.querySelectorAll("thead th")].map(alignment);
+    const cells = [...table.querySelectorAll("tbody tr:first-child td")].map(
+      alignment,
+    );
+    expect(cells).toEqual(headers);
+    expect(headers).toEqual([
+      undefined,
+      undefined,
+      "table-cell-center",
+      "table-cell-number",
+      "table-cell-center",
+      "table-cell-center",
+      "table-cell-time",
+      undefined,
+    ]);
   });
 });

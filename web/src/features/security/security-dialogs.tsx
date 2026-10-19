@@ -11,7 +11,10 @@ import type {
   ScannerRegistration,
 } from "../../app/models";
 import { ControlDialog } from "../../components/control-dialog";
-import { CveAllowlistEditor } from "../../components/cve-allowlist-editor";
+import {
+  CveAllowlistEditor,
+  useCveAllowlistDraft,
+} from "../../components/cve-allowlist-editor";
 import { Icon } from "../../components/icons";
 import { StatusBadge, triggerLabel } from "../../components/status-badge";
 import { UnifiedSelect } from "../../components/unified-select";
@@ -19,31 +22,6 @@ import { UnifiedSelect } from "../../components/unified-select";
 function formString(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === "string" ? value.trim() : "";
-}
-
-function expirationInput(value: number | null | undefined): string {
-  if (!value) return "";
-  const date = new Date(value * 1000);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-    .toISOString()
-    .slice(0, 10);
-}
-
-function parseCves(value: string): { cve_id: string }[] {
-  const values = [
-    ...new Set(
-      value
-        .split(/[\s,;]+/)
-        .map((item) => item.trim().toUpperCase())
-        .filter(Boolean),
-    ),
-  ];
-  const invalid = values.find((item) => !/^CVE-\d{4}-\d{4,}$/.test(item));
-  if (invalid)
-    throw new Error(`CVE 编号 ${invalid} 格式无效，应类似 CVE-2026-1842`);
-  if (values.length > 1000) throw new Error("CVE 白名单最多包含 1000 项");
-  return values.map((cve_id) => ({ cve_id }));
 }
 
 export function ScannerDialog({
@@ -208,7 +186,7 @@ export function DeleteScannerDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>
@@ -418,16 +396,7 @@ export function SystemAllowlistDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [permanent, setPermanent] = useState(!allowlist.expires_at);
-  const [expiresAt, setExpiresAt] = useState(
-    expirationInput(allowlist.expires_at),
-  );
-  const [cves, setCves] = useState(
-    (allowlist.items ?? [])
-      .map((item) => item.cve_id)
-      .filter(Boolean)
-      .join("\n"),
-  );
+  const draft = useCveAllowlistDraft(allowlist);
   return (
     <ControlDialog
       title="编辑系统 CVE 白名单"
@@ -435,28 +404,16 @@ export function SystemAllowlistDialog({
       submitLabel="保存白名单"
       onClose={onClose}
       onSubmit={async () => {
-        if (!permanent && !expiresAt)
-          throw new Error("非永久白名单必须选择到期日期");
-        const timestamp = permanent
-          ? null
-          : Math.floor(new Date(`${expiresAt}T23:59:59`).getTime() / 1000);
-        if (!permanent && !Number.isFinite(timestamp))
-          throw new Error("白名单到期日期无效");
-        await controlApi.mutate("system-cve-allowlist", {}, "PUT", {
-          expires_at: timestamp,
-          items: parseCves(cves),
-        });
+        await controlApi.mutate(
+          "system-cve-allowlist",
+          {},
+          "PUT",
+          draft.toPayload(),
+        );
         onSaved();
       }}
     >
-      <CveAllowlistEditor
-        permanent={permanent}
-        expiresAt={expiresAt}
-        cves={cves}
-        onPermanentChange={setPermanent}
-        onExpiresAtChange={setExpiresAt}
-        onCvesChange={setCves}
-      />
+      <CveAllowlistEditor {...draft.editorProps} />
     </ControlDialog>
   );
 }

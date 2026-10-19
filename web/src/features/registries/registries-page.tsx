@@ -16,6 +16,8 @@ import {
   RefreshButton,
 } from "../../components/page-elements";
 import { StatusBadge } from "../../components/status-badge";
+import { EmptyState } from "../../components/empty-state";
+import { ErrorView } from "../../components/feedback";
 import { Icon } from "../../components/icons";
 import { ViewModeToggle } from "../../components/view-mode-toggle";
 
@@ -89,19 +91,6 @@ function compareRegistries(
         );
   if (comparison) return descending ? -comparison : comparison;
   return (left.id ?? 0) - (right.id ?? 0);
-}
-
-function RegistryEmpty() {
-  const { t } = useLocale();
-  return (
-    <div className="empty-table">
-      <Icon name="database" />
-      <div>
-        <strong>{t("暂无远端仓库")}</strong>
-        <span>{t("添加连接后可用于复制和代理缓存。")}</span>
-      </div>
-    </div>
-  );
 }
 
 export function RegistriesPage({
@@ -215,23 +204,7 @@ export function RegistriesPage({
       />
       {demo ? <DemoBanner /> : null}
       {error ? (
-        <section className="security-module-state" role="alert">
-          <span className="state-icon">
-            <Icon name="alert" />
-          </span>
-          <div>
-            <h2>{t("远端仓库载入失败")}</h2>
-            <p>{error}</p>
-          </div>
-          <button
-            className="button button-small"
-            type="button"
-            onClick={reload}
-          >
-            <Icon name="refresh" />
-            <span>{t("重新尝试")}</span>
-          </button>
-        </section>
+        <ErrorView title="远端仓库载入失败" message={error} retry={reload} />
       ) : null}
       {!registries && !error ? (
         <section className="table-shell">
@@ -244,7 +217,11 @@ export function RegistriesPage({
       ) : null}
       {registries && !registries.length ? (
         <section className="panel">
-          <RegistryEmpty />
+          <EmptyState
+            title="暂无远端仓库"
+            description="添加连接后可用于复制和代理缓存。"
+            icon="database"
+          />
         </section>
       ) : null}
       {registries?.length ? (

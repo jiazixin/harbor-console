@@ -4,6 +4,7 @@ import { request } from "../../app/api-client";
 import { useLocale } from "../../app/locale-context";
 import type { AboutPayload, Session } from "../../app/models";
 import { DefinitionList } from "../../components/definition-list";
+import { ErrorView } from "../../components/feedback";
 import { Icon } from "../../components/icons";
 import { PageHeader, RefreshButton } from "../../components/page-elements";
 
@@ -96,23 +97,7 @@ export function AboutPage({
         </section>
       ) : null}
       {error ? (
-        <div className="error-state" role="alert">
-          <div>
-            <span className="state-icon">
-              <Icon name="alert" />
-            </span>
-            <h2>{t("产品信息载入失败")}</h2>
-            <p>{error}</p>
-            <button
-              className="button button-small"
-              type="button"
-              onClick={reload}
-            >
-              <Icon name="refresh" />
-              <span>{t("重新尝试")}</span>
-            </button>
-          </div>
-        </div>
+        <ErrorView title="产品信息载入失败" message={error} retry={reload} />
       ) : null}
       {payload ? (
         <div className="about-layout">
@@ -157,7 +142,7 @@ export function AboutPage({
                   },
                   {
                     label: t("目标 Harbor 版本"),
-                    value: harbor.target_version ?? "v2.15.2",
+                    value: harbor.target_version ?? "v2.15.x",
                   },
                   { label: t("API 版本"), value: harbor.api_version ?? "v2.0" },
                 ]}

@@ -17,28 +17,54 @@ export function LoadingView({
   );
 }
 
+// The Go server reports every Harbor 403 with this message (see
+// friendlyUpstreamError); the English form is its translation.
+const permissionDeniedMessages = [
+  "当前 Harbor 账号没有访问该资源的权限",
+  "This Harbor account cannot access the resource",
+];
+
+function isPermissionDenied(message: string): boolean {
+  return permissionDeniedMessages.some((text) => message.includes(text));
+}
+
+/**
+ * Failure state for a page, section or dialog. Permission errors get their own
+ * explanation and no retry button, because retrying cannot succeed.
+ */
 export function ErrorView({
   message,
   retry,
-  title = "无法载入实例概览",
+  retryLabel = "重试",
+  title = "内容载入失败",
 }: {
   message: string;
-  retry: () => void;
+  retry?: () => void;
+  retryLabel?: string;
   title?: string;
 }) {
   const { t } = useLocale();
+  const permissionDenied = isPermissionDenied(message);
   return (
     <div className="error-state" role="alert">
       <div>
         <span className="state-icon">
-          <Icon name="alert" />
+          <Icon name={permissionDenied ? "shield" : "alert"} />
         </span>
-        <h2>{t(title)}</h2>
-        <p>{message}</p>
-        <button className="button button-small" type="button" onClick={retry}>
-          <Icon name="refresh" />
-          <span>{t("重试")}</span>
-        </button>
+        <h2>{t(permissionDenied ? "没有访问权限" : title)}</h2>
+        <p>
+          {permissionDenied
+            ? t(
+                "当前 Harbor 账号没有访问此内容所需的权限。如需访问，请联系 Harbor 系统管理员。",
+              )
+            : t(message)}
+        </p>
+        {retry && !permissionDenied ? (
+          <button className="button button-small" type="button" onClick={retry}>
+            <Icon name="refresh" />
+            <span>{t(retryLabel)}</span>
+          </button>
+        ) : null}
       </div>
     </div>
   );

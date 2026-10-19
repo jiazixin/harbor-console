@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { controlApi } from "../../app/api-client";
+import { ApiError, controlApi } from "../../app/api-client";
 import { parseHashRoute } from "../../app/hash-router";
 import { LocaleProvider } from "../../app/locale-context";
 import type { ProjectQuota } from "../../app/models";
@@ -194,6 +194,33 @@ describe("administration operations", () => {
         schedule: { type: "Manual" },
       }),
     );
+  });
+
+  it("explains that a full scan needs a scanner when Harbor reports none", async () => {
+    vi.spyOn(controlApi, "list").mockResolvedValue({
+      items: [],
+      pagination: { page: 1, page_size: 10, total: 0 },
+    });
+    vi.spyOn(controlApi, "data").mockImplementation((operation) =>
+      operation.startsWith("scan-all")
+        ? Promise.reject(
+            new ApiError(
+              "Harbor 前置条件未满足：No scanner is configured; scanning cannot be performed.",
+              412,
+            ),
+          )
+        : Promise.resolve({ id: 1, schedule: { type: "None" } }),
+    );
+    const navigate = renderPage("#/administration/maintenance");
+
+    expect(
+      await screen.findByText(
+        "尚未配置默认扫描器，无法执行全量漏洞扫描。请先在制品安全中注册扫描器。",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "立即扫描" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "前往扫描器" }));
+    expect(navigate).toHaveBeenCalledWith("security/scanners");
   });
 
   it("loads audit purge data and submits the legacy manual payload", async () => {

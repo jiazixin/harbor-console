@@ -12,10 +12,8 @@ import { parseHashRoute } from "../../app/hash-router";
 import { LocaleProvider } from "../../app/locale-context";
 import type { HarborArtifact, Session } from "../../app/models";
 import { IconSprite } from "../../components/icons";
-import {
-  ArtifactDetailPage,
-  type ArtifactDetailAction,
-} from "./artifact-detail-page";
+import type { ArtifactDetailAction } from "./artifact-detail-data";
+import { ArtifactDetailPage } from "./artifact-detail-page";
 
 const digest =
   "sha256:41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4";

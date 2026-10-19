@@ -213,7 +213,7 @@ export function CreateProjectDialog({
             name="project_name"
             required
             maxLength={255}
-            pattern="[a-z0-9]+([._-][a-z0-9]+)*"
+            pattern="[a-z0-9]+([._\-][a-z0-9]+)*"
             placeholder={t("例如 platform-services")}
             autoComplete="off"
           />
@@ -288,7 +288,7 @@ export function CreateProjectDialog({
           </label>
         </div>
         {registryError ? (
-          <div className="warning-banner field-span">
+          <div className="notice notice-warning field-span">
             <Icon name="alert" />
             <span>
               {t("远端仓库载入失败，当前只能创建 Harbor 项目：")}
@@ -296,10 +296,10 @@ export function CreateProjectDialog({
             </span>
           </div>
         ) : !registries.length ? (
-          <div className="warning-banner field-span">
+          <div className="notice notice-warning field-span">
             <Icon name="alert" />
             <span>
-              {t("没有可用于镜像代理的远端仓库，请先到远程仓库页面添加连接。")}
+              {t("没有可用于镜像代理的远端仓库，请先到远端仓库页面添加连接。")}
             </span>
           </div>
         ) : null}
@@ -312,9 +312,9 @@ export function CreateProjectDialog({
             </div>
             <div className="form-grid two-columns">
               <label className="field">
-                <span>{t("远端仓库")}</span>
+                <span>{t("代理远端仓库")}</span>
                 <UnifiedSelect
-                  ariaLabel={t("远端仓库")}
+                  ariaLabel={t("代理远端仓库")}
                   name="registry_id"
                   value={registryId}
                   options={[
@@ -432,7 +432,7 @@ export function DeleteProjectsDialog({
         );
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>
           {t("Harbor 会拒绝删除仍含仓库的项目。请输入")}{" "}
@@ -484,7 +484,7 @@ export function DeleteProjectDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>

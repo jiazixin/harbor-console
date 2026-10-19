@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { controlApi } from "../../app/api-client";
-import { downloadText } from "../../app/download-text";
-import { formatDate, formatDuration, formatNumber } from "../../app/formatters";
+import {
+  formatDate,
+  formatItemRange,
+  formatNumber,
+} from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type {
   ReplicationExecution,
@@ -10,13 +13,16 @@ import type {
   ReplicationTask,
 } from "../../app/models";
 import { ControlDialog } from "../../components/control-dialog";
-import { Icon } from "../../components/icons";
+import { EmptyState } from "../../components/empty-state";
 import {
-  LogTimezoneControl,
-  StructuredLog,
-  type LogTimezone,
-} from "../../components/structured-log";
+  DialogLoading,
+  ExecutionSection,
+  ExecutionSummary,
+} from "../../components/execution-summary";
+import { ErrorView } from "../../components/feedback";
+import { Icon } from "../../components/icons";
 import { StatusBadge, triggerLabel } from "../../components/status-badge";
+import { TaskLogPanel, useTaskLog } from "../../components/task-log-panel";
 
 function resourceTypeLabel(value: string | undefined): string {
   return (
@@ -100,7 +106,7 @@ export function RunReplicationPolicyDialog({
         onStarted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-info">
         <Icon name="info" />
         <span>
           {t("Harbor 将立即创建一次复制执行，可在执行记录中查看进度。")}
@@ -136,7 +142,7 @@ export function DeleteReplicationPolicyDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>
           {locale === "en-US"
@@ -175,7 +181,7 @@ export function StopReplicationExecutionDialog({
         onStopped();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>
           {t("已完成的任务不会回滚，正在传输的任务将由 Harbor 请求停止。")}
@@ -203,14 +209,17 @@ export function ReplicationExecutionDialog({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [stopConfirm, setStopConfirm] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<ReplicationTask>();
-  const [taskLog, setTaskLog] = useState("");
-  const [logLoading, setLogLoading] = useState(false);
-  const [timezone, setTimezone] = useState<LogTimezone>("local");
-  const logController = useRef<AbortController | undefined>(undefined);
-  const logVersion = useRef(0);
-  const logView = useRef<HTMLElement>(null);
   const executionId = initialExecution.id;
+
+  const taskLog = useTaskLog<ReplicationTask>((task, signal) =>
+    controlApi
+      .data<unknown>(
+        "replication-task-log",
+        { id: execution.id, task: task.id },
+        signal,
+      )
+      .then(logText),
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -250,48 +259,6 @@ export function ReplicationExecutionDialog({
     return () => controller.abort();
   }, [executionId]);
 
-  useEffect(
-    () => () => {
-      logVersion.current += 1;
-      logController.current?.abort();
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!selectedTask || logLoading) return;
-    logView.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    logView.current?.focus({ preventScroll: true });
-  }, [logLoading, selectedTask]);
-
-  async function loadTaskLog(task: ReplicationTask) {
-    logController.current?.abort();
-    const controller = new AbortController();
-    logController.current = controller;
-    const version = logVersion.current + 1;
-    logVersion.current = version;
-    setSelectedTask(task);
-    setTaskLog("");
-    setLogLoading(true);
-    try {
-      const value = await controlApi.data<unknown>(
-        "replication-task-log",
-        { id: execution.id, task: task.id },
-        controller.signal,
-      );
-      if (logVersion.current === version) setTaskLog(logText(value));
-    } catch (loadError) {
-      if (loadError instanceof DOMException && loadError.name === "AbortError")
-        return;
-      if (logVersion.current === version)
-        setTaskLog(
-          loadError instanceof Error ? loadError.message : String(loadError),
-        );
-    } finally {
-      if (logVersion.current === version) setLogLoading(false);
-    }
-  }
-
   if (stopConfirm) {
     return (
       <StopReplicationExecutionDialog
@@ -329,25 +296,29 @@ export function ReplicationExecutionDialog({
       }}
     >
       {loading ? (
-        <div className="dialog-loading" role="status">
-          <span className="spinner" />
-          <span>{t("正在载入复制任务...")}</span>
-        </div>
+        <DialogLoading message="正在载入复制任务..." />
       ) : error ? (
-        <div className="empty-table permission-table">
-          <strong>{t("复制任务载入失败")}</strong>
-          <span>{error}</span>
-        </div>
+        <ErrorView title="复制任务载入失败" message={error} />
       ) : (
         <>
-          <section className="execution-summary">
-            <div className="execution-summary-head">
-              <div>
-                <StatusBadge status={execution.status} />
-                <span>{triggerLabel(execution.trigger, t)}</span>
-                <span>{formatDate(execution.start_time, locale)}</span>
-              </div>
-              {canStop ? (
+          <ExecutionSummary
+            status={execution.status}
+            details={[
+              triggerLabel(execution.trigger, t),
+              formatDate(execution.start_time, locale),
+            ]}
+            stats={[
+              { label: "总任务", value: execution.total ?? taskTotal },
+              { label: "成功", value: execution.succeed, tone: "success" },
+              { label: "失败", value: execution.failed, tone: "danger" },
+              { label: "进行中", value: execution.in_progress },
+              { label: "已停止", value: execution.stopped },
+            ]}
+            startTime={execution.start_time}
+            endTime={execution.end_time}
+            statusMessage={execution.status_text}
+            action={
+              canStop ? (
                 <button
                   className="button button-small button-danger"
                   type="button"
@@ -356,52 +327,20 @@ export function ReplicationExecutionDialog({
                   <Icon name="x" />
                   <span>{t("停止执行")}</span>
                 </button>
-              ) : null}
-            </div>
-            <dl className="execution-stats">
-              {[
-                ["总任务", execution.total ?? taskTotal, ""],
-                ["成功", execution.succeed, "success-text"],
-                ["失败", execution.failed, "danger-text"],
-                ["进行中", execution.in_progress, ""],
-                ["已停止", execution.stopped, ""],
-              ].map(([label, value, className]) => (
-                <div key={String(label)}>
-                  <dt>{t(String(label))}</dt>
-                  <dd className={String(className)}>
-                    {formatNumber(value as number | undefined, locale)}
-                  </dd>
-                </div>
-              ))}
-              <div>
-                <dt>{t("耗时")}</dt>
-                <dd>
-                  {formatDuration(
-                    execution.start_time,
-                    execution.end_time,
-                    locale,
-                  )}
-                </dd>
-              </div>
-            </dl>
-          </section>
-          <section className="replication-task-section">
-            <div className="section-heading compact-heading">
-              <div>
-                <h3>{t("复制任务")}</h3>
-                <p>
-                  {locale === "en-US"
-                    ? `Items 1-${formatNumber(tasks.length, locale)} of ${formatNumber(taskTotal, locale)}`
-                    : `第 1-${formatNumber(tasks.length, locale)} 项，共 ${formatNumber(taskTotal, locale)} 项`}
-                </p>
-              </div>
-            </div>
+              ) : null
+            }
+          />
+          <ExecutionSection
+            title="复制任务"
+            summary={formatItemRange(1, tasks.length, taskTotal, locale)}
+          >
             <div className="table-scroll replication-task-table">
               {!tasks.length ? (
-                <div className="empty-table">
-                  <strong>{t("暂无复制任务")}</strong>
-                  <span>{t("该执行记录还没有返回任务明细。")}</span>
-                </div>
+                <EmptyState
+                  title="暂无复制任务"
+                  description="该执行记录还没有返回任务明细。"
+                  icon="refresh"
+                />
               ) : (
                 <table className="replication-task-table-grid">
                   <thead>
@@ -474,7 +413,7 @@ export function ReplicationExecutionDialog({
                                   ? `View task ${String(task.id)} log`
                                   : `查看任务 ${String(task.id)} 日志`
                               }
-                              onClick={() => void loadTaskLog(task)}
+                              onClick={() => void taskLog.open(task)}
                             >
                               <Icon name="history" />
                             </button>
@@ -486,97 +425,23 @@ export function ReplicationExecutionDialog({
                 </table>
               )}
             </div>
-          </section>
-          {selectedTask ? (
-            <section
-              ref={logView}
-              className="replication-log-view"
-              tabIndex={-1}
-            >
-              <header>
-                <div>
-                  <h3>{t("任务日志")}</h3>
-                  <p>
-                    {locale === "en-US"
-                      ? `Execution #${String(execution.id)} · Task #${String(selectedTask.id)}`
-                      : `执行 #${String(execution.id)} · 任务 #${String(selectedTask.id)}`}
-                  </p>
-                </div>
-                <div className="log-view-actions">
-                  <span>
-                    {logLoading
-                      ? t("正在读取")
-                      : locale === "en-US"
-                        ? `${formatNumber(taskLog.length, locale)} characters`
-                        : `${formatNumber(taskLog.length, locale)} 字符`}
-                  </span>
-                  <LogTimezoneControl value={timezone} onChange={setTimezone} />
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title={t("刷新日志")}
-                    aria-label={t("刷新复制任务日志")}
-                    onClick={() => void loadTaskLog(selectedTask)}
-                  >
-                    <Icon name="refresh" />
-                  </button>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title={t("复制日志")}
-                    aria-label={t("复制当前任务日志")}
-                    onClick={() =>
-                      void navigator.clipboard
-                        .writeText(taskLog)
-                        .then(() => onNotice("已复制到剪贴板"))
-                        .catch(() => onNotice("无法写入剪贴板", true))
-                    }
-                  >
-                    <Icon name="copy" />
-                  </button>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title={t("下载日志")}
-                    aria-label={t("下载复制任务日志")}
-                    onClick={() => {
-                      if (!taskLog) {
-                        onNotice("当前没有可下载的复制任务日志", true);
-                        return;
-                      }
-                      downloadText(
-                        taskLog,
-                        `harbor-replication-${String(execution.id)}-${String(selectedTask.id)}.log`,
-                      );
-                      onNotice("复制任务日志已下载");
-                    }}
-                  >
-                    <Icon name="download" />
-                  </button>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title={t("关闭日志")}
-                    aria-label={t("关闭复制任务日志")}
-                    onClick={() => {
-                      logVersion.current += 1;
-                      logController.current?.abort();
-                      setSelectedTask(undefined);
-                      setTaskLog("");
-                    }}
-                  >
-                    <Icon name="x" />
-                  </button>
-                </div>
-              </header>
-              <StructuredLog
-                value={taskLog}
-                timezone={timezone}
-                emptyMessage="Harbor 没有返回复制任务日志。"
-                ariaLabel="复制任务日志"
-              />
-            </section>
-          ) : null}
+          </ExecutionSection>
+          <TaskLogPanel
+            log={taskLog}
+            executionId={execution.id}
+            fileName={`harbor-replication-${String(execution.id)}-${String(taskLog.task?.id ?? "")}.log`}
+            labels={{
+              refresh: "刷新复制任务日志",
+              copy: "复制当前任务日志",
+              download: "下载复制任务日志",
+              close: "关闭复制任务日志",
+              empty: "Harbor 没有返回复制任务日志。",
+              nothingToDownload: "当前没有可下载的复制任务日志",
+              downloaded: "复制任务日志已下载",
+              region: "复制任务日志",
+            }}
+            onNotice={onNotice}
+          />
         </>
       )}
     </ControlDialog>

@@ -27,6 +27,7 @@ const statusPresentations: Record<string, StatusPresentation> = {
   canceled: { label: "已取消", className: "status-stopped" },
   cancelled: { label: "已取消", className: "status-stopped" },
   disabled: { label: "已停用", className: "status-stopped" },
+  unknown: { label: "未知", className: "" },
 };
 
 export function StatusBadge({
@@ -48,9 +49,8 @@ export function StatusBadge({
   );
 }
 
-const severityPresentations: Record<
-  string,
-  Pick<StatusPresentation, "className" | "label">
+const severityPresentations: Partial<
+  Record<string, Pick<StatusPresentation, "className" | "label">>
 > = {
   critical: { label: "严重", className: "severity-critical" },
   high: { label: "高危", className: "severity-high" },
@@ -60,6 +60,15 @@ const severityPresentations: Record<
   none: { label: "无风险", className: "badge-green" },
   unknown: { label: "未扫描", className: "" },
 };
+
+/** Chinese label for a Harbor severity such as "High"; unknown values pass through. */
+export function severityLabel(severity: string | undefined): string {
+  return (
+    severityPresentations[severity?.toLowerCase() ?? "unknown"]?.label ??
+    severity ??
+    "未扫描"
+  );
+}
 
 export function SeverityBadge({ severity }: { severity: string | undefined }) {
   const { t } = useLocale();

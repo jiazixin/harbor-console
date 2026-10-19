@@ -1,0 +1,52 @@
+/* Keyframes, transitions and reduced-motion overrides. Loaded last so it can switch motion off. */
+
+/* The shell alone owns route entry; page chrome and rows never animate twice. */
+.motion-route-enter {
+  animation: motion-route-enter var(--motion-content) var(--motion-ease);
+}
+
+@keyframes motion-route-enter {
+  from {
+    opacity: 0.85;
+    transform: translateY(var(--motion-distance-medium));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes motion-content-in {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes motion-surface-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-distance-medium));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes motion-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}

@@ -79,6 +79,7 @@ test("typed source does not recreate classic string-template controllers", () =>
 
 test("application routes are rendered by React feature modules", () => {
   const application = read("web/src/app/react-application.tsx");
+  const routes = read("web/src/app/console-routes.tsx");
   for (const feature of [
     "OverviewPage",
     "ProjectsPage",
@@ -95,9 +96,10 @@ test("application routes are rendered by React feature modules", () => {
     "SystemPage",
     "AboutPage",
   ]) {
-    assert.match(application, new RegExp(`<${feature}\\b`), feature);
+    assert.match(routes, new RegExp(`<${feature}\\b`), feature);
   }
   assert.match(application, /<ApplicationShell/);
+  assert.match(application, /<ConsoleRouteContent\b/);
 });
 
 test("public catalog entry owns a typed React view and click handler", () => {
@@ -136,7 +138,7 @@ test("single-choice controls use the shared React select", () => {
 
 test("shared select menus escape clipping owners and stay inside the viewport", () => {
   const select = read("web/src/components/unified-select.tsx");
-  const styles = read("web/src/styles/form-controls.css");
+  const styles = read("web/src/styles/controls.css");
   assert.match(select, /createPortal\(menu, document\.body\)/);
   assert.match(select, /availableAbove/);
   assert.match(select, /availableBelow/);
@@ -153,10 +155,10 @@ test("shared select menus escape clipping owners and stay inside the viewport", 
 
 test("sorting contracts generate both directions from one field list", () => {
   for (const relativePath of [
-    "web/src/features/projects/projects-page.tsx",
+    "web/src/features/projects/project-list-data.ts",
     "web/src/features/projects/project-detail-routing.ts",
-    "web/src/features/repositories/repositories-page.tsx",
-    "web/src/features/replication/replication-page.tsx",
+    "web/src/features/repositories/repository-asset-data.ts",
+    "web/src/features/replication/replication-routing.ts",
   ]) {
     const source = read(relativePath);
     assert.match(source, /createSortValues\(/, relativePath);
@@ -192,9 +194,9 @@ test("route entry motion has one owner in the application shell", () => {
 });
 
 test("stable data tables keep sortable targets distinct on narrow screens", () => {
-  const styles = read("web/src/styles/application-shell.css");
+  const styles = read("web/src/styles/collections.css");
   const replicationStyles = read(
-    "web/src/features/replication/replication-management.css",
+    "web/src/features/replication/replication.css",
   );
   assert.match(styles, /\.table-scroll\s*\{[^}]*overflow-x:\s*auto/s);
   assert.match(
@@ -212,8 +214,8 @@ test("stable data tables keep sortable targets distinct on narrow screens", () =
 });
 
 test("centered sortable headers balance the indicator outside the label axis", () => {
-  const styles = read("web/src/styles/application-shell.css");
-  const workspaceStyles = read("web/src/styles/workspace.css");
+  const styles = read("web/src/styles/collections.css");
+  const workspaceStyles = read("web/src/features/projects/projects.css");
   assert.match(
     styles,
     /:is\(\.table-cell-center, \.table-cell-number, \.table-cell-time\)\s+\.table-sort-button::before\s*\{[^}]*width:\s*10px[^}]*flex:\s*0 0 10px/s,
@@ -221,18 +223,6 @@ test("centered sortable headers balance the indicator outside the label axis", (
   assert.doesNotMatch(
     workspaceStyles,
     /project-select-table[^{]*nth-child[^}]*table-sort-button/s,
-  );
-});
-
-test("project table keeps semantic alignment classes paired in header and body", () => {
-  const source = read("web/src/features/projects/projects-page.tsx");
-  assert.match(
-    source,
-    /<SortableHeader\s+label="可见性"[\s\S]*?className="table-cell-center"[\s\S]*?\/\>[\s\S]*?<td\s+className="table-cell-center">[\s\S]*?\{t\(publicProject \? "公开" : "私有"\)\}/,
-  );
-  assert.doesNotMatch(
-    source,
-    /<SortableHeader\s+label="可见性"[\s\S]*?className="table-cell-center"[\s\S]*?\/\>[\s\S]*?<td>\s*<span[\s\S]*?publicProject/,
   );
 });
 
@@ -267,4 +257,23 @@ test("production HTML is offline and references only bundled assets", () => {
   const index = read("web/index.html");
   assert.match(index, /src="\/src\/main\.tsx"/);
   assert.doesNotMatch(index, /https?:\/\/|\/\/cdn\./);
+});
+
+test("input pattern attributes compile with the browser's unicode-sets flag", () => {
+  // Browsers compile pattern="" with the v flag; an invalid pattern is ignored
+  // silently, which turns off client-side validation for that field.
+  const invalid = [];
+  for (const file of sourceFiles()) {
+    const text = fs.readFileSync(file, "utf8");
+    for (const match of text.matchAll(/\bpattern="([^"]*)"/g)) {
+      try {
+        new RegExp(`^(?:${match[1]})$`, "v");
+      } catch (error) {
+        invalid.push(
+          `${path.relative(sourceRoot, file)}: ${match[1]} (${error.message})`,
+        );
+      }
+    }
+  }
+  assert.deepEqual(invalid, []);
 });

@@ -9,7 +9,7 @@ import {
 import { controlApi } from "../../app/api-client";
 import { globalAuditOperationLabel } from "../../app/audit-log";
 import { downloadText } from "../../app/download-text";
-import { formatDate, formatNumber } from "../../app/formatters";
+import { formatDate, formatNumber, formatCount } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type {
   AuditPurgeJob,
@@ -26,8 +26,9 @@ import type {
 } from "../../app/models";
 import { ControlDialog } from "../../components/control-dialog";
 import { Pagination } from "../../components/data-table";
+import { EmptyState } from "../../components/empty-state";
 import { Icon, type IconName } from "../../components/icons";
-import { StatCell } from "../../components/page-elements";
+import { StatCell, PanelTitle } from "../../components/page-elements";
 import { StatusBadge } from "../../components/status-badge";
 import {
   LogTimezoneControl,
@@ -163,27 +164,6 @@ function scheduleValue(
   return { type };
 }
 
-function EmptyTable({
-  title,
-  message,
-  icon,
-}: {
-  title: string;
-  message: string;
-  icon: IconName;
-}) {
-  const { t } = useLocale();
-  return (
-    <div className="empty-table">
-      <Icon name={icon} />
-      <div>
-        <strong>{t(title)}</strong>
-        <span>{t(message)}</span>
-      </div>
-    </div>
-  );
-}
-
 function ActionButton({
   label,
   title,
@@ -237,7 +217,7 @@ function MaintenanceCard({
         </div>
       </div>
       {value.load_error ? (
-        <div className="warning-banner">
+        <div className="notice notice-warning">
           <Icon name="alert" />
           <span>{value.load_error}</span>
         </div>
@@ -447,7 +427,7 @@ function RunGarbageCollectionDialog({
         onCompleted("垃圾清理任务已启动");
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("正式清理会删除不可恢复的存储对象，建议先执行演练。")}</span>
       </div>
@@ -724,6 +704,10 @@ export function AdministrationMaintenanceSection({
 }) {
   const { locale, t } = useLocale();
   const [dialog, setDialog] = useState<MaintenanceDialogState>();
+  // Harbor answers the scan-all endpoints with 412 when no default scanner exists.
+  const scannerMissing = [data.scanSchedule, data.scanMetrics].some(
+    (value) => value.load_status === 412,
+  );
 
   async function runScanAll() {
     try {
@@ -790,48 +774,62 @@ export function AdministrationMaintenanceSection({
           }
           value={{
             ...data.scanSchedule,
-            load_error:
-              data.scanSchedule.load_error ?? data.scanMetrics.load_error,
+            load_error: scannerMissing
+              ? t(
+                  "尚未配置默认扫描器，无法执行全量漏洞扫描。请先在制品安全中注册扫描器。",
+                )
+              : (data.scanSchedule.load_error ?? data.scanMetrics.load_error),
           }}
           actions={
-            <>
+            scannerMissing ? (
               <button
                 className="button button-small"
                 type="button"
-                onClick={() => setDialog({ kind: "scan-schedule" })}
+                onClick={() => navigate("security/scanners")}
               >
-                <Icon name="settings" />
-                <span>{t("计划")}</span>
+                <Icon name="shield" />
+                <span>{t("前往扫描器")}</span>
               </button>
-              <button
-                className="button button-small"
-                type="button"
-                onClick={() => void stopScanAll()}
-              >
-                <Icon name="x" />
-                <span>{t("停止")}</span>
-              </button>
-              <button
-                className="button button-small button-primary"
-                type="button"
-                onClick={() => void runScanAll()}
-              >
-                <Icon name="play" />
-                <span>{t("立即扫描")}</span>
-              </button>
-            </>
+            ) : (
+              <>
+                <button
+                  className="button button-small"
+                  type="button"
+                  onClick={() => setDialog({ kind: "scan-schedule" })}
+                >
+                  <Icon name="settings" />
+                  <span>{t("计划")}</span>
+                </button>
+                <button
+                  className="button button-small"
+                  type="button"
+                  onClick={() => void stopScanAll()}
+                >
+                  <Icon name="x" />
+                  <span>{t("停止")}</span>
+                </button>
+                <button
+                  className="button button-small button-primary"
+                  type="button"
+                  onClick={() => void runScanAll()}
+                >
+                  <Icon name="play" />
+                  <span>{t("立即扫描")}</span>
+                </button>
+              </>
+            )
           }
         />
         <section className="table-shell maintenance-history">
           <div className="table-toolbar">
-            <strong>{t("垃圾清理执行历史")}</strong>
+            <PanelTitle title="垃圾清理执行历史" />
             <div className="toolbar-spacer" />
           </div>
           <div className="table-scroll">
             {!data.collection.items.length ? (
-              <EmptyTable
+              <EmptyState
                 title="暂无清理记录"
-                message="执行垃圾清理后会显示在这里。"
+                description="执行垃圾清理后会显示在这里。"
                 icon="history"
               />
             ) : (
@@ -969,7 +967,7 @@ export function AdministrationMaintenanceSection({
             complete("垃圾清理任务已停止");
           }}
         >
-          <div className="destructive-message">
+          <div className="notice notice-danger">
             <Icon name="alert" />
             <span>{t("正在运行的垃圾清理任务将被请求停止。")}</span>
           </div>
@@ -1182,7 +1180,7 @@ export function AdministrationPurgeSection({
             </div>
           </div>
           {data.purgeSchedule.load_error ? (
-            <div className="warning-banner">
+            <div className="notice notice-warning">
               <Icon name="alert" />
               <span>{data.purgeSchedule.load_error}</span>
             </div>
@@ -1227,18 +1225,21 @@ export function AdministrationPurgeSection({
         </section>
         <section className="table-shell maintenance-history">
           <div className="table-toolbar">
-            <strong>{t("审计清理执行历史")}</strong>
-            <div className="toolbar-spacer" />
-            <span className="muted">
-              {formatNumber(data.collection.pagination.total, locale)}{" "}
-              {t("次执行")}
-            </span>
+            <PanelTitle
+              title="审计清理执行历史"
+              count={formatCount(
+                data.collection.pagination.total,
+                locale,
+                "次执行",
+                "executions",
+              )}
+            />
           </div>
           <div className="table-scroll">
             {!data.collection.items.length ? (
-              <EmptyTable
+              <EmptyState
                 title="暂无审计清理记录"
-                message="执行审计日志清理后会显示在这里。"
+                description="执行审计日志清理后会显示在这里。"
                 icon="history"
               />
             ) : (
@@ -1247,7 +1248,7 @@ export function AdministrationPurgeSection({
                   <tr>
                     <th className="id-column">{t("任务")}</th>
                     <th className="table-cell-center">{t("方式")}</th>
-                    <th>{t("保留期限")}</th>
+                    <th className="table-cell-center">{t("保留期限")}</th>
                     <th className="table-cell-center">{t("模式")}</th>
                     <th className="table-cell-center">{t("状态")}</th>
                     <th className="table-cell-time">{t("开始时间")}</th>
@@ -1279,7 +1280,7 @@ export function AdministrationPurgeSection({
                           )}{" "}
                           {t("天")}
                         </td>
-                        <td>
+                        <td className="table-cell-center">
                           {values.dry_run === true ? (
                             <span className="badge badge-blue">
                               {t("仅演练")}
@@ -1379,7 +1380,7 @@ export function AdministrationPurgeSection({
             complete("已向 Harbor 提交停止请求");
           }}
         >
-          <div className="destructive-message">
+          <div className="notice notice-danger">
             <Icon name="alert" />
             <span>{t("停止请求将立即提交到 Harbor。")}</span>
           </div>
@@ -1398,9 +1399,9 @@ function JobPoolTable({ pools }: { pools: JobServicePool[] }) {
   const { locale, t } = useLocale();
   if (!pools.length) {
     return (
-      <EmptyTable
+      <EmptyState
         title="暂无工作池"
-        message="当前 Harbor 未返回 Job Service 工作池。"
+        description="当前 Harbor 未返回 Job Service 工作池。"
         icon="terminal"
       />
     );
@@ -1449,9 +1450,9 @@ function JobWorkerTable({
   const { locale, t } = useLocale();
   if (!workers.length) {
     return (
-      <EmptyTable
+      <EmptyState
         title="暂无工作器"
-        message="当前工作池没有返回工作器。"
+        description="当前工作池没有返回工作器。"
         icon="users"
       />
     );
@@ -1526,9 +1527,9 @@ function JobQueueTable({
   const { locale, t } = useLocale();
   if (!queues.length) {
     return (
-      <EmptyTable
+      <EmptyState
         title="暂无任务队列"
-        message="当前 Harbor 未返回 Job Service 队列。"
+        description="当前 Harbor 未返回 Job Service 队列。"
         icon="history"
       />
     );
@@ -1590,9 +1591,9 @@ function JobScheduleTable({ schedules }: { schedules: JobServiceSchedule[] }) {
   const { locale, t } = useLocale();
   if (!schedules.length) {
     return (
-      <EmptyTable
+      <EmptyState
         title="暂无定时任务"
-        message="当前 Harbor 未注册 Job Service 定时任务。"
+        description="当前 Harbor 未注册 Job Service 定时任务。"
         icon="settings"
       />
     );
@@ -1708,7 +1709,7 @@ export function AdministrationJobServiceSection({
         </section>
         <section className="table-shell">
           <div className="table-toolbar">
-            <strong>{t("工作池")}</strong>
+            <PanelTitle title="工作池" />
             <div className="toolbar-spacer" />
           </div>
           <div className="table-scroll">
@@ -1717,7 +1718,7 @@ export function AdministrationJobServiceSection({
         </section>
         <section className="table-shell">
           <div className="table-toolbar">
-            <strong>{t("工作器与运行任务")}</strong>
+            <PanelTitle title="工作器与运行任务" />
             <div className="toolbar-spacer" />
           </div>
           <div className="table-scroll">
@@ -1730,7 +1731,7 @@ export function AdministrationJobServiceSection({
         </section>
         <section className="table-shell">
           <div className="table-toolbar">
-            <strong>{t("任务队列")}</strong>
+            <PanelTitle title="任务队列" />
             <div className="toolbar-spacer" />
             <button
               className="button button-small"
@@ -1767,7 +1768,7 @@ export function AdministrationJobServiceSection({
         </section>
         <section className="table-shell">
           <div className="table-toolbar">
-            <strong>{t("定时任务")}</strong>
+            <PanelTitle title="定时任务" />
             <div className="toolbar-spacer" />
             <span className="muted">
               {t(data.scheduleStatus.paused ? "已暂停" : "运行中")}
@@ -1815,7 +1816,7 @@ export function AdministrationJobServiceSection({
             complete("运行任务已停止");
           }}
         >
-          <div className="destructive-message">
+          <div className="notice notice-danger">
             <Icon name="alert" />
             <span>{t("停止请求将立即提交到 Job Service。")}</span>
           </div>
@@ -1838,7 +1839,7 @@ export function AdministrationJobServiceSection({
             complete("待处理任务已停止并清除");
           }}
         >
-          <div className="destructive-message">
+          <div className="notice notice-danger">
             <Icon name="alert" />
             <span>{t("此操作无法撤销")}</span>
           </div>

@@ -1,7 +1,0 @@
-.row-actions,
-.registry-actions,
-.pagination-buttons {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}

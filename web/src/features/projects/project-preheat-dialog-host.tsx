@@ -1,9 +1,9 @@
 import {
   DeletePreheatPolicyDialog,
-  PreheatExecutionsDialog,
   PreheatPolicyDialog,
   RunPreheatPolicyDialog,
 } from "../projects/project-preheat-dialogs";
+import { PreheatExecutionsDialog } from "../projects/project-preheat-executions";
 import type { ProjectPreheatAction } from "../projects/project-preheat-section";
 
 export function PreheatDialogHost({

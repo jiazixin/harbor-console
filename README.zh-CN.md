@@ -2,7 +2,7 @@
 
 **简体中文** | [English](README.md)
 
-Harbor Console 是面向 Harbor v2.15.2 的一体化管理控制台。它通过服务端类型化
+Harbor Console 是面向 Harbor v2.15.x 的一体化管理控制台。它通过服务端类型化
 API 网关连接 Harbor，在同一工作区内提供项目、仓库、制品、安全、复制、保留、
 预热、用户、扫描器、审计和系统运维能力。
 
@@ -17,7 +17,7 @@ API 网关连接 Harbor，在同一工作区内提供项目、仓库、制品、
 - **连接多个 Harbor：** 一个浏览器会话最多保存 20 个相互隔离的 Harbor 连接，
   可以随时切换。凭据只在建立连接时由浏览器提交，连接成功后不会回传，也不会持久化到
   浏览器存储。
-- **类型化上游网关：** 浏览器只能调用明确声明的 Harbor v2.15.2 操作，不提供
+- **类型化上游网关：** 浏览器只能调用明确声明的 Harbor v2.15 操作，不提供
   任意上游 URL 或 HTTP 方法代理。
 - **中英文界面：** 支持简体中文和英文，并保存语言、时区、CLI、主题和仓库视图偏好。
 - **完全离线：** 所有前端资源均嵌入可执行文件。
@@ -31,11 +31,12 @@ Harbor Console 目前通过 Harbor Basic Auth 访问上游。OIDC 用户可以�
 用户名和 CLI Secret 连接。暂未实现浏览器原生 OIDC 跳转登录、OIDC onboarding
 和数据库账号自助注册。
 
-项目只面向 Harbor v2.15.2 的非废弃操作，不保留旧 Harbor API 的兼容层。
+项目只面向 Harbor v2.15 的非废弃操作，不保留旧 Harbor API 的兼容层。操作合同取自
+v2.15.2，与已在真实实例上验证的最新版本 v2.15.4 完全一致。
 
 ## 环境要求
 
-- Go 1.26.6 或更高版本
+- Go 1.26.9 或更高版本
 - Node.js 22.22.2+（22 系列）、24.15.0+（24 系列）或 26+，用于前端检查
 - Docker 或其他 OCI 镜像构建工具
 
@@ -112,7 +113,7 @@ docker run --rm -p 127.0.0.1:8080:8080 \
    v
 Harbor Console（Go）
    |-- HTTP 处理器与内存连接会话
-   |-- 类型化 Harbor v2.15.2 网关
+   |-- 类型化 Harbor v2.15 网关
    |-- 嵌入式中英文 Web 客户端
    |-- 相互隔离的演示状态
    |
@@ -128,12 +129,12 @@ cmd/harbor-console/     可执行程序入口
 internal/app/           HTTP 应用、会话、网关和演示编排
 internal/config/        YAML 与环境变量配置
 internal/observability/ 结构化日志与访问日志
-web/                   React、TypeScript、共享组件、领域页面、样式与测试
-web/embed.go           Go 嵌入入口（包名 webui）
-web/dist/              Vite 生成产物（不提交）
-internal/buildinfo/    构建版本元数据
+internal/buildinfo/     构建版本元数据
+web/                    React、TypeScript、共享组件、领域页面、样式与测试
+web/embed.go            Go 嵌入入口（包名 webui）
+web/dist/               Vite 生成产物（不提交）
 configs/                部署配置示例
-docs/                   架构决策与验收说明
+docs/                   设计、开发、验收与变更记录
 scripts/                仓库质量检查工具
 ```
 

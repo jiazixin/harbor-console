@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { controlApi } from "../../app/api-client";
-import { downloadText } from "../../app/download-text";
 import { formatDate, formatDuration, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type {
@@ -14,23 +13,25 @@ import type {
   RetentionTask,
 } from "../../app/models";
 import { ControlDialog } from "../../components/control-dialog";
-import { DialogPagination } from "./dialog-pagination";
-import { Icon } from "../../components/icons";
+import { EmptyState } from "../../components/empty-state";
 import {
-  LogTimezoneControl,
-  StructuredLog,
-  type LogTimezone,
-} from "../../components/structured-log";
+  DialogLoading,
+  ExecutionSection,
+  ExecutionSummary,
+} from "../../components/execution-summary";
+import { ErrorView } from "../../components/feedback";
+import { Icon } from "../../components/icons";
 import { StatusBadge } from "../../components/status-badge";
+import { TaskLogPanel, useTaskLog } from "../../components/task-log-panel";
 import { UnifiedSelect } from "../../components/unified-select";
+import { DialogPagination } from "./dialog-pagination";
+import {
+  fallbackRetentionTemplates,
+  retentionTemplateOptionLabel,
+  retentionTemplateSummary,
+  selectorDecorationLabel,
+} from "./rule-labels";
 
-const fallbackTemplates = [
-  { value: "latestPushedK", label: "保留最近推送的制品" },
-  { value: "latestPulledN", label: "保留最近拉取的制品" },
-  { value: "nDaysSinceLastPush", label: "保留最近推送天数内的制品" },
-  { value: "nDaysSinceLastPull", label: "保留最近拉取天数内的制品" },
-  { value: "always", label: "永久保留全部匹配制品" },
-];
 const fallbackRepositoryDecorations = ["repoMatches", "repoExcludes"];
 const fallbackTagDecorations = ["matches", "excludes"];
 
@@ -55,25 +56,18 @@ function selectorDecorations(
 function templateOptions(metadata: RetentionMetadata) {
   const candidates =
     metadata.templates
-      ?.map((template) => ({
-        value: template.rule_template?.trim() ?? "",
-        label:
-          template.display_text?.trim() ?? template.rule_template?.trim() ?? "",
-      }))
+      ?.map((template) => {
+        const value = template.rule_template?.trim() ?? "";
+        return {
+          value,
+          label: retentionTemplateOptionLabel(
+            value,
+            template.display_text?.trim(),
+          ),
+        };
+      })
       .filter((template) => template.value) ?? [];
-  return candidates.length ? candidates : fallbackTemplates;
-}
-
-function retentionTemplateLabel(template: string | undefined): string {
-  return (
-    {
-      latestPushedK: "最近推送",
-      latestPulledN: "最近拉取",
-      nDaysSinceLastPush: "推送时间范围",
-      nDaysSinceLastPull: "拉取时间范围",
-      always: "永久保留",
-    }[template ?? ""] ?? "保留规则"
-  );
+  return candidates.length ? candidates : fallbackRetentionTemplates;
 }
 
 function numericParameter(rule: RetentionRule | undefined): number {
@@ -271,7 +265,7 @@ function RetentionRuleFields({
             value={editor.repositoryDecoration}
             options={editor.repositoryDecorations.map((value) => ({
               value,
-              label: value,
+              label: t(selectorDecorationLabel(value)),
             }))}
             onChange={editor.setRepositoryDecoration}
           />
@@ -297,7 +291,7 @@ function RetentionRuleFields({
             value={editor.tagDecoration}
             options={editor.tagDecorations.map((value) => ({
               value,
-              label: value,
+              label: t(selectorDecorationLabel(value)),
             }))}
             onChange={editor.setTagDecoration}
           />
@@ -538,7 +532,7 @@ export function DeleteRetentionRuleDialog({
   const { locale, t } = useLocale();
   const rules = policy.rules ?? [];
   const rule = rules[ruleIndex];
-  const label = retentionTemplateLabel(rule.template);
+  const label = retentionTemplateSummary(rule.template);
   const subtitle =
     locale === "en-US"
       ? `The ${t(label)} rule will be deleted.`
@@ -566,7 +560,7 @@ export function DeleteRetentionRuleDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>
@@ -596,7 +590,7 @@ export function DeleteRetentionPolicyDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>
@@ -638,7 +632,7 @@ export function RunRetentionDialog({
         onStarted();
       }}
     >
-      <div className={dryRun ? "info-banner" : "destructive-message"}>
+      <div className={`notice ${dryRun ? "notice-info" : "notice-danger"}`}>
         <Icon name={dryRun ? "shield" : "alert"} />
         <span>
           {t(
@@ -682,7 +676,7 @@ export function StopRetentionExecutionDialog({
         onStopped();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>
           {t("正在处理的单个任务可能已完成，停止操作不会恢复已经删除的 Tag。")}
@@ -720,25 +714,18 @@ export function RetentionExecutionDialog({
   onNotice: (message: string, error?: boolean) => void;
 }) {
   const { locale, t } = useLocale();
-  const requestVersion = useRef(0);
-  const logController = useRef<AbortController | undefined>(undefined);
-  const logViewRef = useRef<HTMLElement>(null);
   const [page, setPage] = useState(1);
   const [tasks, setTasks] = useState<RetentionTask[]>([]);
   const [pagination, setPagination] = useState(emptyPagination);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedTask, setSelectedTask] = useState<RetentionTask>();
-  const [taskLog, setTaskLog] = useState("");
-  const [logLoading, setLogLoading] = useState(false);
-  const [timezone, setTimezone] = useState<LogTimezone>("local");
 
-  useEffect(
-    () => () => {
-      requestVersion.current += 1;
-      logController.current?.abort();
-    },
-    [],
+  const taskLog = useTaskLog<RetentionTask>((task, signal) =>
+    controlApi.data<string>(
+      "retention-task-log",
+      { id: policy.id, eid: execution.id, tid: task.id },
+      signal,
+    ),
   );
 
   useEffect(() => {
@@ -776,43 +763,6 @@ export function RetentionExecutionDialog({
     return () => controller.abort();
   }, [execution.id, page, policy.id]);
 
-  useEffect(() => {
-    if (!selectedTask || logLoading) return;
-    logViewRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-    });
-    logViewRef.current?.focus({ preventScroll: true });
-  }, [logLoading, selectedTask]);
-
-  async function loadTaskLog(task: RetentionTask) {
-    logController.current?.abort();
-    const controller = new AbortController();
-    logController.current = controller;
-    const version = requestVersion.current + 1;
-    requestVersion.current = version;
-    setSelectedTask(task);
-    setLogLoading(true);
-    try {
-      const value = await controlApi.data<string>(
-        "retention-task-log",
-        { id: policy.id, eid: execution.id, tid: task.id },
-        controller.signal,
-      );
-      if (requestVersion.current === version) setTaskLog(value ?? "");
-    } catch (loadError) {
-      if (loadError instanceof DOMException && loadError.name === "AbortError")
-        return;
-      if (requestVersion.current === version) {
-        setTaskLog(
-          loadError instanceof Error ? loadError.message : String(loadError),
-        );
-      }
-    } finally {
-      if (requestVersion.current === version) setLogLoading(false);
-    }
-  }
-
   const metrics = useMemo(() => {
     const total = tasks.reduce((sum, task) => sum + (task.total ?? 0), 0);
     const retained = tasks.reduce((sum, task) => sum + (task.retained ?? 0), 0);
@@ -838,66 +788,41 @@ export function RetentionExecutionDialog({
       onSubmit={() => Promise.resolve(onClose())}
     >
       {loading ? (
-        <div className="dialog-loading" role="status">
-          <span className="spinner" />
-          <span>{t("正在载入 Tag 保留任务...")}</span>
-        </div>
+        <DialogLoading message="正在载入 Tag 保留任务..." />
       ) : error ? (
-        <div className="empty-table permission-table">
-          <strong>{t("Tag 保留任务载入失败")}</strong>
-          <span>{error}</span>
-        </div>
+        <ErrorView title="Tag 保留任务载入失败" message={error} />
       ) : (
         <>
-          <section className="execution-summary">
-            <div className="execution-summary-head">
-              <div>
-                <StatusBadge status={execution.status} />
-                <span>{t(execution.dry_run ? "仅演练" : "正式执行")}</span>
-                <span>{formatDate(execution.start_time, locale)}</span>
-              </div>
-            </div>
-            <dl className="execution-stats">
-              {[
-                { label: "仓库任务", value: pagination.total },
-                { label: "匹配 Tag", value: metrics.total },
-                {
-                  label: "保留 Tag",
-                  value: metrics.retained,
-                  className: "success-text",
-                },
-                { label: "清理 Tag", value: metrics.cleanup },
-                {
-                  label: "失败",
-                  value: metrics.failed,
-                  className: "danger-text",
-                },
-                { label: "进行中", value: metrics.running },
-              ].map(({ label, value, className }) => (
-                <div key={label}>
-                  <dt>{t(label)}</dt>
-                  <dd className={className}>{formatNumber(value, locale)}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-          <section className="replication-task-section">
-            <div className="section-heading compact-heading">
-              <div>
-                <h3>{t("仓库处理结果")}</h3>
-                <p>
-                  {locale === "en-US"
-                    ? `${formatNumber(pagination.total, locale)} items`
-                    : `共 ${formatNumber(pagination.total, locale)} 项`}
-                </p>
-              </div>
-            </div>
+          <ExecutionSummary
+            status={execution.status}
+            details={[
+              t(execution.dry_run ? "仅演练" : "正式执行"),
+              formatDate(execution.start_time, locale),
+            ]}
+            stats={[
+              { label: "仓库任务", value: pagination.total },
+              { label: "匹配 Tag", value: metrics.total },
+              { label: "保留 Tag", value: metrics.retained, tone: "success" },
+              { label: "清理 Tag", value: metrics.cleanup },
+              { label: "失败", value: metrics.failed, tone: "danger" },
+              { label: "进行中", value: metrics.running },
+            ]}
+          />
+          <ExecutionSection
+            title="仓库处理结果"
+            summary={
+              locale === "en-US"
+                ? `${formatNumber(pagination.total, locale)} items`
+                : `共 ${formatNumber(pagination.total, locale)} 项`
+            }
+          >
             <div className="table-scroll replication-task-table">
               {!tasks.length ? (
-                <div className="empty-table">
-                  <strong>{t("暂无仓库任务")}</strong>
-                  <span>{t("该执行记录还没有返回仓库处理结果。")}</span>
-                </div>
+                <EmptyState
+                  title="暂无仓库任务"
+                  description="该执行记录还没有返回仓库处理结果。"
+                  icon="history"
+                />
               ) : (
                 <table>
                   <thead>
@@ -952,7 +877,7 @@ export function RetentionExecutionDialog({
                             type="button"
                             title={t("查看日志")}
                             aria-label={t("查看 Tag 保留任务日志")}
-                            onClick={() => void loadTaskLog(task)}
+                            onClick={() => void taskLog.open(task)}
                           >
                             <Icon name="history" />
                           </button>
@@ -964,96 +889,22 @@ export function RetentionExecutionDialog({
               )}
             </div>
             <DialogPagination pagination={pagination} onPageChange={setPage} />
-          </section>
-          {selectedTask ? (
-            <section
-              ref={logViewRef}
-              className="replication-log-view"
-              tabIndex={-1}
-            >
-              <header>
-                <div>
-                  <h3>{t("任务日志")}</h3>
-                  <p>
-                    {locale === "en-US"
-                      ? `Execution #${String(execution.id)} · Task #${String(selectedTask.id)}`
-                      : `执行 #${String(execution.id)} · 任务 #${String(selectedTask.id)}`}
-                  </p>
-                </div>
-                <div className="log-view-actions">
-                  <span>
-                    {logLoading
-                      ? t("正在读取")
-                      : locale === "en-US"
-                        ? `${formatNumber(taskLog.length, locale)} characters`
-                        : `${formatNumber(taskLog.length, locale)} 字符`}
-                  </span>
-                  <LogTimezoneControl value={timezone} onChange={setTimezone} />
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title={t("刷新日志")}
-                    aria-label={t("刷新 Tag 保留任务日志")}
-                    onClick={() => void loadTaskLog(selectedTask)}
-                  >
-                    <Icon name="refresh" />
-                  </button>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title={t("复制日志")}
-                    aria-label={t("复制 Tag 保留任务日志")}
-                    onClick={() =>
-                      void navigator.clipboard
-                        .writeText(taskLog)
-                        .then(() => onNotice("已复制到剪贴板"))
-                        .catch(() => onNotice("无法写入剪贴板", true))
-                    }
-                  >
-                    <Icon name="copy" />
-                  </button>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title={t("下载日志")}
-                    aria-label={t("下载 Tag 保留任务日志")}
-                    onClick={() => {
-                      if (!taskLog) {
-                        onNotice("当前没有可下载的 Tag 保留任务日志", true);
-                        return;
-                      }
-                      downloadText(
-                        taskLog,
-                        `harbor-retention-${String(execution.id)}-${String(selectedTask.id)}.log`,
-                      );
-                      onNotice("Tag 保留任务日志已下载");
-                    }}
-                  >
-                    <Icon name="download" />
-                  </button>
-                  <button
-                    className="icon-button"
-                    type="button"
-                    title={t("关闭日志")}
-                    aria-label={t("关闭 Tag 保留任务日志")}
-                    onClick={() => {
-                      requestVersion.current += 1;
-                      logController.current?.abort();
-                      setSelectedTask(undefined);
-                      setTaskLog("");
-                    }}
-                  >
-                    <Icon name="x" />
-                  </button>
-                </div>
-              </header>
-              <StructuredLog
-                value={taskLog}
-                timezone={timezone}
-                emptyMessage="Harbor 没有返回 Tag 保留任务日志。"
-              />
-            </section>
-          ) : null}
+          </ExecutionSection>
+          <TaskLogPanel
+            log={taskLog}
+            executionId={execution.id}
+            fileName={`harbor-retention-${String(execution.id)}-${String(taskLog.task?.id ?? "")}.log`}
+            labels={{
+              refresh: "刷新 Tag 保留任务日志",
+              copy: "复制 Tag 保留任务日志",
+              download: "下载 Tag 保留任务日志",
+              close: "关闭 Tag 保留任务日志",
+              empty: "Harbor 没有返回 Tag 保留任务日志。",
+              nothingToDownload: "当前没有可下载的 Tag 保留任务日志",
+              downloaded: "Tag 保留任务日志已下载",
+            }}
+            onNotice={onNotice}
+          />
         </>
       )}
     </ControlDialog>

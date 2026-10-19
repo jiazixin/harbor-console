@@ -1,0 +1,410 @@
+/* Execution summaries, task tables and structured log viewers. */
+
+.replication-execution-policy {
+  display: block;
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replication-execution-policy-cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.execution-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.execution-summary {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-subtle);
+}
+
+.execution-summary-head {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.execution-summary-head > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.execution-stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 0;
+  padding: 14px 0;
+}
+
+.execution-stats > div {
+  min-width: 0;
+  padding: 0 12px;
+  border-left: 1px solid var(--line);
+}
+
+.execution-stats > div:first-child {
+  border-left: 0;
+}
+
+.execution-stats dt {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.execution-stats dd {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.execution-stats dd.success-text {
+  color: var(--green);
+}
+
+.execution-stats dd.danger-text {
+  color: var(--red);
+}
+
+.execution-status-text {
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.replication-task-section {
+  margin-top: 20px;
+}
+
+.replication-task-table {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+}
+
+.replication-task-table table {
+  min-width: 1040px;
+}
+
+.replication-resource {
+  max-width: none;
+  min-height: 2.7em;
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.35;
+}
+
+.replication-log-view {
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-panel);
+  background: #15171a;
+}
+
+.replication-log-view:focus {
+  outline: none;
+}
+
+.replication-log-view header {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #35383d;
+  background: #202328;
+}
+
+.replication-log-view h3 {
+  margin: 0;
+  color: #f6f7f8;
+  font-size: 12px;
+}
+
+.replication-log-view p {
+  margin: 2px 0 0;
+  color: #9da3ad;
+  font-size: 11px;
+}
+
+.log-view-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-control);
+}
+
+.log-view-actions > span {
+  margin-right: 4px;
+  color: #9da3ad;
+  font-size: 11px;
+}
+
+.replication-log-view .icon-button {
+  color: #e7e9ed;
+  border-color: #41454c;
+  background: #282c32;
+}
+
+.replication-log-view .structured-log-view {
+  min-height: 210px;
+  max-height: 330px;
+}
+
+.scan-log-panel {
+  overflow: hidden;
+  border: 1px solid #35383d;
+  background: #15171a;
+}
+
+.scan-log-toolbar {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-control-group);
+  padding: 7px 10px 7px 13px;
+  border-bottom: 1px solid #35383d;
+  background: #202328;
+  color: #aab0ba;
+  font-size: 11px;
+}
+
+.scan-log-toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: var(--space-control);
+}
+
+.scan-log-toolbar .icon-button {
+  color: #e7e9ed;
+  border-color: #41454c;
+  background: #282c32;
+}
+
+.log-timezone-control {
+  height: 30px;
+  display: inline-grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #41454c;
+  border-radius: var(--radius-control);
+}
+
+.log-timezone-control button {
+  min-width: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-left: 1px solid #41454c;
+  background: #282c32;
+  color: #aab0ba;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.log-timezone-control button:first-child {
+  border-left: 0;
+}
+
+.log-timezone-control button.active {
+  background: #f48120;
+  color: #17191d;
+}
+
+.log-timezone-control button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+.structured-log-view {
+  min-height: 280px;
+  max-height: min(520px, 55vh);
+  overflow: auto;
+  background: #15171a;
+  color: #dfe3e8;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.structured-log-header,
+.structured-log-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 188px 62px minmax(0, 1fr);
+  align-items: start;
+}
+
+.structured-log-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid #41454c;
+  background: #282c32;
+  color: #aab0ba;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.structured-log-header span,
+.structured-log-row > * {
+  min-width: 0;
+  padding: 7px 10px;
+  border-left: 1px solid #2b2f35;
+}
+
+.structured-log-header span:first-child,
+.structured-log-row > *:first-child {
+  border-left: 0;
+}
+
+.structured-log-row {
+  border-bottom: 1px solid #25282d;
+}
+
+.structured-log-row time {
+  color: #8f98a5;
+  white-space: nowrap;
+}
+
+.structured-log-level {
+  font-weight: 800;
+}
+
+.structured-log-message {
+  color: #dfe3e8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log-level-trace .structured-log-level,
+.log-level-debug .structured-log-level,
+.log-level-log .structured-log-level {
+  color: #9da6b3;
+}
+
+.log-level-info .structured-log-level {
+  color: #68d391;
+}
+
+.log-level-warn .structured-log-level,
+.log-level-warn .structured-log-message {
+  color: #f6c85f;
+}
+
+.log-level-error .structured-log-level,
+.log-level-error .structured-log-message,
+.log-level-fatal .structured-log-level,
+.log-level-fatal .structured-log-message {
+  color: #ff8b8b;
+}
+
+.structured-log-empty {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #8f98a5;
+}
+
+@media (max-width: 620px) {
+  .scan-log-toolbar,
+  .replication-log-view header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .scan-log-toolbar > div,
+  .log-view-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .structured-log-header,
+  .structured-log-row {
+    grid-template-columns: 132px 52px minmax(0, 1fr);
+  }
+
+  .structured-log-header span,
+  .structured-log-row > * {
+    padding: 7px 8px;
+  }
+}
+
+@media (max-width: 900px) {
+  .execution-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px 0;
+  }
+
+  .execution-stats > div:nth-child(4) {
+    border-left: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .execution-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .execution-stats > div:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .execution-stats > div:nth-child(4) {
+    border-left: 1px solid var(--line);
+  }
+
+  .scan-log-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .scan-log-toolbar > div {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .execution-summary-head,
+  .compact-heading,
+  .registry-dialog-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

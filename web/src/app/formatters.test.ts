@@ -4,6 +4,7 @@ import {
   formatBytes,
   formatDate,
   formatDuration,
+  formatItemRange,
   formatNumber,
   formatTimestamp,
   instanceHost,
@@ -32,6 +33,15 @@ describe("formatters", () => {
     expect(formatDate(undefined, "zh-CN")).toBe("暂无");
   });
 
+  it("treats the Harbor zero timestamp as a missing value", () => {
+    const zeroTime = "0001-01-01T00:00:00.000Z";
+    expect(formatDate(zeroTime, "zh-CN")).toBe("暂无");
+    expect(formatTimestamp(zeroTime, "en-US")).toBe("N/A");
+    expect(formatDuration(zeroTime, "2026-08-03T08:00:00Z", "en-US")).toBe(
+      "None",
+    );
+  });
+
   it("formats valid durations and rejects invalid ranges", () => {
     expect(
       formatDuration("2026-08-03T08:00:00Z", "2026-08-03T08:01:18Z", "en-US"),
@@ -39,6 +49,13 @@ describe("formatters", () => {
     expect(
       formatDuration("2026-08-03T08:01:00Z", "2026-08-03T08:00:00Z", "zh-CN"),
     ).toBe("暂无");
+  });
+
+  it("summarizes item ranges and shows only the total for empty lists", () => {
+    expect(formatItemRange(21, 40, 42, "zh-CN")).toBe("第 21-40 项，共 42 项");
+    expect(formatItemRange(1, 2, 2, "en-US")).toBe("Items 1-2 of 2");
+    expect(formatItemRange(0, 0, 0, "zh-CN")).toBe("共 0 项");
+    expect(formatItemRange(1, 0, 0, "en-US")).toBe("0 items");
   });
 
   it("extracts the instance host without rejecting non-URL labels", () => {

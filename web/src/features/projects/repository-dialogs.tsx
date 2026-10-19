@@ -79,7 +79,7 @@ export function DeleteRepositoriesDialog({
         );
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>
           {t("此操作无法撤销。请输入")} <code>{confirmation}</code>{" "}
@@ -183,7 +183,7 @@ export function DeleteRepositoryDialog({
         onDeleted();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>
@@ -273,7 +273,7 @@ export function PushCommandDialog({
             name="repository"
             required
             maxLength={255}
-            pattern="[a-z0-9]+([/._-][a-z0-9]+)*"
+            pattern="[a-z0-9]+([\/._\-][a-z0-9]+)*"
             value={repositoryName}
             placeholder="service/api"
             onChange={(event) => setRepositoryName(event.currentTarget.value)}
@@ -285,7 +285,7 @@ export function PushCommandDialog({
             name="tag"
             required
             maxLength={128}
-            pattern="[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}"
+            pattern="[A-Za-z0-9_][A-Za-z0-9_.\-]{0,127}"
             value={tag}
             onChange={(event) => setTag(event.currentTarget.value)}
           />
@@ -326,7 +326,7 @@ export function PushCommandDialog({
           ))}
         </div>
       </section>
-      <div className="warning-banner">
+      <div className="notice notice-warning">
         <Icon name="shield" />
         <span>
           {t("命令只在浏览器中生成，不会向 Harbor 发送本地镜像名称。")}

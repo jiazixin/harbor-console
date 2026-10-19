@@ -111,13 +111,16 @@ func demoArtifacts(project, repository string) []any {
 	if repository == "" {
 		repository = project + "/gateway"
 	}
-	_ = repository
 	artifacts := []any{
 		artifact("sha256:41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4", "v3.18.4", 184968312, "2026-07-28T06:42:00Z", 0, 0, 2, 11, 37),
 		artifact("sha256:9fbc61f1d0ee55d7d0485ca645fd73ec56ae6eea483a8514cf6b611fc4b66f9e", "v3.18.3", 184782641, "2026-07-26T15:20:00Z", 1, 3, 6, 18, 42),
 		artifact("sha256:63b54a12f28adfeaa30b233441266073669c2f951995a75a975ac9712fb218c6", "canary-7d12f9", 185301820, "2026-07-25T22:31:00Z", 0, 1, 4, 15, 39),
 		artifact("sha256:e8cd42e7fc8a214be8653295582340fc45616df8c7938854c5ddaffd4a71339f", "v3.17.9", 181954112, "2026-07-19T11:05:00Z", 2, 6, 13, 29, 54),
 		artifact("sha256:b4604fe30f9785345f61cb34209c2aa3053b67e24dd321caec892820646d9911", "v3.17.8", 181837281, "2026-07-12T08:48:00Z", 0, 2, 8, 21, 47),
+	}
+	for _, item := range artifacts {
+		image := item.(map[string]any)
+		image["addition_links"] = demoAdditionLinks(project, repository, digestOf(image), "build_history", "sbom", "license", "files")
 	}
 	multiArchitecture := artifacts[0].(map[string]any)
 	multiArchitecture["icon"] = demoArtifactIconDigest
@@ -129,6 +132,7 @@ func demoArtifacts(project, repository string) []any {
 	}
 	multiArchitecture["manifest_media_type"] = "application/vnd.oci.image.index.v1+json"
 	multiArchitecture["extra_attrs"] = map[string]any{}
+	delete(multiArchitecture, "addition_links")
 	multiArchitecture["references"] = []any{
 		map[string]any{"parent_id": 1001, "child_id": 1002, "child_digest": "sha256:189badc21f5408801364f4f59ee1408160992896397e968072130166ddad2c7c", "platform": map[string]any{"os": "linux", "architecture": "amd64"}},
 		map[string]any{"parent_id": 1001, "child_id": 1003, "child_digest": "sha256:cf2df80ad906b495d13f65e450bfdbe64962b0b567886143a3200dd2b2b46861", "platform": map[string]any{"os": "linux", "architecture": "arm64", "variant": "v8"}},
@@ -137,10 +141,11 @@ func demoArtifacts(project, repository string) []any {
 	chart := artifacts[3].(map[string]any)
 	chart["type"] = "CHART"
 	chart["media_type"] = "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
+	chart["addition_links"] = demoAdditionLinks(project, repository, digestOf(chart), "values.yaml", "readme.md", "dependencies")
 	return artifacts
 }
 
-func demoChildArtifacts(parent map[string]any) []map[string]any {
+func demoChildArtifacts(project, repository string, parent map[string]any) []map[string]any {
 	references, _ := parent["references"].([]any)
 	children := make([]map[string]any, 0, len(references))
 	for _, rawReference := range references {
@@ -163,6 +168,7 @@ func demoChildArtifacts(parent map[string]any) []map[string]any {
 			"labels":              []any{},
 			"references":          []any{},
 			"demo_child":          true,
+			"addition_links":      demoAdditionLinks(project, repository, stringValue(reference["child_digest"]), "build_history"),
 		}
 		if overview, ok := parent["scan_overview"].(map[string]any); ok {
 			child["scan_overview"] = cloneMap(overview)
@@ -170,6 +176,25 @@ func demoChildArtifacts(parent map[string]any) []map[string]any {
 		children = append(children, child)
 	}
 	return children
+}
+
+// demoAdditionLinks mirrors the addition_links field Harbor returns for the
+// additions an artifact supports, so the detail page shows the same tabs.
+func demoAdditionLinks(project, repository, digest string, additions ...string) map[string]any {
+	repositoryPath := url.PathEscape(url.PathEscape(strings.TrimPrefix(repository, project+"/")))
+	links := make(map[string]any, len(additions))
+	for _, addition := range additions {
+		links[addition] = map[string]any{
+			"absolute": false,
+			"href":     "/api/v2.0/projects/" + project + "/repositories/" + repositoryPath + "/artifacts/" + digest + "/additions/" + addition,
+		}
+	}
+	return links
+}
+
+func digestOf(artifactItem any) string {
+	item, _ := artifactItem.(map[string]any)
+	return stringValue(item["digest"])
 }
 
 func artifact(digest, tag string, size int64, pushed string, critical, high, medium, low, negligible int) map[string]any {

@@ -13,7 +13,7 @@ func validateConfigurations(body map[string]any) error {
 		return errors.New("系统配置更新内容不能为空")
 	}
 	if _, exists := body["self_registration"]; exists {
-		return errors.New("self_registration 是 Harbor v2.15.2 的只读配置项，不能通过此 API 修改")
+		return errors.New("self_registration 是 Harbor v2.15 的只读配置项，不能通过此 API 修改")
 	}
 	stringFields := map[string]bool{
 		"auth_mode": true, "ldap_base_dn": true, "ldap_filter": true, "ldap_group_base_dn": true,

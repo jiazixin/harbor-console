@@ -1,10 +1,9 @@
 import {
-  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
+  type ReactNode,
 } from "react";
 
 import { instanceApi } from "../app/api-client";
@@ -20,17 +19,15 @@ import type {
 import { HarborBrand } from "../components/harbor-brand";
 import { Icon, type IconName } from "../components/icons";
 import { LanguageSwitch } from "../components/language-switch";
+import { GlobalSearchDialog, ShellNoticePanel } from "./application-overlays";
+import { HarborAnnouncement } from "./harbor-announcement";
+import { ShellDialogHost, type ShellDialog } from "./shell-dialogs";
 import {
-  readStoredItem,
-  writeStoredItem,
-} from "../lib/browser-storage/storage";
-import {
-  GlobalSearchDialog,
-  ShellDialogHost,
-  ShellNoticePanel,
-  type ShellDialog,
-  type ShellPanel,
-} from "./application-overlays";
+  useHarborInstances,
+  useSearchShortcut,
+  useShellPanel,
+  useTheme,
+} from "./use-shell-controls";
 
 type NavItem = {
   view: string;
@@ -70,7 +67,7 @@ const distributionItems: NavItem[] = [
   {
     view: "registries",
     href: "#/registries",
-    label: "远程仓库",
+    label: "远端仓库",
     icon: "database",
     permission: ["registry", "list"],
   },
@@ -155,10 +152,86 @@ function NavGroup({
   );
 }
 
-function initialTheme(): "light" | "dark" {
-  return readStoredItem("localStorage", "harbor-console-theme") === "dark"
-    ? "dark"
-    : "light";
+function ShellSidebar({
+  open,
+  activeView,
+  distributionItems,
+  systemItems,
+  healthy,
+  onClose,
+  onLogout,
+}: {
+  /** Open as a drawer on narrow screens. */
+  open: boolean;
+  activeView: string;
+  distributionItems: NavItem[];
+  systemItems: NavItem[];
+  healthy: boolean;
+  onClose: () => void;
+  onLogout: () => void;
+}) {
+  const { t } = useLocale();
+  return (
+    <aside id="sidebar" className={`sidebar${open ? " open" : ""}`}>
+      <div className="sidebar-brand">
+        <HarborBrand compact />
+        <button
+          className="icon-button mobile-only"
+          type="button"
+          title={t("关闭导航")}
+          aria-label={t("关闭导航")}
+          onClick={onClose}
+        >
+          <Icon name="x" />
+        </button>
+      </div>
+      <nav className="primary-nav" aria-label={t("主导航")}>
+        <NavGroup
+          label="工作区"
+          items={workspaceItems}
+          activeView={activeView}
+          onNavigate={onClose}
+        />
+        <NavGroup
+          label="分发与治理"
+          items={distributionItems}
+          activeView={activeView}
+          onNavigate={onClose}
+        />
+        <NavGroup
+          label="系统管理"
+          items={systemItems}
+          activeView={activeView}
+          onNavigate={onClose}
+        />
+        <NavGroup
+          label="产品信息"
+          items={[
+            {
+              view: "about",
+              href: "#/about",
+              label: "关于与 API",
+              icon: "info",
+            },
+          ]}
+          activeView={activeView}
+          onNavigate={onClose}
+        />
+      </nav>
+      <div className="sidebar-footer">
+        <div className="health-mini">
+          <span
+            className={`status-dot ${healthy ? "status-dot-healthy" : "status-dot-unhealthy"}`}
+          />
+          <span>{t(healthy ? "连接正常" : "实例有异常")}</span>
+        </div>
+        <button type="button" onClick={onLogout}>
+          <Icon name="log-out" />
+          <span>{t("断开连接")}</span>
+        </button>
+      </div>
+    </aside>
+  );
 }
 
 export function ApplicationShell({
@@ -190,15 +263,10 @@ export function ApplicationShell({
 }) {
   const { locale, t } = useLocale();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [theme, setTheme] = useState(initialTheme);
+  const [theme, setTheme] = useTheme();
   const [ready, setReady] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [panel, setPanel] = useState<ShellPanel>();
   const [dialog, setDialog] = useState<ShellDialog>();
-  const [instances, setInstances] = useState<HarborInstance[]>([]);
-  const [instancesLoading, setInstancesLoading] = useState(false);
-  const panelRef = useRef<HTMLElement>(null);
-  const panelOpenerRef = useRef<HTMLElement | null>(null);
   const health = dashboard.health?.status?.toLowerCase() ?? "healthy";
   const username = identity?.username ?? session.username;
   const operationCenterLabel = t(locale === "zh-CN" ? "操作中心" : "通知");
@@ -216,116 +284,33 @@ export function ApplicationShell({
   );
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    writeStoredItem("localStorage", "harbor-console-theme", theme);
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "dark" ? "#171717" : "#f7f7f8");
-  }, [theme]);
-
-  useEffect(() => {
     const timer = window.setTimeout(() => setReady(true), 220);
     return () => window.clearTimeout(timer);
   }, []);
 
-  const closePanel = useCallback((restoreFocus = true) => {
-    setPanel(undefined);
-    if (!restoreFocus) {
-      panelOpenerRef.current = null;
-      return;
-    }
-    const opener = panelOpenerRef.current;
-    panelOpenerRef.current = null;
-    window.setTimeout(() => {
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
-    });
-  }, []);
-
-  const togglePanel = useCallback(
-    (next: ShellPanel, opener: HTMLElement) => {
-      if (panel === next) {
-        closePanel();
-        return;
-      }
-      panelOpenerRef.current = opener;
-      setPanel(next);
+  const { panel, panelRef, togglePanel, closePanel, focusPanel } =
+    useShellPanel();
+  const reportInstanceError = useCallback(
+    (message: string) => {
+      closePanel();
+      onNotice(message, true);
     },
-    [closePanel, panel],
+    [closePanel, onNotice],
   );
-
+  const { instances, loading: instancesLoading } = useHarborInstances(
+    panel === "instances",
+    reportInstanceError,
+  );
+  // Loaded instances replace the spinner; move focus to the first of them.
   useEffect(() => {
-    if (!panel) return;
-    const timer = window.setTimeout(() => {
-      const target = panelRef.current?.querySelector<HTMLElement>(
-        "button:not(:disabled)",
-      );
-      (target ?? panelRef.current)?.focus({ preventScroll: true });
-    });
-    const handlePointerDown = (event: MouseEvent) => {
-      if (
-        event.target instanceof Node &&
-        !panelRef.current?.contains(event.target) &&
-        !panelOpenerRef.current?.contains(event.target)
-      ) {
-        closePanel(false);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closePanel();
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [closePanel, instancesLoading, panel]);
-
-  useEffect(() => {
-    if (panel !== "instances") return;
-    const controller = new AbortController();
-    setInstancesLoading(true);
-    void instanceApi
-      .list(controller.signal)
-      .then((collection) => setInstances(collection.items))
-      .catch((loadError: unknown) => {
-        if (
-          loadError instanceof DOMException &&
-          loadError.name === "AbortError"
-        )
-          return;
-        closePanel();
-        onNotice(
-          loadError instanceof Error ? loadError.message : String(loadError),
-          true,
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setInstancesLoading(false);
-      });
-    return () => controller.abort();
-  }, [closePanel, onNotice, panel]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key !== "/" ||
-        event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.target instanceof HTMLInputElement ||
-        event.target instanceof HTMLTextAreaElement ||
-        (event.target instanceof HTMLElement && event.target.isContentEditable)
-      )
-        return;
-      event.preventDefault();
+    if (!instancesLoading) focusPanel();
+  }, [focusPanel, instancesLoading]);
+  useSearchShortcut(
+    useCallback(() => {
       closePanel(false);
       setSearchOpen(true);
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [closePanel]);
+    }, [closePanel]),
+  );
 
   const openDialog = useCallback(
     (next: ShellDialog) => {
@@ -371,65 +356,15 @@ export function ApplicationShell({
         hidden={!mobileOpen}
         onClick={() => setMobileOpen(false)}
       />
-      <aside id="sidebar" className={`sidebar${mobileOpen ? " open" : ""}`}>
-        <div className="sidebar-brand">
-          <HarborBrand compact />
-          <button
-            className="icon-button mobile-only"
-            type="button"
-            title={t("关闭导航")}
-            aria-label={t("关闭导航")}
-            onClick={() => setMobileOpen(false)}
-          >
-            <Icon name="x" />
-          </button>
-        </div>
-        <nav className="primary-nav" aria-label={t("主导航")}>
-          <NavGroup
-            label="工作区"
-            items={workspaceItems}
-            activeView={activeView}
-            onNavigate={() => setMobileOpen(false)}
-          />
-          <NavGroup
-            label="分发与治理"
-            items={visibleDistribution}
-            activeView={activeView}
-            onNavigate={() => setMobileOpen(false)}
-          />
-          <NavGroup
-            label="系统管理"
-            items={visibleSystem}
-            activeView={activeView}
-            onNavigate={() => setMobileOpen(false)}
-          />
-          <NavGroup
-            label="产品信息"
-            items={[
-              {
-                view: "about",
-                href: "#/about",
-                label: "关于与 API",
-                icon: "info",
-              },
-            ]}
-            activeView={activeView}
-            onNavigate={() => setMobileOpen(false)}
-          />
-        </nav>
-        <div className="sidebar-footer">
-          <div className="health-mini">
-            <span
-              className={`status-dot ${health === "healthy" ? "status-dot-healthy" : "status-dot-unhealthy"}`}
-            />
-            <span>{t(health === "healthy" ? "连接正常" : "实例有异常")}</span>
-          </div>
-          <button type="button" onClick={onLogout}>
-            <Icon name="log-out" />
-            <span>{t("断开连接")}</span>
-          </button>
-        </div>
-      </aside>
+      <ShellSidebar
+        open={mobileOpen}
+        activeView={activeView}
+        distributionItems={visibleDistribution}
+        systemItems={visibleSystem}
+        healthy={health === "healthy"}
+        onClose={() => setMobileOpen(false)}
+        onLogout={onLogout}
+      />
       <div className="workspace">
         <header className="topbar">
           <button
@@ -515,6 +450,7 @@ export function ApplicationShell({
             </button>
           </div>
         </header>
+        <HarborAnnouncement rawValue={dashboard.systeminfo?.banner_message} />
         <ShellNoticePanel
           panel={panel}
           panelRef={panelRef}

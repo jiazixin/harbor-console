@@ -5,6 +5,7 @@ import {
   formatDate,
   formatNumber,
   instanceHost,
+  formatCount,
 } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type {
@@ -19,6 +20,8 @@ import type {
 } from "../../app/models";
 import { loadPreferences } from "../../app/preferences";
 import { Pagination } from "../../components/data-table";
+import { PanelTitle } from "../../components/page-elements";
+import { EmptyState } from "../../components/empty-state";
 import { Icon, type IconName } from "../../components/icons";
 import { OverflowText } from "../../components/overflow-text";
 import { SeverityBadge } from "../../components/status-badge";
@@ -61,6 +64,15 @@ export const artifactAdditionTabs: Record<
   values: { addition: "values.yaml", label: "Values", icon: "settings" },
 };
 
+// Harbor lists the additions an artifact supports in addition_links; an image
+// index, for example, has none, and requesting one returns HTTP 400.
+export function artifactHasAddition(
+  artifact: HarborArtifact,
+  tab: keyof typeof artifactAdditionTabs,
+): boolean {
+  return Boolean(artifact.addition_links?.[artifactAdditionTabs[tab].addition]);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -82,27 +94,6 @@ function arrayValue(value: unknown): unknown[] {
 
 function recordArray(value: unknown): Record<string, unknown>[] {
   return arrayValue(value).filter(isRecord);
-}
-
-function EmptySection({
-  title,
-  description,
-  icon,
-}: {
-  title: string;
-  description: string;
-  icon: IconName;
-}) {
-  const { t } = useLocale();
-  return (
-    <div className="empty-state">
-      <span className="state-icon">
-        <Icon name={icon} />
-      </span>
-      <h2>{t(title)}</h2>
-      <p>{t(description)}</p>
-    </div>
-  );
 }
 
 function DefinitionRow({ label, value }: { label: string; value: ReactNode }) {
@@ -375,7 +366,7 @@ export function ArtifactTagsSection({
   return (
     <section className="table-shell">
       <div className="table-toolbar">
-        <strong>{t("Tag 列表")}</strong>
+        <PanelTitle title="Tag 列表" />
         <div className="toolbar-spacer" />
         <button
           className="button button-small button-primary"
@@ -459,7 +450,7 @@ export function ArtifactTagsSection({
             </tbody>
           </table>
         ) : (
-          <EmptySection
+          <EmptyState
             title="没有 Tag"
             description="该制品当前只能通过摘要引用。"
             icon="tag"
@@ -487,12 +478,15 @@ export function ArtifactLabelsSection({
   return (
     <section className="table-shell artifact-label-panel">
       <div className="table-toolbar">
-        <div>
-          <strong>{t("制品标签")}</strong>
-          <span className="toolbar-caption">
-            {formatNumber(collection.attached.length, locale)} {t("个已绑定")}
-          </span>
-        </div>
+        <PanelTitle
+          title="制品标签"
+          count={formatCount(
+            collection.attached.length,
+            locale,
+            "个已绑定",
+            "attached",
+          )}
+        />
         <div className="toolbar-spacer" />
         <button
           className="button button-small button-primary"
@@ -505,7 +499,7 @@ export function ArtifactLabelsSection({
         </button>
       </div>
       {collection.load_error ? (
-        <div className="warning-banner artifact-inline-warning">
+        <div className="notice notice-warning artifact-inline-warning">
           <Icon name="alert" />
           <span>
             {t("部分标签载入失败")}：{collection.load_error}
@@ -539,7 +533,7 @@ export function ArtifactLabelsSection({
           ))}
         </div>
       ) : (
-        <EmptySection
+        <EmptyState
           title="尚未绑定标签"
           description="绑定项目或全局标签后，可快速识别和筛选制品。"
           icon="tag"
@@ -572,15 +566,27 @@ function normalizeVulnerabilityReport(raw: unknown): {
 export function ArtifactVulnerabilitiesSection({
   report,
   loadError,
+  notScanned = false,
 }: {
   report?: ArtifactVulnerabilityReport;
   loadError?: string;
+  notScanned?: boolean;
 }) {
   const { locale, t } = useLocale();
+  if (notScanned)
+    return (
+      <section className="panel">
+        <EmptyState
+          title="尚未扫描"
+          description="该制品还没有漏洞报告。可通过页面顶部的“扫描 / SBOM”发起扫描。"
+          icon="shield"
+        />
+      </section>
+    );
   if (loadError)
     return (
       <section className="panel">
-        <EmptySection
+        <EmptyState
           title="漏洞报告不可用"
           description={loadError}
           icon="alert"
@@ -591,7 +597,7 @@ export function ArtifactVulnerabilitiesSection({
   if (!normalized.items.length)
     return (
       <section className="panel">
-        <EmptySection
+        <EmptyState
           title="没有漏洞记录"
           description="扫描报告未包含漏洞。"
           icon="shield"
@@ -601,12 +607,10 @@ export function ArtifactVulnerabilitiesSection({
   return (
     <section className="table-shell">
       <div className="table-toolbar">
-        <strong>{t("漏洞明细")}</strong>
-        <div className="toolbar-spacer" />
-        <span className="muted">
-          {formatNumber(normalized.items.length, locale)} {t("条")} ·{" "}
-          {normalized.scanner}
-        </span>
+        <PanelTitle
+          title="漏洞明细"
+          count={`${formatCount(normalized.items.length, locale, "条", "entries")} · ${t(normalized.scanner)}`}
+        />
       </div>
       <div className="table-scroll">
         <table>
@@ -883,7 +887,7 @@ export function ArtifactAdditionSection({
   if (loadError)
     return (
       <section className="panel">
-        <EmptySection
+        <EmptyState
           title={
             locale === "en-US"
               ? `${t(meta.label)} unavailable`
@@ -903,7 +907,7 @@ export function ArtifactAdditionSection({
   )
     return (
       <section className="panel">
-        <EmptySection
+        <EmptyState
           title={
             locale === "en-US"
               ? `No ${t(meta.label).toLowerCase()}`
@@ -969,7 +973,7 @@ export function ArtifactAccessoriesSection({
   if (loadError)
     return (
       <section className="panel">
-        <EmptySection
+        <EmptyState
           title="关联制品不可用"
           description={loadError}
           icon="alert"
@@ -979,7 +983,7 @@ export function ArtifactAccessoriesSection({
   if (!collection.items.length)
     return (
       <section className="panel">
-        <EmptySection
+        <EmptyState
           title="没有关联制品"
           description="签名、SBOM 和其他 OCI Referrer 会显示在这里。"
           icon="database"
@@ -989,7 +993,7 @@ export function ArtifactAccessoriesSection({
   return (
     <section className="table-shell">
       <div className="table-toolbar">
-        <strong>{t("OCI 关联制品")}</strong>
+        <PanelTitle title="OCI 关联制品" />
         <div className="toolbar-spacer" />
         <span className="muted">
           {formatNumber(

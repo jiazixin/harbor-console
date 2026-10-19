@@ -77,7 +77,7 @@ function DestructiveConfirmation({
         await onConfirm();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("此操作无法撤销")}</span>
       </div>
@@ -188,7 +188,7 @@ export function StopArtifactScanDialog({
         onStopped();
       }}
     >
-      <div className="destructive-message">
+      <div className="notice notice-danger">
         <Icon name="alert" />
         <span>{t("已经生成的部分结果可能不会保留")}</span>
       </div>
@@ -380,7 +380,7 @@ export function AddArtifactTagDialog({
           name="name"
           required
           maxLength={128}
-          pattern="[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}"
+          pattern="[A-Za-z0-9_][A-Za-z0-9_.\-]{0,127}"
           autoComplete="off"
           placeholder={t("例如 v1.4.0")}
         />
