@@ -7,6 +7,7 @@
 - CI 拆为 Web 与 Go 两个任务，固定到 checkout v7.0.1、setup-node v7.1.0、setup-go v7.0.0，运行于 `ubuntu-24.04` 且不保留 checkout 凭据；只在 `main` 推送和 Pull Request 时触发；增加 darwin / windows 交叉 vet 与 GoReleaser 快照构建。
 - 新增 `scripts/check-build-version.sh`，启动二进制并核对 `server_started` 日志中的版本与提交。
 - 首次在 GitHub Linux runner 运行浏览器矩阵：DejaVu Sans 下复制页英文表格溢出 1–5px。复制策略“方向”列 104→112px，执行记录“状态”列 112→120px、“任务统计”列 128→140px；断言未放宽。
+- 修复浏览器测试偶发失败：对话框模块按需下载期间会先显示“正在打开对话框”占位对话框，`dark mobile` 用例的未命名 `getByRole("dialog")` 可能测量到即将被替换的占位元素而得到空的 `boundingBox`。改为按对话框名称定位。
 
 ## 2026-10-19：1.0 上线前最终检查
 

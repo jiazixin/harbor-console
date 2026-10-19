@@ -187,13 +187,16 @@ for (const locale of ["zh-CN", "en-US"]) {
       ).toBeLessThanOrEqual(1);
     }
     await navigate(page, "projects");
+    const createProject = locale === "en-US" ? "New project" : "新建项目";
     await page
-      .getByRole("button", {
-        name: locale === "en-US" ? "New project" : "新建项目",
-        exact: true,
-      })
+      .getByRole("button", { name: createProject, exact: true })
       .click();
-    const dialog = page.getByRole("dialog");
+    // Match by name: while the dialog module downloads, a placeholder dialog
+    // is shown and then replaced, so an unnamed locator can measure it.
+    const dialog = page.getByRole("dialog", {
+      name: createProject,
+      exact: true,
+    });
     await expect(dialog).toBeVisible();
     await expect(dialog.locator("footer")).toBeInViewport();
     const bounds = await dialog.boundingBox();
