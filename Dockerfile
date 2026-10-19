@@ -18,7 +18,7 @@ RUN npm --prefix web run build && \
     -ldflags="-s -w -X harbor-console/internal/buildinfo.Version=${VERSION} -X harbor-console/internal/buildinfo.Commit=${COMMIT} -X harbor-console/internal/buildinfo.BuildDate=${BUILD_DATE}" \
     -o /out/harbor-console ./cmd/harbor-console
 
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:f5b485ea962d9bd1186b2f6b3a061191539b905b82ec395de78cbfae51f20e35
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 
 COPY --from=build /out/harbor-console /harbor-console
 COPY configs/config.example.yaml /etc/harbor-console/config.yaml
