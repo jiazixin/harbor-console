@@ -6,7 +6,7 @@
 
 - 以真实 Harbor v2.15.4 完成全域读写回归；固定的 198 个非废弃操作与 v2.15.4 一致，关于页目标版本改为 `v2.15.x`，README 与设计文档同步说明。
 - 上游 412 与 5xx 错误给出明确中文说明；时间早于 1971 年的 Harbor 零值时间显示为“暂无”。
-- Go 最低版本从 1.26.6 升为 1.26.9，修复 govulncheck 报告的 10 个可达标准库漏洞；Docker builder 同步更新并固定 Registry 返回的 digest。开发依赖 `source-map-js` 高危通告已修复。
+- Go 最低版本从 1.26.6 升为 1.26.9，修复 govulncheck 报告的 10 个可达标准库漏洞；随后统一升为 Go 1.27.2，Docker builder 同步改用 `golang:1.27.2-alpine3.23` 并固定 Registry 返回的 digest。开发依赖 `source-map-js` 高危通告已修复。
 
 **界面统一**
 

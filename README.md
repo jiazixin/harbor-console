@@ -40,7 +40,7 @@ a live instance. Compatibility shims for older Harbor APIs are intentionally not
 
 ## Requirements
 
-- Go 1.26.9 or newer
+- Go 1.27.2 or newer
 - Node.js 22.22.2+ (22.x), 24.15.0+ (24.x), or 26+ for web checks
 - Docker or another OCI builder for container images
 

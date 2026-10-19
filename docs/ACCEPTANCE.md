@@ -11,17 +11,17 @@
 | Web 格式、lint、类型 | PASS | `npm --prefix web run check` |
 | Web 合同与组件 | PASS | `npm --prefix web test`；33 项合同，58 个文件 / 226 项组件测试 |
 | Web 生产构建 | PASS | `npm --prefix web run build`；仅生成 `web/dist/` |
-| Go 格式、模块、vet | PASS | gofmt；Go 1.26.9 下 `go mod tidy -diff`、`go vet ./cmd/... ./internal/... ./web` |
-| Go 竞态测试 | PASS | Go 1.26.9 下 `go test -race ./cmd/... ./internal/... ./web -count=1` |
+| Go 格式、模块、vet | PASS | gofmt；Go 1.27.2 下 `go mod tidy -diff`、`go vet ./cmd/... ./internal/... ./web` |
+| Go 竞态测试 | PASS | Go 1.27.2 下 `go test -race ./cmd/... ./internal/... ./web -count=1` |
 | Go 覆盖率 | 记录 | 本机 Go 1.27.2 下语句覆盖率 64.7%（`coverage/go.out`） |
 | npm 漏洞审计 | PASS | `npm --prefix web run audit`；生产依赖 0 漏洞；开发依赖 `source-map-js` 的高危通告已通过 `npm audit fix` 更新锁文件消除 |
-| Go 漏洞扫描 | PASS | 原 Go 1.26.6 有 10 个可达的标准库漏洞（net/http、crypto/tls、net/textproto，修复版本 1.26.9）；升级后 `GOTOOLCHAIN=go1.26.9 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./cmd/... ./internal/... ./web` 未发现漏洞 |
-| 部署固定版本 | PASS | `node scripts/check-deployment-pins.mjs`；Dockerfile 改用 `golang:1.26.9-alpine3.23`，digest 取自 Docker Registry 返回的 OCI index |
+| Go 漏洞扫描 | PASS | 原 Go 1.26.6 有 10 个可达的标准库漏洞（net/http、crypto/tls、net/textproto，修复版本 1.26.9）；项目随后统一升为 Go 1.27.2，`GOTOOLCHAIN=go1.27.2 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./cmd/... ./internal/... ./web` 未发现漏洞 |
+| 部署固定版本 | PASS | `node scripts/check-deployment-pins.mjs`；Dockerfile 改用 `golang:1.27.2-alpine3.23`，digest 取自 Docker Registry 返回的 OCI index |
 | 空白与差异检查 | PASS | `node scripts/check-whitespace.mjs`；`git diff --check` |
 | Chromium / Firefox / WebKit | PASS | `npm --prefix web run test:browser`，48/48；最终源码连续两次运行。路由矩阵新增每个表格表头与单元格 `text-align` 一致的断言 |
 | 真实 Harbor API 合同 | PASS | 真实 v2.15.4 swagger 与固定的 198 个非废弃操作逐项一致；仅多出已废弃的旧审计日志接口 |
 | 真实 Harbor 读写流程 | PASS | 见下节；每次写入后经 Harbor API 回读确认 |
-| Docker 构建与运行 | 未执行 | 本轮升级了 builder 镜像，需在部署前重新构建并 smoke test |
+| Docker 构建与运行 | 未执行 | 本轮升级了 builder 镜像（Go 1.27.2）；本机 Docker 守护进程未运行，需在部署前重新构建并 smoke test |
 
 本机 Web 验证使用 Node 26.12.0 / npm 11.20.0、Playwright 1.62.1。真实 Harbor 为用户专门提供的测试实例 `hba.jzxk.cc`（Harbor v2.15.4）。凭据只经脚本调用 `/api/connect`，未写入仓库或浏览器表单。
 
@@ -50,7 +50,7 @@
 
 ## 发布剩余条件
 
-1. 部署前用当前 Dockerfile（Go 1.26.9 builder）重新构建镜像，执行 health、静态资源、Cookie/Origin 与 SIGTERM smoke test。
+1. 部署前用当前 Dockerfile（Go 1.27.2 builder）重新构建镜像，执行 health、静态资源、Cookie/Origin 与 SIGTERM smoke test。
 2. 在能访问扫描器与外部仓库的目标环境，验证扫描、复制传输与 P2P 预热执行的真实链路，以及 HTTPS 反向代理与出站策略。
 3. Node 22 最低版本运行、生产负载压测和浏览器原生缩放本轮未执行；原生 OIDC 登录与多副本共享会话不在实现范围。
 
