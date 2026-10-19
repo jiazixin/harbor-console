@@ -1,239 +1,228 @@
-# Harbor Console
+<p align="center">
+  <img src="web/public/favicon.svg" width="88" alt="Harbor Console logo">
+</p>
 
-[简体中文](README.zh-CN.md) | **English**
+<h1 align="center">Harbor Console</h1>
 
-Harbor Console is a self-contained administration interface for Harbor v2.15.x. It
-connects to Harbor through a typed, server-side API gateway and provides one consistent
-workspace for projects, repositories, artifacts, security, replication, retention,
-preheating, users, scanners, audit data, and system operations.
+<p align="center">
+  A self-contained administration console for Harbor v2.15 — one Go binary, an embedded bilingual React UI, and a typed server-side API gateway.
+</p>
 
-The application is distributed as a single Go binary. Its React production bundle,
-styles, translations, and demo data are embedded, so it can run in isolated
-environments without a web service, package registry, or external CDN at runtime.
+<p align="center">
+  <a href="https://github.com/jiazixin/harbor-console/actions/workflows/ci.yml"><img src="https://github.com/jiazixin/harbor-console/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://github.com/jiazixin/harbor-console/releases/latest"><img src="https://img.shields.io/github/v/release/jiazixin/harbor-console?sort=semver" alt="Release"></a>
+  <img src="https://img.shields.io/badge/Go-1.27.2-00ADD8?logo=go&logoColor=white" alt="Go 1.27.2">
+  <img src="https://img.shields.io/badge/Harbor-v2.15.x-60B932" alt="Harbor v2.15.x">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
+</p>
 
-## Highlights
+<p align="center">
+  <a href="README.zh-CN.md">简体中文</a> · <b>English</b>
+</p>
 
-- **Broad Harbor administration:** projects, members, repositories, artifacts, tags,
-  labels, scans, SBOM, retention, replication, registries, robots, webhooks, P2P
-  preheating, audit, job service, scanners, users, groups, quotas, and system settings.
-- **Multiple Harbor connections:** one browser session can keep up to 20 isolated Harbor
-  connections and switch between them. Credentials are accepted during connection but
-  are never returned to the browser or persisted in browser storage.
-- **Typed upstream gateway:** the browser can call only explicitly declared Harbor
-  v2.15 operations. Arbitrary upstream URL and method proxying is not available.
-- **Bilingual interface:** Simplified Chinese and English with persisted language,
-  timezone, CLI, theme, and repository-view preferences.
-- **Offline-ready:** all UI assets are embedded in the executable.
-- **Built-in demo:** important workflows can be evaluated without a Harbor installation.
-- **Operational defaults:** structured logs, bounded requests and responses, graceful
-  shutdown, health checks, rate limits, strict cookies, and same-origin write protection.
+---
 
-## Scope
+Harbor Console gives Harbor administrators one consistent workspace for projects, repositories, artifacts, security, replication, retention, preheating, users, scanners, audit data and system operations. The browser never talks to Harbor directly: the Go server holds the credentials and forwards only explicitly declared Harbor v2.15 operations. The React bundle, styles, translations and demo data are embedded in the binary, so it runs in isolated networks without a separate web server, npm registry or CDN.
 
-Harbor Console currently authenticates upstream requests with Harbor Basic Auth. An OIDC
-user can connect with their Harbor username and CLI secret. Native browser-based OIDC
-login, OIDC onboarding, and database self-registration are not implemented.
+> [!IMPORTANT]
+> - **Harbor v2.15 only.** The operation contract was captured from v2.15.2 and is identical in v2.15.4, the newest release verified against a live instance. There are no compatibility shims for older Harbor APIs.
+> - **Basic Auth upstream.** Connect with a Harbor username and password, or an OIDC user's CLI secret. Browser-based OIDC login, OIDC onboarding and database self-registration are not implemented.
 
-The project targets the non-deprecated operations of Harbor v2.15. The operation contract
-was captured from v2.15.2 and is identical in v2.15.4, the newest release verified against
-a live instance. Compatibility shims for older Harbor APIs are intentionally not included.
+## Features
+
+- **Broad Harbor administration**: projects, members, repositories, artifacts, tags, labels, scans, SBOM, retention, replication, registries, robots, webhooks, P2P preheating, audit, job service, scanners, users, groups, quotas and system settings.
+- **Multiple Harbor connections**: one browser session keeps up to 20 isolated connections and switches between them. Credentials are submitted once and are never returned to the browser or stored in browser storage.
+- **Typed upstream gateway**: methods, paths, query fields and JSON bodies are allowlisted; there is no arbitrary URL or method proxy.
+- **Bilingual UI**: Simplified Chinese and English, with persisted language, timezone, CLI, theme and repository-view preferences.
+- **Offline single binary**: every UI asset is embedded; nothing is downloaded at runtime.
+- **Built-in demo**: evaluate the main workflows without a Harbor installation.
+- **Operational defaults**: structured logs, bounded requests and responses, rate limits, health checks, graceful shutdown, strict cookies and same-origin write protection.
 
 ## Requirements
 
-- Go 1.27.2 or newer
-- Node.js 22.22.2+ (22.x), 24.15.0+ (24.x), or 26+ for web checks
-- Docker or another OCI builder for container images
+| Item | Requirement |
+| --- | --- |
+| Harbor | v2.15.x |
+| Prebuilt binaries | Linux, macOS or Windows on amd64 / arm64 |
+| Building from source | Go 1.27.2+, Node.js 22.22.2+ (22.x), 24.15.0+ (24.x) or 26+, npm |
+| Container image | Docker or another OCI builder |
 
 ## Quick Start
 
-Run with built-in defaults:
+### 1. Download a release
 
-```bash
+Download the archive for your platform from [Releases](https://github.com/jiazixin/harbor-console/releases/latest) and verify it against `checksums.txt`. Replace `1.0.0` with the version you are installing:
+
+```sh
+VERSION=1.0.0
+curl -LO "https://github.com/jiazixin/harbor-console/releases/download/v${VERSION}/harbor-console_${VERSION}_linux_amd64.tar.gz"
+curl -LO "https://github.com/jiazixin/harbor-console/releases/download/v${VERSION}/checksums.txt"
+sha256sum --ignore-missing -c checksums.txt
+tar -xzf "harbor-console_${VERSION}_linux_amd64.tar.gz"
+./harbor-console
+```
+
+Each archive contains the binary, `LICENSE`, both READMEs and [configs/config.example.yaml](configs/config.example.yaml). Windows archives are `.zip`. Only linux/amd64 runs in CI; the other targets are cross-compiled.
+
+### 2. Connect
+
+Open <http://127.0.0.1:8080> and enter a Harbor base URL, username, and password or CLI secret. **Preview with demo data** starts an isolated local session without contacting Harbor.
+
+### 3. Build from source
+
+Run from the repository root. The web bundle must be built first because `web/embed.go` embeds `web/dist/`:
+
+```sh
 go mod download
 npm --prefix web ci --ignore-scripts
 npm --prefix web run build
-go run ./cmd/harbor-console
-```
-
-Open [http://127.0.0.1:8080](http://127.0.0.1:8080), then connect with a Harbor base URL,
-username, and password or CLI secret. The demo button creates an isolated local session
-without contacting Harbor.
-
-To use a configuration file:
-
-```bash
-cp configs/config.example.yaml configs/config.local.yaml
-CONFIG_FILE="$PWD/configs/config.local.yaml" go run ./cmd/harbor-console
+mkdir -p bin
+CGO_ENABLED=0 go build -trimpath -o bin/harbor-console ./cmd/harbor-console
+./bin/harbor-console
 ```
 
 ## Configuration
 
-YAML values can be overridden with environment variables.
+Precedence is environment variables > YAML file > built-in defaults. `CONFIG_FILE` selects the YAML file; when it is unset, the optional `configs/config.local.yaml` under the working directory is read. An explicitly empty or missing path is an error. Relative paths resolve against the process working directory, so use absolute paths in deployments.
 
-| Environment variable  | Purpose                                | Default                    |
-| --------------------- | -------------------------------------- | -------------------------- |
-| `CONFIG_FILE`         | YAML configuration path                | `configs/config.local.yaml` when present |
-| `LISTEN`              | Listener address                       | `127.0.0.1`                |
-| `PORT`                | Listener port                          | `8080`                     |
-| `HEALTH_URI`          | Health endpoint                        | `/health`                  |
-| `LOG_LEVEL`           | `debug`, `info`, `warn`, or `error`    | `info`                     |
-| `LOG_FORMAT`          | `json` or `logfmt`                     | `json`                     |
-| `ACCESS_LOG`          | Enable request logs                    | `true`                     |
-| `LOG_HEALTH_CHECKS`   | Include health requests in access logs | `false`                    |
-| `READ_HEADER_TIMEOUT` | Header read timeout                    | `5s`                       |
-| `READ_TIMEOUT`        | Request read timeout                   | `20s`                      |
-| `WRITE_TIMEOUT`       | Response write timeout                 | `30s`                      |
-| `IDLE_TIMEOUT`        | Keep-alive idle timeout                | `90s`                      |
-| `SHUTDOWN_TIMEOUT`    | Graceful shutdown deadline             | `10s`                      |
+```sh
+cp configs/config.example.yaml configs/config.local.yaml
+CONFIG_FILE="$PWD/configs/config.local.yaml" ./bin/harbor-console
+```
+
+| Environment variable | Purpose | Default |
+| --- | --- | --- |
+| `CONFIG_FILE` | YAML configuration path | `configs/config.local.yaml` when present |
+| `LISTEN` | Listener address | `127.0.0.1` |
+| `PORT` | Listener port | `8080` |
+| `HEALTH_URI` | Health endpoint | `/health` |
+| `LOG_LEVEL` | `debug`, `info`, `warn` or `error` | `info` |
+| `LOG_FORMAT` | `json` or `logfmt` | `json` |
+| `ACCESS_LOG` | Enable request logs | `true` |
+| `LOG_HEALTH_CHECKS` | Include health requests in access logs | `false` |
+| `READ_HEADER_TIMEOUT` | Header read timeout | `5s` |
+| `READ_TIMEOUT` | Request read timeout | `20s` |
+| `WRITE_TIMEOUT` | Response write timeout | `30s` |
+| `IDLE_TIMEOUT` | Keep-alive idle timeout | `90s` |
+| `SHUTDOWN_TIMEOUT` | Graceful shutdown deadline | `10s` |
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the complete file.
 
-## Container
+## Deployment
 
-```bash
+### Docker
+
+```sh
 docker build -t harbor-console:local .
 docker run --rm -p 127.0.0.1:8080:8080 harbor-console:local
 ```
 
-The image runs as a non-root user, listens on `0.0.0.0:8080`, and includes a default
-configuration at `/etc/harbor-console/config.yaml`.
+The image is distroless, runs as `nonroot`, listens on `0.0.0.0:8080` and ships a default configuration at `/etc/harbor-console/config.yaml`. Mount your own when needed:
 
-Mount a custom configuration when needed:
-
-```bash
+```sh
 docker run --rm -p 127.0.0.1:8080:8080 \
   -v "$PWD/configs/config.local.yaml:/etc/harbor-console/config.yaml:ro" \
   harbor-console:local
 ```
 
-The examples bind the host port to `127.0.0.1` so the console is not published to the
-network by default. Change the host bind deliberately only when an authenticated reverse
-proxy or an equivalent network boundary is in place.
+The examples publish the port on `127.0.0.1` only. Bind it to other interfaces only behind an authenticated reverse proxy or an equivalent network boundary.
+
+### State and backups
+
+Sessions, Harbor credentials, demo state and rate limits live in process memory and are lost on restart. Logs go to stdout. The console creates no database or upload directory; Harbor owns and backs up its own data, and only the configuration file needs an optional read-only mount. Run a single replica — horizontal scaling would need shared sessions and rate limits, which are not implemented.
+
+## Security Model
+
+- The browser holds only a random `HttpOnly`, `SameSite=Strict` session cookie. Local and session storage contain non-secret UI preferences and public-catalog navigation state.
+- Harbor passwords and CLI secrets stay in server memory and expire with the session. Instance URLs and usernames are returned to identify the active connection.
+- Writes require a valid session and a same-origin request. Upstream redirects are limited to the same scheme and host. Requests and responses have size limits and timeouts. Access logs omit query strings and never intentionally log credentials.
+- **Public catalog = outbound requests.** The unauthenticated catalog accepts a user-supplied Harbor URL and the server makes anonymous `GET` requests to three fixed endpoints. Treat it as an SSRF and egress boundary: restrict who can reach the console and enforce outbound DNS / IP / network-policy allowlists.
+- Deploy behind HTTPS. A plain-HTTP Harbor URL exposes Basic Auth credentials between the console and Harbor. The "allow self-signed certificates" option disables TLS verification for that connection; use it only for trusted disposable or internal instances.
 
 ## Architecture
 
 ```text
-Browser
-   |
-   | HttpOnly console session cookie
-   v
-Harbor Console (Go)
-   |-- HTTP handlers and in-memory connection sessions
-   |-- typed Harbor v2.15 gateway
-   |-- embedded bilingual web client
-   |-- isolated demo state
-   |
-   | Basic Auth / CLI secret over server-side HTTP
-   v
-One or more Harbor instances
+Browser ──HttpOnly session cookie──▶ Harbor Console (Go)
+                                       ├─ HTTP handlers and in-memory sessions
+                                       ├─ typed Harbor v2.15 gateway
+                                       ├─ embedded bilingual web client
+                                       └─ isolated demo state
+                                              │ Basic Auth / CLI secret
+                                              ▼
+                                     One or more Harbor instances
 ```
 
-Repository layout:
-
-```text
-cmd/harbor-console/     executable entry point
-internal/app/           HTTP application, sessions, gateway, and demo orchestration
-internal/config/        YAML and environment configuration
-internal/observability/ structured logging and access logs
-internal/buildinfo/     build version metadata
-web/                    React, TypeScript, shared components, feature pages, styles, and tests
-web/embed.go            Go embed boundary (package webui)
-web/dist/               generated Vite output (ignored)
-configs/                deployment configuration examples
-docs/                   design, development, acceptance, and change records
-scripts/                repository quality tooling
-```
-
-The layout follows [目录规范.md](目录规范.md). `web/` owns npm manifests, its lockfile,
-tool configuration, source, public resources, unit/contract tests and E2E tests.
-The Go embed entry lives beside the generated resources because embed paths cannot
-traverse parent directories. `internal/app` retains its shared internal domain types.
-
-Run all documented commands from the repository root. Install dependencies first,
-then run `npm --prefix web run build` to generate `web/dist/` before Go
-build/run/test/vet and browser checks. Generated assets are not tracked.
-CI/CD directly orchestrates checks, tests and builds in `.github/workflows/ci.yml`.
-Go coverage reports belong in `coverage/go.out`; configuration and runtime data
-must be preserved when cleaning generated files.
-
-Configuration precedence is environment > YAML > built-in defaults. Relative
-`CONFIG_FILE` paths resolve against the process working directory; use absolute paths
-in deployments. Explicit empty or missing paths fail. An unset `CONFIG_FILE` reads
-optional `configs/config.local.yaml` relative to the working directory and uses defaults
-if absent. Local configuration belongs in this ignored path; root and `bin/` configuration
-files are not automatically discovered.
-Vite reads local environment files from `web/`; these are excluded from Git and Docker.
-
-Sessions and demo state are in memory and reset on restart. Logs go to stdout; this
-service creates no database or upload directory. Harbor owns and backs up its persistent
-data. Only configuration needs an optional read-only mount. Archived documents and older
-plans retain historical paths; use the current README and development guide for commands.
-
-## Security Model
-
-- Browser authentication state consists only of a random, `HttpOnly`, `SameSite=Strict`
-  console session ID. Local and session storage contain only non-secret UI preferences
-  and public-catalog navigation state.
-- Harbor passwords and CLI secrets stay in process memory and expire with the session.
-  Instance URLs and usernames are returned to identify the active connection.
-- Write operations require a valid session and a same-origin request.
-- Upstream methods, paths, query fields, and JSON bodies are allowlisted.
-- Upstream redirects are limited to the same scheme and host.
-- Requests and responses have explicit size limits and timeouts.
-- Access logs omit query strings and never intentionally log credentials or tokens.
-
-The unauthenticated public catalog is an outbound-request feature: it accepts a
-user-supplied Harbor URL and the server makes anonymous `GET` requests to three fixed
-catalog endpoints. Treat this as an SSRF and egress trust boundary. Restrict console
-access and enforce outbound DNS, IP, and network-policy controls (for example, an
-allowlist); do not expose the catalog as an unrestricted public proxy.
-
-Sessions, Harbor credentials, demo state, and rate limits are process-local. Restarting
-the process disconnects every browser session. Run one application replica; stateless
-horizontal scaling requires a shared session and rate-limit design that is not currently
-implemented.
-
-Deploy behind an HTTPS reverse proxy. Connecting to a Harbor instance over plain HTTP
-exposes Basic Auth credentials on the network between Harbor Console and Harbor.
-The “allow self-signed certificates” (skip-TLS) option disables certificate verification
-for the selected connection. Use it only for a trusted disposable or internal Harbor
-instance, never for production or untrusted endpoints.
+Design details are in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Development
 
-```bash
-npm --prefix web run dev    # Vite
-npm --prefix web run build  # web/dist; required before Go commands
-npm --prefix web run check
-npm --prefix web test
+```sh
+npm --prefix web run dev      # Vite dev server with a proxy to the Go backend
+npm --prefix web run check    # Prettier, ESLint, TypeScript
+npm --prefix web run build    # web/dist; required before any Go command
+npm --prefix web test         # contract and component tests
 go vet ./cmd/... ./internal/... ./web
 go test -race ./cmd/... ./internal/... ./web -count=1
-mkdir -p bin
-CGO_ENABLED=0 go build -trimpath -o bin/harbor-console ./cmd/harbor-console
-docker build -t harbor-console:dev .
+npm --prefix web run test:browser   # Playwright route matrix
 ```
 
-The GitHub Actions workflow runs the same quality gate and dependency vulnerability audit,
-executes the authenticated route matrix in Chromium, Firefox, and WebKit, builds the
-container image, and smoke-tests its non-root runtime, health endpoint, embedded UI, and
-graceful shutdown.
-The browser never downloads npm modules at runtime; React and its dependencies are
-compiled into the embedded Vite bundle. Dependabot checks the GitHub Actions references,
-Go modules, npm dependencies, and Docker base-image digests and opens update pull requests
-for review.
+Browser engines, coverage, vulnerability audits and where to change what are covered in [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md). On pushes to `main` and on pull requests, [CI](.github/workflows/ci.yml) runs web and Go checks and tests, a dependency vulnerability audit, the Chromium / Firefox / WebKit route matrix, a container build and smoke test, and a GoReleaser snapshot build of every release target. Dependabot keeps Actions, Go modules, npm packages and Docker base images up to date.
+
+## Versioning and Releases
+
+- Releases are tagged `vMAJOR.MINOR.PATCH` (pre-releases such as `v1.2.0-rc.1` are marked as such automatically).
+- Pushing a tag triggers the [Release workflow](.github/workflows/release.yml): it tests the tagged commit, checks that the built binary reports exactly that version and commit, then uses GoReleaser to publish archives and `checksums.txt` for linux / darwin / windows on amd64 and arm64.
+- The version, commit and build date are injected with `-ldflags` into `internal/buildinfo`. They appear in the `server_started` log line and on the About page. Plain `go build` reports `dev`.
+
+Local dry run (nothing is published; output goes to the ignored `bin/release/`):
+
+```sh
+go install github.com/goreleaser/goreleaser/v2@v2.18.3
+goreleaser check
+goreleaser release --snapshot --clean
+```
 
 ## Documentation
 
-- [Documentation index](docs/README.md)
-- [Design baseline](docs/DESIGN.md)
-- [Implementation rules](docs/IMPLEMENTATION.md)
-- [Acceptance plan](docs/ACCEPTANCE.md)
-- [Change record](docs/CHANGELOG.md)
+| Document | Contents |
+| --- | --- |
+| [docs/DESIGN.md](docs/DESIGN.md) | Architecture, API, session and deployment constraints |
+| [docs/UI.md](docs/UI.md) | Colours, controls, tables, motion, keyboard and responsive rules |
+| [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | Where to change what, checks, build and release |
+| [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) | What was verified for the current release and what was not |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Notable changes and design decisions |
 
-## Project Status
+## Project Structure
 
-The application uses typed React for sessions, routes, pages, dialogs, and global
-overlays. Results, fixes, and remaining deployment checks for the current pre-release
-review are recorded in [ACCEPTANCE.md](docs/ACCEPTANCE.md). Historical Harbor and
-container results do not certify the current worktree. Validate the target Harbor
-instance and container environment before release.
+```text
+cmd/harbor-console/      executable entry point
+internal/app/            HTTP application, sessions, gateway and demo
+internal/config/         YAML and environment configuration
+internal/observability/  structured and access logging
+internal/buildinfo/      build version metadata
+web/                     the only npm / Vite boundary: React source, tests, E2E, embed.go
+configs/                 configuration example; local instances are ignored
+scripts/                 repository checks used by CI
+docs/                    design, implementation, acceptance and change records
+.github/                 CI, tag release and Dependabot
+.goreleaser.yaml         GoReleaser multi-target release configuration
+bin/                     ignored local binaries, including bin/release/ GoReleaser output
+```
+
+The directory baseline is maintained only in [目录规范.md](目录规范.md); collaboration rules are in [AGENTS.md](AGENTS.md). Directory exceptions for this project:
+
+| Baseline rule | Actual behaviour | Reason | Scope / re-evaluate when |
+| --- | --- | --- | --- |
+| §4 `bin/` holds executables only | GoReleaser output (binaries, archives, checksums, metadata) goes to `bin/release/` | A root `dist/` is not ignored and is reserved for Node / Web output | Release builds; when the release tool changes |
+
+## Contributing
+
+Issues and pull requests are welcome. Before submitting:
+
+1. Read [AGENTS.md](AGENTS.md) and [目录规范.md](目录规范.md) and place new files according to them.
+2. Run the checks under [Development](#development) locally; UI changes should also pass the browser route matrix.
+3. Use the demo or a disposable Harbor instance for tests — never write to a production Harbor.
+
+## License
+
+Harbor Console is licensed under the [Apache License 2.0](LICENSE). This is an independent project and is not affiliated with the Harbor project or the CNCF.

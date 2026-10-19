@@ -42,7 +42,7 @@ Go 默认 `http://127.0.0.1:8080`，Vite 默认 `http://127.0.0.1:5173`；后端
 
 业务专用组件和 CSS 位于 `web/src/features/<domain>/`，每个业务域一个 `<domain>.css`；`web/src/styles/` 仅保留全局与跨域样式。`main.tsx` 按“token → 共享样式 → 业务域样式 → `motion.css`”的顺序显式加载，后加载的文件只做覆盖；新增样式放入拥有该规则的文件，不要因整理导入而重新排序。一个选择器只在一个文件中定义，执行详情、状态徽章等跨页面规则留在共享样式中。
 
-CI/CD 在 `.github/workflows/ci.yml` 中直接编排检查、测试和构建；容器构建使用 `Dockerfile`。两者都先生成 Web 资源，再执行 Go 编译。
+CI/CD 在 `.github/workflows/ci.yml` 中直接编排检查、测试和构建，tag 发布在 `.github/workflows/release.yml`；容器构建使用 `Dockerfile`，多目标发布使用 `.goreleaser.yaml`。它们都先生成 Web 资源，再执行 Go 编译。
 
 ## 检查命令
 
@@ -106,7 +106,26 @@ go tool cover -func=coverage/go.out
 
 Go embed 在编译时读取资产；构建前端后需要重启/重编译 Go 服务才能看到新的生产界面。不要手动编辑 hashed bundle、index 中的 hash 或 embed 目录。
 
-Docker 和 CI 定义分别位于 `Dockerfile` 与 `.github/workflows`。真实 Harbor 写入验证要求明确的实例与账号授权、操作前记录原值、写后回读及清理；不能用 demo 测试替代。
+Docker 和 CI 定义分别位于 `Dockerfile` 与 `.github/workflows`。
+
+### 发布
+
+发布 tag 采用 `v主版本.次版本.修订版本`（如 `v1.0.0`），预发布为 `v1.2.0-rc.1` 并自动标为 Pre-release；工作流只匹配这两种格式。推送 tag（`git tag v1.0.0 && git push github v1.0.0`）触发 `release.yml`：
+
+1. 在不使用缓存的 runner 上执行 `go mod verify`、Web 构建与测试、Go 竞态测试；
+2. `goreleaser build --single-target` 构建 linux/amd64，并用 `scripts/check-build-version.sh` 启动该二进制，核对 `server_started` 日志中的 `version` 等于去掉 `v` 的 tag、`commit` 等于当前提交，不一致即中止；
+3. GoReleaser v2.18.3 按 `.goreleaser.yaml` 以 `CGO_ENABLED=0 -trimpath -ldflags='-s -w -X …/buildinfo.*'` 构建 linux / darwin / windows 的 amd64 与 arm64，上传 GitHub Release。
+
+产物为 `harbor-console_<版本>_<系统>_<架构>.tar.gz`（Windows 为 `.zip`，均含二进制、`LICENSE`、两份 README 与 `configs/config.example.yaml`）及 `checksums.txt`（SHA-256）。`BuildDate` 取提交时间以保证可复现；CI 只实际运行 linux/amd64 二进制，其余目标仅交叉编译与交叉 vet。
+
+CI 的 `release-snapshot` 任务对每次推送执行 `goreleaser check` 与 `goreleaser release --snapshot --clean`，并以同一脚本核对快照版本。本地预演（不发布，输出在忽略的 `bin/release/`）：
+
+```bash
+go install github.com/goreleaser/goreleaser/v2@v2.18.3
+goreleaser check
+goreleaser release --snapshot --clean
+scripts/check-build-version.sh bin/release/harbor-console_darwin_arm64_v8.0/harbor-console "$(jq -r .version bin/release/metadata.json)" "$(git rev-parse HEAD)"
+```真实 Harbor 写入验证要求明确的实例与账号授权、操作前记录原值、写后回读及清理；不能用 demo 测试替代。
 
 ## 文档维护
 

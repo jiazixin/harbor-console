@@ -1,5 +1,12 @@
 # 变更记录
 
+## 2026-10-19：开源发布准备
+
+- 采用 Apache License 2.0，新增 `LICENSE`；中英文 README 改为开源项目结构（徽章、快速开始、部署、版本与发布、目录例外、贡献、许可证）。
+- 参照 MirrorDock 新增 GoReleaser 发布：`.goreleaser.yaml` 构建 linux / darwin / windows 的 amd64 与 arm64，输出在忽略的 `bin/release/`；`release.yml` 在推送 `vX.Y.Z` tag 时先测试并核对内置版本，再发布 GitHub Release。
+- CI 拆为 Web 与 Go 两个任务，固定到 checkout v7.0.1、setup-node v7.1.0、setup-go v7.0.0，运行于 `ubuntu-24.04` 且不保留 checkout 凭据；只在 `main` 推送和 Pull Request 时触发；增加 darwin / windows 交叉 vet 与 GoReleaser 快照构建。
+- 新增 `scripts/check-build-version.sh`，启动二进制并核对 `server_started` 日志中的版本与提交。
+
 ## 2026-10-19：1.0 上线前最终检查
 
 **真实 Harbor 与兼容性**

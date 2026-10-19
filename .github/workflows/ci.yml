@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -9,134 +10,151 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Actions are pinned by commit; the comment names the reviewed tag.
 jobs:
-  quality:
-    name: Quality and tests
-    runs-on: ubuntu-latest
+  web:
+    name: Web checks and tests
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version-file: go.mod
-          cache: true
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.22.2
           cache: npm
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
-        run: |
-          go mod download
-          npm --prefix web ci --ignore-scripts
-
-      - name: Check Go formatting
-        run: |
-          unformatted=$(find cmd internal web -name node_modules -prune -o -name '*.go' -print0 | xargs -0 gofmt -l)
-          if [ -n "$unformatted" ]; then
-            printf '%s\n' "$unformatted"
-            exit 1
-          fi
+        run: npm --prefix web ci --ignore-scripts
 
       - name: Check repository conventions
         run: |
           node scripts/check-whitespace.mjs
           node scripts/check-deployment-pins.mjs
 
-      - name: Check and build web
+      - name: Check, build and test web
         run: |
           npm --prefix web run check
           npm --prefix web run build
           npm --prefix web test
 
-      - name: Check and test Go
-        run: |
-          go mod tidy -diff
-          go vet ./cmd/... ./internal/... ./web
-          go test -race ./cmd/... ./internal/... ./web -count=1
-
-      - name: Build binary
-        env:
-          VERSION: ci
-          COMMIT: ${{ github.sha }}
-        run: |
-          mkdir -p bin
-          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          CGO_ENABLED=0 go build -trimpath \
-            -ldflags="-s -w -X harbor-console/internal/buildinfo.Version=${VERSION} -X harbor-console/internal/buildinfo.Commit=${COMMIT} -X harbor-console/internal/buildinfo.BuildDate=${BUILD_DATE}" \
-            -o bin/harbor-console ./cmd/harbor-console
-
-  security:
-    name: Dependency vulnerability audit
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+  go:
+    name: Go checks and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version-file: go.mod
-          cache: true
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.22.2
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Install dependencies
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # The Go embed package needs web/dist before any vet, test or build.
+      - name: Build embedded web assets
         run: |
-          go mod download
           npm --prefix web ci --ignore-scripts
+          npm --prefix web run build
+
+      - name: Check Go formatting and modules
+        run: |
+          go mod verify
+          go mod tidy -diff
+          unformatted=$(gofmt -l cmd internal web/embed.go)
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: |
+          go vet ./cmd/... ./internal/... ./web
+          # Release targets other than linux/amd64 are cross-checked only.
+          GOOS=darwin GOARCH=arm64 go vet ./cmd/... ./internal/... ./web
+          GOOS=windows GOARCH=amd64 go vet ./cmd/... ./internal/... ./web
+
+      - name: Test
+        run: go test -race ./cmd/... ./internal/... ./web -count=1
+
+  security:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.22.2
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
 
       - name: Run dependency vulnerability audit
         run: |
+          npm --prefix web ci --ignore-scripts
           npm --prefix web run build
           npm --prefix web run audit
           GOTOOLCHAIN="go$(sed -n 's/^go //p' go.mod)" go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./cmd/... ./internal/... ./web
 
   browser:
     name: Browser route matrix
-    needs: quality
-    runs-on: ubuntu-latest
+    needs: [web, go]
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version-file: go.mod
-          cache: true
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.22.2
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
       - name: Install web dependencies
-        run: |
-          go mod download
-          npm --prefix web ci --ignore-scripts
+        run: npm --prefix web ci --ignore-scripts
 
       - name: Install browser engines
         working-directory: web
-        run: npx playwright install --with-deps chromium firefox webkit
+        run: npm exec -- playwright install --with-deps chromium firefox webkit
 
       - name: Build and run authenticated route matrix
         run: |
@@ -145,12 +163,14 @@ jobs:
 
   container:
     name: Container build and smoke test
-    needs: quality
-    runs-on: ubuntu-latest
+    needs: [web, go]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
@@ -193,7 +213,7 @@ jobs:
           trap cleanup EXIT
 
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error http://127.0.0.1:18080/health >/tmp/harbor-console-health.json; then
+            if curl --fail --silent --show-error http://127.0.0.1:18080/health >"$RUNNER_TEMP/health.json"; then
               break
             fi
             if [ "${attempt}" -eq 30 ]; then
@@ -203,9 +223,51 @@ jobs:
             sleep 1
           done
 
-          grep -F '"service":"harbor-console"' /tmp/harbor-console-health.json
-          grep -F '"status":"ok"' /tmp/harbor-console-health.json
+          grep -F '"service":"harbor-console"' "$RUNNER_TEMP/health.json"
+          grep -F '"status":"ok"' "$RUNNER_TEMP/health.json"
           curl --fail --silent --show-error http://127.0.0.1:18080/ | grep -F '<title>Harbor'
 
           docker stop --time 15 "${container_name}"
           test "$(docker inspect "${container_name}" --format '{{.State.ExitCode}}')" = "0"
+
+  release-snapshot:
+    name: GoReleaser snapshot build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.22.2
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.18.3
+          install-only: true
+
+      - name: Build all release targets
+        run: |
+          goreleaser check
+          goreleaser release --snapshot --clean
+
+      - name: Verify embedded build metadata
+        run: |
+          binary=$(find bin/release -path '*linux_amd64*' -type f -name harbor-console)
+          version=$(jq -r .version bin/release/metadata.json)
+          scripts/check-build-version.sh "$binary" "$version" "$(git rev-parse HEAD)"

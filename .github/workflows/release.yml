@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Actions are pinned by commit; the comment names the reviewed tag.
+jobs:
+  goreleaser:
+    name: GoReleaser release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # No dependency or build caches: release builds must not restore
+      # state written by other workflow runs.
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.22.2
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.18.3
+          install-only: true
+
+      # Tests run here as well because a tag may point at a commit that
+      # never passed CI on main.
+      - name: Test tagged commit
+        run: |
+          go mod verify
+          npm --prefix web ci --ignore-scripts
+          npm --prefix web run build
+          npm --prefix web test
+          go test -race ./cmd/... ./internal/... ./web -count=1
+
+      # Publish only when the binary embeds exactly this tag and commit.
+      - name: Verify embedded build metadata
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          GOOS=linux GOARCH=amd64 goreleaser build --clean --single-target --id harbor-console
+          binary=$(find bin/release -path '*linux_amd64*' -type f -name harbor-console)
+          scripts/check-build-version.sh "$binary" "${TAG#v}" "$(git rev-parse HEAD)"
+
+      - name: Publish GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: goreleaser release --clean

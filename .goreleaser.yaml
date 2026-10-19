@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# Release artifacts for tags vMAJOR.MINOR.PATCH[-pre]; see docs/IMPLEMENTATION.md “构建与发布”.
+version: 2
+
+project_name: harbor-console
+
+# Kept under the ignored bin/ so the tree stays clean; root dist/ is reserved
+# for Node / Web output by 目录规范.md.
+dist: bin/release
+
+before:
+  hooks:
+    # The Go embed package needs web/dist before any Go build.
+    - npm --prefix web ci --ignore-scripts
+    - npm --prefix web run build
+
+builds:
+  - id: harbor-console
+    main: ./cmd/harbor-console
+    binary: harbor-console
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    # Same metadata as the Dockerfile and CI builds; the commit date keeps
+    # release binaries reproducible.
+    ldflags:
+      - -s -w
+      - -X harbor-console/internal/buildinfo.Version={{ .Version }}
+      - -X harbor-console/internal/buildinfo.Commit={{ .FullCommit }}
+      - -X harbor-console/internal/buildinfo.BuildDate={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: harbor-console
+    ids: [harbor-console]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - README.zh-CN.md
+      - configs/config.example.yaml
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot+{{ .ShortCommit }}"
+
+changelog:
+  sort: asc
+
+release:
+  prerelease: auto
