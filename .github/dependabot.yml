@@ -38,3 +38,7 @@ updates:
     groups:
       npm:
         update-types: [minor, patch]
+    ignore:
+      # Node.js types track the oldest supported runtime (see engines).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
