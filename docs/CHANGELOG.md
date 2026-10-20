@@ -12,6 +12,7 @@
 - Dependabot 忽略 `@types/node` 大版本更新：类型版本不应超过 `engines` 中最低支持的 Node.js 运行时。
 - 合并 Dependabot npm 分组更新（react / @types/react 19.3、typescript-eslint 8.71、vite 8.3、Playwright 1.64 等 11 项）：表单提交处理改用 `SubmitEvent<HTMLFormElement>`（`FormEvent` 已废弃）；公开目录不再用 `void` 丢弃解构值；构建保留 `index.html` 入口的 modulepreload，不再为懒加载路由注入预加载链接。WebKit 会把加载完成 3 秒时仍无使用方的预加载报为警告，慢速 runner 上路由矩阵因此偶发失败（vite 8.2 下的 main 也出现过），断言未放宽。
 - 移除 Dependabot（与 MirrorDock 一致）：删除 `.github/dependabot.yml`，`check-deployment-pins.mjs` 不再要求该文件；依赖改为手动升级，Actions 与基础镜像仍须固定 SHA / digest。
+- 中文 README 改为主入口：`README.zh-CN.md` → `README.md`，英文版 `README.md` → `README.en.md`；同步语言切换链接、发布包文件、`AGENTS.md` 与文档索引，并在 README 目录例外中登记。
 
 ## 2026-10-19：1.0 上线前最终检查
 

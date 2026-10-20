@@ -5,7 +5,7 @@
 <h1 align="center">Harbor Console</h1>
 
 <p align="center">
-  A self-contained administration console for Harbor v2.15 — one Go binary, an embedded bilingual React UI, and a typed server-side API gateway.
+  面向 Harbor v2.15 的一体化管理控制台：一个 Go 二进制，内嵌中英文 React 界面与服务端类型化 API 网关。
 </p>
 
 <p align="center">
@@ -17,41 +17,41 @@
 </p>
 
 <p align="center">
-  <a href="README.zh-CN.md">简体中文</a> · <b>English</b>
+  <b>简体中文</b> · <a href="README.en.md">English</a>
 </p>
 
 ---
 
-Harbor Console gives Harbor administrators one consistent workspace for projects, repositories, artifacts, security, replication, retention, preheating, users, scanners, audit data and system operations. The browser never talks to Harbor directly: the Go server holds the credentials and forwards only explicitly declared Harbor v2.15 operations. The React bundle, styles, translations and demo data are embedded in the binary, so it runs in isolated networks without a separate web server, npm registry or CDN.
+Harbor Console 为 Harbor 管理员提供统一的工作区，覆盖项目、仓库、制品、安全、复制、保留、预热、用户、扫描器、审计和系统运维。浏览器不直接访问 Harbor：凭据保存在 Go 服务端，只转发明确声明的 Harbor v2.15 操作。React 产物、样式、翻译和演示数据全部嵌入二进制，运行时无需单独的前端服务、npm registry 或 CDN，适合纯内网环境。
 
 > [!IMPORTANT]
-> - **Harbor v2.15 only.** The operation contract was captured from v2.15.2 and is identical in v2.15.4, the newest release verified against a live instance. There are no compatibility shims for older Harbor APIs.
-> - **Basic Auth upstream.** Connect with a Harbor username and password, or an OIDC user's CLI secret. Browser-based OIDC login, OIDC onboarding and database self-registration are not implemented.
+> - **只支持 Harbor v2.15。** 操作合同取自 v2.15.2，与已在真实实例上验证的最新版本 v2.15.4 完全一致；不保留旧 Harbor API 的兼容层。
+> - **上游使用 Basic Auth。** 使用 Harbor 用户名和密码，或 OIDC 用户的 CLI Secret 连接。暂未实现浏览器原生 OIDC 登录、OIDC onboarding 和数据库账号自助注册。
 
-## Features
+## 功能特性
 
-- **Broad Harbor administration**: projects, members, repositories, artifacts, tags, labels, scans, SBOM, retention, replication, registries, robots, webhooks, P2P preheating, audit, job service, scanners, users, groups, quotas and system settings.
-- **Multiple Harbor connections**: one browser session keeps up to 20 isolated connections and switches between them. Credentials are submitted once and are never returned to the browser or stored in browser storage.
-- **Typed upstream gateway**: methods, paths, query fields and JSON bodies are allowlisted; there is no arbitrary URL or method proxy.
-- **Bilingual UI**: Simplified Chinese and English, with persisted language, timezone, CLI, theme and repository-view preferences.
-- **Offline single binary**: every UI asset is embedded; nothing is downloaded at runtime.
-- **Built-in demo**: evaluate the main workflows without a Harbor installation.
-- **Operational defaults**: structured logs, bounded requests and responses, rate limits, health checks, graceful shutdown, strict cookies and same-origin write protection.
+- **完整的日常管理入口**：项目与成员、仓库与制品、Tag、Label、扫描、SBOM、保留、复制、远端仓库、机器人、Webhook、P2P 预热、审计、Job Service、扫描器、用户、用户组、配额和系统配置。
+- **连接多个 Harbor**：一个浏览器会话最多保存 20 个相互隔离的连接并随时切换。凭据只在建立连接时提交一次，不会回传浏览器，也不会写入浏览器存储。
+- **类型化上游网关**：方法、路径、查询字段和 JSON 请求体均使用白名单，不提供任意 URL 或方法代理。
+- **中英文界面**：支持简体中文和英文，并保存语言、时区、CLI、主题和仓库视图偏好。
+- **离线单二进制**：全部前端资源嵌入可执行文件，运行时不下载任何内容。
+- **内置演示**：没有 Harbor 环境也能体验主要页面和操作流程。
+- **生产运行基础**：结构化日志、请求与响应限制、限速、健康检查、优雅退出、严格 Cookie 和写操作同源校验。
 
-## Requirements
+## 运行要求
 
-| Item | Requirement |
+| 项目 | 要求 |
 | --- | --- |
 | Harbor | v2.15.x |
-| Prebuilt binaries | Linux, macOS or Windows on amd64 / arm64 |
-| Building from source | Go 1.27.2+, Node.js 22.22.2+ (22.x), 24.15.0+ (24.x) or 26+, npm |
-| Container image | Docker or another OCI builder |
+| 预编译版本 | Linux、macOS 或 Windows，amd64 / arm64 |
+| 从源码构建 | Go 1.27.2+；Node.js 22.22.2+（22 系列）、24.15.0+（24 系列）或 26+；npm |
+| 容器镜像 | Docker 或其他 OCI 镜像构建工具 |
 
-## Quick Start
+## 快速开始
 
-### 1. Download a release
+### 1. 下载预编译版本
 
-Download the archive for your platform from [Releases](https://github.com/jiazixin/harbor-console/releases/latest) and verify it against `checksums.txt`. Replace `1.0.0` with the version you are installing:
+在 [Releases](https://github.com/jiazixin/harbor-console/releases/latest) 下载对应平台的包，并用 `checksums.txt` 校验。将 `1.0.0` 替换为要安装的版本：
 
 ```sh
 VERSION=1.0.0
@@ -62,15 +62,15 @@ tar -xzf "harbor-console_${VERSION}_linux_amd64.tar.gz"
 ./harbor-console
 ```
 
-Each archive contains the binary, `LICENSE`, both READMEs and [configs/config.example.yaml](configs/config.example.yaml). Windows archives are `.zip`. Only linux/amd64 runs in CI; the other targets are cross-compiled.
+包内包含二进制、`LICENSE`、中英文 README 和 [configs/config.example.yaml](configs/config.example.yaml)，Windows 为 `.zip`。CI 只实际运行 linux/amd64，其余目标仅交叉编译。
 
-### 2. Connect
+### 2. 连接 Harbor
 
-Open <http://127.0.0.1:8080> and enter a Harbor base URL, username, and password or CLI secret. **Preview with demo data** starts an isolated local session without contacting Harbor.
+打开 <http://127.0.0.1:8080>，填写 Harbor 根地址、用户名和密码或 CLI Secret。点击“使用演示数据预览”可进入相互隔离的本地演示会话，不会连接 Harbor。
 
-### 3. Build from source
+### 3. 从源码构建
 
-Run from the repository root. The web bundle must be built first because `web/embed.go` embeds `web/dist/`:
+在仓库根目录执行。必须先构建 Web，因为 `web/embed.go` 会把 `web/dist/` 嵌入二进制：
 
 ```sh
 go mod download
@@ -81,34 +81,34 @@ CGO_ENABLED=0 go build -trimpath -o bin/harbor-console ./cmd/harbor-console
 ./bin/harbor-console
 ```
 
-## Configuration
+## 配置
 
-Precedence is environment variables > YAML file > built-in defaults. `CONFIG_FILE` selects the YAML file; when it is unset, the optional `configs/config.local.yaml` under the working directory is read. An explicitly empty or missing path is an error. Relative paths resolve against the process working directory, so use absolute paths in deployments.
+优先级为环境变量 > YAML 文件 > 内置默认值。`CONFIG_FILE` 指定 YAML 文件；未设置时读取工作目录下可选的 `configs/config.local.yaml`。显式指定空路径或不存在的文件会报错。相对路径以进程工作目录为基准，部署时建议使用绝对路径。
 
 ```sh
 cp configs/config.example.yaml configs/config.local.yaml
 CONFIG_FILE="$PWD/configs/config.local.yaml" ./bin/harbor-console
 ```
 
-| Environment variable | Purpose | Default |
+| 环境变量 | 作用 | 默认值 |
 | --- | --- | --- |
-| `CONFIG_FILE` | YAML configuration path | `configs/config.local.yaml` when present |
-| `LISTEN` | Listener address | `127.0.0.1` |
-| `PORT` | Listener port | `8080` |
-| `HEALTH_URI` | Health endpoint | `/health` |
-| `LOG_LEVEL` | `debug`, `info`, `warn` or `error` | `info` |
-| `LOG_FORMAT` | `json` or `logfmt` | `json` |
-| `ACCESS_LOG` | Enable request logs | `true` |
-| `LOG_HEALTH_CHECKS` | Include health requests in access logs | `false` |
-| `READ_HEADER_TIMEOUT` | Header read timeout | `5s` |
-| `READ_TIMEOUT` | Request read timeout | `20s` |
-| `WRITE_TIMEOUT` | Response write timeout | `30s` |
-| `IDLE_TIMEOUT` | Keep-alive idle timeout | `90s` |
-| `SHUTDOWN_TIMEOUT` | Graceful shutdown deadline | `10s` |
+| `CONFIG_FILE` | YAML 配置文件路径 | 存在时读取 `configs/config.local.yaml` |
+| `LISTEN` | 监听地址 | `127.0.0.1` |
+| `PORT` | 监听端口 | `8080` |
+| `HEALTH_URI` | 健康检查路径 | `/health` |
+| `LOG_LEVEL` | `debug`、`info`、`warn` 或 `error` | `info` |
+| `LOG_FORMAT` | `json` 或 `logfmt` | `json` |
+| `ACCESS_LOG` | 是否记录访问日志 | `true` |
+| `LOG_HEALTH_CHECKS` | 是否记录健康检查请求 | `false` |
+| `READ_HEADER_TIMEOUT` | 请求头读取超时 | `5s` |
+| `READ_TIMEOUT` | 请求读取超时 | `20s` |
+| `WRITE_TIMEOUT` | 响应写入超时 | `30s` |
+| `IDLE_TIMEOUT` | Keep-Alive 空闲超时 | `90s` |
+| `SHUTDOWN_TIMEOUT` | 优雅退出期限 | `10s` |
 
-See [configs/config.example.yaml](configs/config.example.yaml) for the complete file.
+完整示例见 [configs/config.example.yaml](configs/config.example.yaml)。
 
-## Deployment
+## 部署
 
 ### Docker
 
@@ -117,7 +117,7 @@ docker build -t harbor-console:local .
 docker run --rm -p 127.0.0.1:8080:8080 harbor-console:local
 ```
 
-The image is distroless, runs as `nonroot`, listens on `0.0.0.0:8080` and ships a default configuration at `/etc/harbor-console/config.yaml`. Mount your own when needed:
+镜像基于 distroless，以 `nonroot` 用户运行，监听 `0.0.0.0:8080`，默认配置位于 `/etc/harbor-console/config.yaml`。需要时挂载自定义配置：
 
 ```sh
 docker run --rm -p 127.0.0.1:8080:8080 \
@@ -125,56 +125,56 @@ docker run --rm -p 127.0.0.1:8080:8080 \
   harbor-console:local
 ```
 
-The examples publish the port on `127.0.0.1` only. Bind it to other interfaces only behind an authenticated reverse proxy or an equivalent network boundary.
+示例只把端口发布到 `127.0.0.1`。只有在已配置认证反向代理或等效网络边界后，才应绑定到其他地址。
 
-### State and backups
+### 状态与备份
 
-Sessions, Harbor credentials, demo state and rate limits live in process memory and are lost on restart. Logs go to stdout. The console creates no database or upload directory; Harbor owns and backs up its own data, and only the configuration file needs an optional read-only mount. Run a single replica — horizontal scaling would need shared sessions and rate limits, which are not implemented.
+会话、Harbor 凭据、演示状态和限速数据都保存在进程内存中，重启即丢失；日志输出到标准输出。控制台不创建数据库或上传目录，Harbor 自身的数据由 Harbor 负责备份，本项目只需按需只读挂载配置文件。请只部署一个副本：横向扩容需要共享会话与共享限速，目前未实现。
 
-## Security Model
+## 安全边界
 
-- The browser holds only a random `HttpOnly`, `SameSite=Strict` session cookie. Local and session storage contain non-secret UI preferences and public-catalog navigation state.
-- Harbor passwords and CLI secrets stay in server memory and expire with the session. Instance URLs and usernames are returned to identify the active connection.
-- Writes require a valid session and a same-origin request. Upstream redirects are limited to the same scheme and host. Requests and responses have size limits and timeouts. Access logs omit query strings and never intentionally log credentials.
-- **Public catalog = outbound requests.** The unauthenticated catalog accepts a user-supplied Harbor URL and the server makes anonymous `GET` requests to three fixed endpoints. Treat it as an SSRF and egress boundary: restrict who can reach the console and enforce outbound DNS / IP / network-policy allowlists.
-- Deploy behind HTTPS. A plain-HTTP Harbor URL exposes Basic Auth credentials between the console and Harbor. The "allow self-signed certificates" option disables TLS verification for that connection; use it only for trusted disposable or internal instances.
+- 浏览器只持有一个随机的 `HttpOnly`、`SameSite=Strict` 会话 Cookie；Local Storage 与 Session Storage 只保存非敏感界面偏好和公开目录导航状态。
+- Harbor 密码和 CLI Secret 只保存在服务端内存中并随会话过期；实例地址和用户名会返回浏览器，用于标识当前连接。
+- 写操作必须具备有效会话并通过同源校验；上游重定向限于相同协议和主机；请求与响应均有大小和时间限制；访问日志不记录查询字符串，也不会主动记录凭据。
+- **公开目录会产生出站请求。** 未登录公开目录接受用户提供的 Harbor 地址，由服务端向三个固定接口发起匿名 `GET`。这是 SSRF 与出站访问信任边界：请限制谁能访问控制台，并通过 DNS、IP 白名单或网络策略约束出站目标。
+- 生产环境应部署在 HTTPS 之后。用 HTTP 连接 Harbor 时，控制台与 Harbor 之间的 Basic Auth 凭据不加密。“允许自签名证书”会关闭该连接的证书校验，只能用于可信的临时或内网实例。
 
-## Architecture
+## 架构
 
 ```text
-Browser ──HttpOnly session cookie──▶ Harbor Console (Go)
-                                       ├─ HTTP handlers and in-memory sessions
-                                       ├─ typed Harbor v2.15 gateway
-                                       ├─ embedded bilingual web client
-                                       └─ isolated demo state
-                                              │ Basic Auth / CLI secret
-                                              ▼
-                                     One or more Harbor instances
+浏览器 ──HttpOnly 会话 Cookie──▶ Harbor Console（Go）
+                                  ├─ HTTP 处理器与内存会话
+                                  ├─ 类型化 Harbor v2.15 网关
+                                  ├─ 嵌入式中英文 Web 客户端
+                                  └─ 相互隔离的演示状态
+                                         │ Basic Auth / CLI Secret
+                                         ▼
+                                一个或多个 Harbor 实例
 ```
 
-Design details are in [docs/DESIGN.md](docs/DESIGN.md).
+设计细节见 [docs/DESIGN.md](docs/DESIGN.md)。
 
-## Development
+## 开发
 
 ```sh
-npm --prefix web run dev      # Vite dev server with a proxy to the Go backend
-npm --prefix web run check    # Prettier, ESLint, TypeScript
-npm --prefix web run build    # web/dist; required before any Go command
-npm --prefix web test         # contract and component tests
+npm --prefix web run dev      # Vite 开发服务器，代理到 Go 后端
+npm --prefix web run check    # Prettier、ESLint、TypeScript
+npm --prefix web run build    # 生成 web/dist；任何 Go 命令之前必须执行
+npm --prefix web test         # 合同与组件测试
 go vet ./cmd/... ./internal/... ./web
 go test -race ./cmd/... ./internal/... ./web -count=1
-npm --prefix web run test:browser   # Playwright route matrix
+npm --prefix web run test:browser   # Playwright 路由矩阵
 ```
 
-Browser engines, coverage, vulnerability audits and where to change what are covered in [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md). On pushes to `main` and on pull requests, [CI](.github/workflows/ci.yml) runs web and Go checks and tests, a dependency vulnerability audit, the Chromium / Firefox / WebKit route matrix, a container build and smoke test, and a GoReleaser snapshot build of every release target. Dependencies are updated manually; Actions and Docker base images are pinned by commit SHA and digest, which `scripts/check-deployment-pins.mjs` enforces.
+浏览器引擎安装、覆盖率、漏洞审计和“改哪里”见 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)。推送到 `main` 和提交 Pull Request 时，[CI](.github/workflows/ci.yml) 会运行 Web 与 Go 检查和测试、依赖漏洞审计、Chromium / Firefox / WebKit 路由矩阵、容器构建与 smoke test，以及覆盖全部发布目标的 GoReleaser 快照构建。依赖由维护者手动升级；Actions 与 Docker 基础镜像分别固定到提交 SHA 和 digest，由 `scripts/check-deployment-pins.mjs` 检查。
 
-## Versioning and Releases
+## 版本与发布
 
-- Releases are tagged `vMAJOR.MINOR.PATCH` (pre-releases such as `v1.2.0-rc.1` are marked as such automatically).
-- Pushing a tag triggers the [Release workflow](.github/workflows/release.yml): it tests the tagged commit, checks that the built binary reports exactly that version and commit, then uses GoReleaser to publish archives and `checksums.txt` for linux / darwin / windows on amd64 and arm64.
-- The version, commit and build date are injected with `-ldflags` into `internal/buildinfo`. They appear in the `server_started` log line and on the About page. Plain `go build` reports `dev`.
+- 发布 tag 采用 `v主版本.次版本.修订版本`，预发布如 `v1.2.0-rc.1` 会自动标为 Pre-release。
+- 推送 tag 触发 [Release 工作流](.github/workflows/release.yml)：先测试该提交，核对构建出的二进制恰好报告该版本和提交，再由 GoReleaser 发布 linux / darwin / windows 的 amd64 与 arm64 包及 `checksums.txt`。
+- 版本、提交和构建时间通过 `-ldflags` 注入 `internal/buildinfo`，显示在 `server_started` 日志和“关于”页面中；直接 `go build` 显示 `dev`。
 
-Local dry run (nothing is published; output goes to the ignored `bin/release/`):
+本地预演（不发布，输出在忽略的 `bin/release/`）：
 
 ```sh
 go install github.com/goreleaser/goreleaser/v2@v2.18.3
@@ -182,47 +182,48 @@ goreleaser check
 goreleaser release --snapshot --clean
 ```
 
-## Documentation
+## 文档
 
-| Document | Contents |
+| 文档 | 内容 |
 | --- | --- |
-| [docs/DESIGN.md](docs/DESIGN.md) | Architecture, API, session and deployment constraints |
-| [docs/UI.md](docs/UI.md) | Colours, controls, tables, motion, keyboard and responsive rules |
-| [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | Where to change what, checks, build and release |
-| [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) | What was verified for the current release and what was not |
-| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Notable changes and design decisions |
+| [docs/DESIGN.md](docs/DESIGN.md) | 架构，API、会话与部署约束 |
+| [docs/UI.md](docs/UI.md) | 颜色、控件、表格、动效、键盘与响应式规范 |
+| [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | 修改位置、检查命令、构建与发布 |
+| [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) | 当前发布验证了什么、哪些尚未覆盖 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | 重要变更与设计决定 |
 
-## Project Structure
+## 项目结构
 
 ```text
-cmd/harbor-console/      executable entry point
-internal/app/            HTTP application, sessions, gateway and demo
-internal/config/         YAML and environment configuration
-internal/observability/  structured and access logging
-internal/buildinfo/      build version metadata
-web/                     the only npm / Vite boundary: React source, tests, E2E, embed.go
-configs/                 configuration example; local instances are ignored
-scripts/                 repository checks used by CI
-docs/                    design, implementation, acceptance and change records
-.github/                 CI and tag release workflows
-.goreleaser.yaml         GoReleaser multi-target release configuration
-bin/                     ignored local binaries, including bin/release/ GoReleaser output
+cmd/harbor-console/      可执行程序入口
+internal/app/            HTTP 应用、会话、网关和演示
+internal/config/         YAML 与环境变量配置
+internal/observability/  结构化日志与访问日志
+internal/buildinfo/      构建版本元数据
+web/                     唯一的 npm / Vite 边界：React 源码、测试、E2E、embed.go
+configs/                 配置示例；本地实例被忽略
+scripts/                 CI 使用的仓库检查脚本
+docs/                    设计、实施、验收与变更记录
+.github/                 CI 与 tag 发布工作流
+.goreleaser.yaml         GoReleaser 多目标发布配置
+bin/                     忽略的本机二进制，含 bin/release/ GoReleaser 产物
 ```
 
-The directory baseline is maintained only in [目录规范.md](目录规范.md); collaboration rules are in [AGENTS.md](AGENTS.md). Directory exceptions for this project:
+目录基线只在 [目录规范.md](目录规范.md) 维护，协作规则见 [AGENTS.md](AGENTS.md)。本项目的目录例外：
 
-| Baseline rule | Actual behaviour | Reason | Scope / re-evaluate when |
+| 基线规则 | 实际行为 | 原因与依据 | 适用范围 / 重新评估条件 |
 | --- | --- | --- | --- |
-| §4 `bin/` holds executables only | GoReleaser output (binaries, archives, checksums, metadata) goes to `bin/release/` | A root `dist/` is not ignored and is reserved for Node / Web output | Release builds; when the release tool changes |
+| §3 根目录 README | 中文 `README.md` 为主入口，英文翻译为 `README.en.md` | 用户要求中文 README 优先展示 | 两份同步维护；放弃英文版时评估 |
+| §4 `bin/` 只放可执行文件 | GoReleaser 输出（二进制、压缩包、checksums、元数据）在 `bin/release/` | 根 `dist/` 未被忽略，且保留给 Node / Web 产物 | 发布构建；更换发布工具时评估 |
 
-## Contributing
+## 参与贡献
 
-Issues and pull requests are welcome. Before submitting:
+欢迎提交 Issue 和 Pull Request。提交前请：
 
-1. Read [AGENTS.md](AGENTS.md) and [目录规范.md](目录规范.md) and place new files according to them.
-2. Run the checks under [Development](#development) locally; UI changes should also pass the browser route matrix.
-3. Use the demo or a disposable Harbor instance for tests — never write to a production Harbor.
+1. 阅读 [AGENTS.md](AGENTS.md) 与 [目录规范.md](目录规范.md)，新文件按其中的目录规则放置；
+2. 在本地运行上文“开发”中的检查，界面改动还需通过浏览器路由矩阵；
+3. 测试只使用演示模式或可丢弃的 Harbor 实例，不要写入生产 Harbor。
 
-## License
+## 许可证
 
-Harbor Console is licensed under the [Apache License 2.0](LICENSE). This is an independent project and is not affiliated with the Harbor project or the CNCF.
+本项目基于 [Apache License 2.0](LICENSE) 开源。本项目为独立项目，与 Harbor 项目及 CNCF 无隶属关系。

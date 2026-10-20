@@ -44,7 +44,7 @@ archives:
     files:
       - LICENSE
       - README.md
-      - README.zh-CN.md
+      - README.en.md
       - configs/config.example.yaml
 
 checksum:

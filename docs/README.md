@@ -1,6 +1,6 @@
 # Harbor Console 文档
 
-当前维护基线：2026-10-19。首次使用、配置和部署见根目录的 [中文 README](../README.zh-CN.md) / [English README](../README.md)。
+当前维护基线：2026-10-19。首次使用、配置和部署见根目录的 [中文 README](../README.md) / [English README](../README.en.md)。
 
 | 文档 | 解决的问题 |
 | --- | --- |

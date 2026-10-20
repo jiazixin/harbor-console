@@ -5,4 +5,4 @@
 - 本规范是项目目录和文件归属的唯一基线；不复制正文，不在其他指令文件维护另一套目录规则。
 - 根据当前任务应用规范，先检查并保留工作区已有改动；不借功能任务擅自全仓迁移。
 - 文件归属、工具例外、验证范围和完成标准按规范执行。既有授权与已记录决定可直接沿用，不重复确认。
-- 项目使用与构建命令见 [README.zh-CN.md](README.zh-CN.md)，详细检查见 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)。CI/CD 直接调用原生工具命令。
+- 项目使用与构建命令见 [README.md](README.md)，详细检查见 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)。CI/CD 直接调用原生工具命令。
