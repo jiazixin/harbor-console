@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 import { controlApi } from "../../app/api-client";
 import { useLocale } from "../../app/locale-context";
@@ -571,7 +571,7 @@ export function AuthenticationConfiguration({
   const canTestConnection = mode === "ldap_auth" || mode === "oidc_auth";
   const ProviderSettings = mode === "db_auth" ? null : providerSettings[mode];
 
-  async function save(event: FormEvent<HTMLFormElement>) {
+  async function save(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!event.currentTarget.reportValidity()) return;
     const payload = authenticationPayload(

@@ -1,5 +1,5 @@
 import {
-  type FormEvent,
+  type SubmitEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -124,7 +124,7 @@ function AuditFilterForm({
     values.username || values.resource || values.operation || values.result,
   );
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const submittedResult = formString(form, "result");

@@ -1,6 +1,6 @@
 import {
-  type FormEvent,
   type MouseEvent,
+  type SubmitEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -144,8 +144,9 @@ function writeHistory(
 function removeHistoryState() {
   const current = asRecord(window.history.state);
   if (!(historyKey in current)) return;
-  const { [historyKey]: removedCatalog, ...next } = current;
-  void removedCatalog;
+  const next = Object.fromEntries(
+    Object.entries(current).filter(([key]) => key !== historyKey),
+  );
   window.history.replaceState(
     Object.keys(next).length ? next : null,
     "",
@@ -687,7 +688,7 @@ export function PublicCatalogView({
     );
   }
 
-  function submitSearch(event: FormEvent<HTMLFormElement>) {
+  function submitSearch(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     transition({ ...catalog, page: 1, query: search.trim() }, false);
   }

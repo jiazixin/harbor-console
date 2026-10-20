@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 import { controlApi } from "../../app/api-client";
 import type { ConsoleRoute } from "../../app/hash-router";
@@ -54,7 +54,7 @@ function SecurityConfiguration({
     );
   }
 
-  async function save(event: FormEvent<HTMLFormElement>) {
+  async function save(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     try {
       const payload = draft.toPayload();

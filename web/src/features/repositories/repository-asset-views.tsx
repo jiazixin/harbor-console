@@ -1,4 +1,4 @@
-import { type FormEvent, type MouseEvent } from "react";
+import { type MouseEvent, type SubmitEvent } from "react";
 
 import { formatDate, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
@@ -118,7 +118,7 @@ export function RepositoryAssetToolbar({
   return (
     <form
       className="table-toolbar repository-asset-toolbar"
-      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+      onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
         onSearch(draftQuery.trim());
       }}

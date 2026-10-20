@@ -26,6 +26,13 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       assetsDir: "bundles",
       sourcemap: false,
+      // Keep the entry's modulepreload in index.html, but do not inject preload
+      // links for lazy routes: WebKit reports any link preload still waiting
+      // for its importer three seconds after the load event as unused.
+      modulePreload: {
+        resolveDependencies: (_filename, dependencies, { hostType }) =>
+          hostType === "html" ? dependencies : [],
+      },
       rollupOptions: {
         output: {
           manualChunks(moduleId) {

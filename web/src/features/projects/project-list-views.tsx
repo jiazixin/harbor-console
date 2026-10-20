@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef } from "react";
+import { type SubmitEvent, useEffect, useRef } from "react";
 
 import { formatDate, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
@@ -101,7 +101,7 @@ export function ProjectFilterForm({
   return (
     <form
       className="table-toolbar project-filter-toolbar"
-      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+      onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
         onApply({ query: name.trim(), owner: owner.trim(), visibility });
       }}

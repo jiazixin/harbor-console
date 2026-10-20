@@ -1,5 +1,5 @@
 import {
-  type FormEvent,
+  type SubmitEvent,
   useCallback,
   useEffect,
   useRef,
@@ -470,7 +470,7 @@ function VulnerabilitiesSection({
   );
   const [statusFilter, setStatusFilter] = useResettableState(values.status);
   const active = Object.values(values).some(Boolean);
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     navigate(

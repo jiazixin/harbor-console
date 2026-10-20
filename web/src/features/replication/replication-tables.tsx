@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 
 import { formatDate, formatDuration, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
@@ -22,7 +22,7 @@ export function ReplicationPolicyFilter({
   return (
     <form
       className="table-toolbar"
-      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+      onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
         const value = new FormData(event.currentTarget).get("q");
         onSearch(typeof value === "string" ? value.trim() : "");
@@ -76,7 +76,7 @@ export function ReplicationExecutionFilter({
   return (
     <form
       className="table-toolbar filter-toolbar"
-      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+      onSubmit={(event: SubmitEvent<HTMLFormElement>) => {
         event.preventDefault();
         onApply(draft);
       }}

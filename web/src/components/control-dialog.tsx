@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useRef, useState } from "react";
+import { type ReactNode, type SubmitEvent, useRef, useState } from "react";
 
 import { useLocale } from "../app/locale-context";
 import { Icon, type IconName } from "./icons";
@@ -47,7 +47,7 @@ export function ControlDialog({
     },
   });
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (
       !formRef.current?.reportValidity() ||
