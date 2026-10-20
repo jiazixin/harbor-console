@@ -72,22 +72,6 @@ if (!existsSync(dockerfile)) {
   }
 }
 
-const dependabotFile = ".github/dependabot.yml";
-if (!existsSync(dependabotFile)) {
-  findings.push(
-    `${dependabotFile}: missing automated dependency update configuration`,
-  );
-} else {
-  const contents = readFileSync(dependabotFile, "utf8");
-  for (const ecosystem of ["github-actions", "docker", "gomod", "npm"]) {
-    if (!contents.includes(`package-ecosystem: ${ecosystem}`)) {
-      findings.push(
-        `${dependabotFile}: missing ${ecosystem} update configuration`,
-      );
-    }
-  }
-}
-
 if (findings.length > 0) {
   process.stderr.write(`${findings.join("\n")}\n`);
   process.exitCode = 1;

@@ -166,7 +166,7 @@ go test -race ./cmd/... ./internal/... ./web -count=1
 npm --prefix web run test:browser   # Playwright route matrix
 ```
 
-Browser engines, coverage, vulnerability audits and where to change what are covered in [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md). On pushes to `main` and on pull requests, [CI](.github/workflows/ci.yml) runs web and Go checks and tests, a dependency vulnerability audit, the Chromium / Firefox / WebKit route matrix, a container build and smoke test, and a GoReleaser snapshot build of every release target. Dependabot keeps Actions, Go modules, npm packages and Docker base images up to date.
+Browser engines, coverage, vulnerability audits and where to change what are covered in [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md). On pushes to `main` and on pull requests, [CI](.github/workflows/ci.yml) runs web and Go checks and tests, a dependency vulnerability audit, the Chromium / Firefox / WebKit route matrix, a container build and smoke test, and a GoReleaser snapshot build of every release target. Dependencies are updated manually; Actions and Docker base images are pinned by commit SHA and digest, which `scripts/check-deployment-pins.mjs` enforces.
 
 ## Versioning and Releases
 
@@ -204,7 +204,7 @@ web/                     the only npm / Vite boundary: React source, tests, E2E,
 configs/                 configuration example; local instances are ignored
 scripts/                 repository checks used by CI
 docs/                    design, implementation, acceptance and change records
-.github/                 CI, tag release and Dependabot
+.github/                 CI and tag release workflows
 .goreleaser.yaml         GoReleaser multi-target release configuration
 bin/                     ignored local binaries, including bin/release/ GoReleaser output
 ```

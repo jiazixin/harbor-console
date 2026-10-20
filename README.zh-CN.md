@@ -166,7 +166,7 @@ go test -race ./cmd/... ./internal/... ./web -count=1
 npm --prefix web run test:browser   # Playwright 路由矩阵
 ```
 
-浏览器引擎安装、覆盖率、漏洞审计和“改哪里”见 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)。推送到 `main` 和提交 Pull Request 时，[CI](.github/workflows/ci.yml) 会运行 Web 与 Go 检查和测试、依赖漏洞审计、Chromium / Firefox / WebKit 路由矩阵、容器构建与 smoke test，以及覆盖全部发布目标的 GoReleaser 快照构建。Dependabot 负责更新 Actions、Go 模块、npm 依赖和 Docker 基础镜像。
+浏览器引擎安装、覆盖率、漏洞审计和“改哪里”见 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)。推送到 `main` 和提交 Pull Request 时，[CI](.github/workflows/ci.yml) 会运行 Web 与 Go 检查和测试、依赖漏洞审计、Chromium / Firefox / WebKit 路由矩阵、容器构建与 smoke test，以及覆盖全部发布目标的 GoReleaser 快照构建。依赖由维护者手动升级；Actions 与 Docker 基础镜像分别固定到提交 SHA 和 digest，由 `scripts/check-deployment-pins.mjs` 检查。
 
 ## 版本与发布
 
@@ -204,7 +204,7 @@ web/                     唯一的 npm / Vite 边界：React 源码、测试、E
 configs/                 配置示例；本地实例被忽略
 scripts/                 CI 使用的仓库检查脚本
 docs/                    设计、实施、验收与变更记录
-.github/                 CI、tag 发布与 Dependabot
+.github/                 CI 与 tag 发布工作流
 .goreleaser.yaml         GoReleaser 多目标发布配置
 bin/                     忽略的本机二进制，含 bin/release/ GoReleaser 产物
 ```
