@@ -10,6 +10,7 @@
 - 修复浏览器测试偶发失败：对话框模块按需下载期间会先显示“正在打开对话框”占位对话框，`dark mobile` 用例的未命名 `getByRole("dialog")` 可能测量到即将被替换的占位元素而得到空的 `boundingBox`。改为按对话框名称定位。
 - Dependabot 每个生态的 minor / patch 更新合并为一个分组 PR，major 单独提交，并限制同时打开的 PR 数量。
 - Dependabot 忽略 `@types/node` 大版本更新：类型版本不应超过 `engines` 中最低支持的 Node.js 运行时。
+- 合并 Dependabot npm 分组更新（react / @types/react 19.3、typescript-eslint 8.71、vite 8.3、Playwright 1.64 等 11 项）：表单提交处理改用 `SubmitEvent<HTMLFormElement>`（`FormEvent` 已废弃）；公开目录不再用 `void` 丢弃解构值；构建保留 `index.html` 入口的 modulepreload，不再为懒加载路由注入预加载链接。WebKit 会把加载完成 3 秒时仍无使用方的预加载报为警告，慢速 runner 上路由矩阵因此偶发失败（vite 8.2 下的 main 也出现过），断言未放宽。
 
 ## 2026-10-19：1.0 上线前最终检查
 

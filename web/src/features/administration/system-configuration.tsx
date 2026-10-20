@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from "react";
+import { type SubmitEvent, useMemo, useState } from "react";
 
 import { controlApi } from "../../app/api-client";
 import { globalAuditOperationLabel } from "../../app/audit-log";
@@ -549,7 +549,7 @@ export function SystemConfiguration({
       return next;
     });
 
-  async function save(event: FormEvent<HTMLFormElement>) {
+  async function save(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!event.currentTarget.reportValidity()) return;
     const payload = systemPayload(

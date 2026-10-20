@@ -1,4 +1,4 @@
-import { type FormEvent, useRef, useState } from "react";
+import { type SubmitEvent, useRef, useState } from "react";
 
 import { ApiError, sessionApi } from "../../app/api-client";
 import { useLocale } from "../../app/locale-context";
@@ -66,7 +66,7 @@ export function LoginPage({
   const [busy, setBusy] = useState<"connect" | "demo" | null>(null);
   const addressInputRef = useRef<HTMLInputElement>(null);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const username = formString(data, "username").trim();

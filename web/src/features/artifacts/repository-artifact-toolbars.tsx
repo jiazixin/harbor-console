@@ -1,4 +1,4 @@
-import { type FormEvent } from "react";
+import { type SubmitEvent } from "react";
 
 import { controlApi } from "../../app/api-client";
 import { formatNumber } from "../../app/formatters";
@@ -55,7 +55,7 @@ export function ArtifactFilterForm({
   const [labelId, setLabelId] = useResettableState(filters.labelId);
   const [scanStatus, setScanStatus] = useResettableState(filters.scanStatus);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmedQuery = query.trim();
     onApply({

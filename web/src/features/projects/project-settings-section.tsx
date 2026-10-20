@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from "react";
+import { type SubmitEvent, useMemo, useState } from "react";
 
 import { controlApi } from "../../app/api-client";
 import { useLocale } from "../../app/locale-context";
@@ -213,7 +213,7 @@ export function ProjectSettingsSection({
   const scannerError = settings.scannerError ?? settings.candidatesError;
   const quotaAvailable = Boolean(settings.quota?.id);
 
-  async function saveSettings(event: FormEvent<HTMLFormElement>) {
+  async function saveSettings(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
     setSaving(true);
