@@ -6,3 +6,4 @@
 - [2026 年 9 月验收](2026-09/ACCEPTANCE.md)：目录迁移、UI 改进及可读性调整的验证记录。
 - [质量改进计划](2026-09/plans/2026-09-12-console-quality.md)、[目录迁移计划](2026-09/plans/2026-09-17-directory-layout.md)、[可读性计划](2026-09/plans/2026-09-20-code-readability.md)：已完成计划，保留当时路径与命令。
 - [2026 年 10 月 2 日验收](2026-10/ACCEPTANCE.md)与[当时的检查计划](2026-10/plans/2026-10-02-release-validation.md)：本地与演示环境的上线前检查，真实 Harbor 当时未覆盖。
+- [2026 年 10 月 19 日验收](2026-10/ACCEPTANCE-2026-10-19.md)与[1.0 上线前检查计划](2026-10/plans/2026-10-19-release-1.0-check.md)：1.0 发布前在真实 Harbor v2.15.4 上的全域检查。

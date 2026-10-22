@@ -1,10 +1,10 @@
 # 开发与验证
 
-维护基线：2026-10-19。系统边界见 [DESIGN.md](DESIGN.md)，共享控件与动画见 [UI.md](UI.md)。
+维护基线：2026-10-22。系统边界见 [DESIGN.md](DESIGN.md)，共享控件与动画见 [UI.md](UI.md)。
 
 ## 本地开发
 
-运行环境版本以 `go.mod` 和 `web/package.json` 为准；Node 支持 22.22.2+（22 系列）、24.15.0+（24 系列）或 26+，CI 使用 22.22.2。首次安装依赖：
+运行环境版本以 `go.mod` 和 `web/package.json` 为准；Node 支持 22.23.4+（22 系列）、24.22.1+（24 系列）或 26.12.1+，CI 使用 24.22.1（Active LTS）。首次安装依赖：
 
 ```bash
 go mod download
@@ -96,7 +96,7 @@ npm --prefix web run build
 mkdir -p bin
 CGO_ENABLED=0 go build -trimpath -o bin/harbor-console ./cmd/harbor-console
 npm --prefix web run audit
-GOTOOLCHAIN="go$(sed -n 's/^go //p' go.mod)" go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./cmd/... ./internal/... ./web
+GOTOOLCHAIN="go$(sed -n 's/^go //p' go.mod)" go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./cmd/... ./internal/... ./web
 
 # 可选覆盖率报告
 mkdir -p coverage

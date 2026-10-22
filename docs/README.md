@@ -1,6 +1,6 @@
 # Harbor Console 文档
 
-当前维护基线：2026-10-19。首次使用、配置和部署见根目录的 [中文 README](../README.md) / [English README](../README.en.md)。
+当前维护基线：2026-10-22。首次使用、配置和部署见根目录的 [中文 README](../README.md) / [English README](../README.en.md)。
 
 | 文档 | 解决的问题 |
 | --- | --- |
@@ -9,7 +9,6 @@
 | [开发与验证](IMPLEMENTATION.md) | 应该修改哪里，如何运行检查和维护构建产物 |
 | [验收记录](ACCEPTANCE.md) | 本轮验证了什么，哪些环境还未覆盖 |
 | [变更记录](CHANGELOG.md) | 当前工作区的改进与设计决定 |
-| [1.0 上线前检查计划](plans/2026-10-19-release-1.0-check.md) | 本轮检查范围与完成标准 |
 
 [历史归档](archive/README.md)保留旧验收、设计和已完成计划，用于追溯。历史路径、测试数量及环境结论不能覆盖当前规范或作为本轮通过证据。
 

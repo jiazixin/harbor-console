@@ -28,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22.22.2
+          node-version: 24.22.1
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -59,7 +59,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22.22.2
+          node-version: 24.22.1
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -108,7 +108,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22.22.2
+          node-version: 24.22.1
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -123,7 +123,7 @@ jobs:
           npm --prefix web ci --ignore-scripts
           npm --prefix web run build
           npm --prefix web run audit
-          GOTOOLCHAIN="go$(sed -n 's/^go //p' go.mod)" go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./cmd/... ./internal/... ./web
+          GOTOOLCHAIN="go$(sed -n 's/^go //p' go.mod)" go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./cmd/... ./internal/... ./web
 
   browser:
     name: Browser route matrix
@@ -139,7 +139,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22.22.2
+          node-version: 24.22.1
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -244,7 +244,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22.22.2
+          node-version: 24.22.1
           cache: npm
           cache-dependency-path: web/package-lock.json
 

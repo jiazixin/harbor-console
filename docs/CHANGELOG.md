@@ -1,5 +1,25 @@
 # 变更记录
 
+## 2026-10-22：代码质量清理与工具链升级（v1.0.1）
+
+**工具链与漏洞**
+
+- Go 由 1.27.2 升为 1.27.3；Docker builder 改用 `golang:1.27.3-alpine3.23` 并固定 Registry 返回的 digest。
+- CI 与 Release 工作流的 Node.js 由 22.22.2 改为 24.22.1（Active LTS，含 2026-10-20 安全修复）；`engines` 最低版本提高到已修复安全问题的 22.23.4 / 24.22.1 / 26.12.1。
+- CI 中的 govulncheck 由 v1.6.0 升为 v1.9.0。Actions 与 distroless 运行镜像已是最新固定版本，未改动。
+
+**死代码与未使用项**
+
+- Go：删除未调用的 `projectArtifactCount`、`sortDemoByID`；仅测试使用的 `newApp` 移入测试文件，`webui.ReadFile` 删除，测试改用 `webui.Files()`；演示网关 `handleControl` 删除未使用的 `list` 参数；只用于 GET 的 `harborJSON` 改名为 `harborGetJSON` 并去掉固定的 method 参数。
+- Web：删除未使用的 `ApplicationDialogKind`、`parseAuditRoute`；两处重复的 `auditQueryValue` 合并到 `app/audit-log.ts`；约 45 个只在本文件使用的类型和常量取消导出。
+- CSS：删除 27 个已无组件使用的类及其规则（旧操作中心、分页器、表格页脚等，约 370 行）和未使用的 `--motion-distance-small`；动态拼接的 `log-level-*`、`harbor-banner-*` 保留。
+
+**可读性**
+
+- 演示网关的大型分派函数（最长 447 行）按业务域拆分：保留策略、垃圾清理与审计清理、Job Service、安全中心、制品 Tag/标签、制品扫描、机器人、标签、项目设置、项目成员、仓库、预热策略、用户与用户组各自独立；case 内容未改动。`demoControlHandler` 的返回值改为具名并补充说明。
+- 含义不清的局部变量改名：`data` → `loadedConsoleData`、`scanLog`、`addition`、`form`、`replicationData`，`info` → `adapterInfo`。
+- 限流测试改为逐次断言，消除 staticcheck 对 `!allow() || !allow()` 的误报。
+
 ## 2026-10-19：开源发布准备
 
 - 采用 Apache License 2.0，新增 `LICENSE`；中英文 README 改为开源项目结构（徽章、快速开始、部署、版本与发布、目录例外、贡献、许可证）。

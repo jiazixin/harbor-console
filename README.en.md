@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/jiazixin/harbor-console/actions/workflows/ci.yml"><img src="https://github.com/jiazixin/harbor-console/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/jiazixin/harbor-console/releases/latest"><img src="https://img.shields.io/github/v/release/jiazixin/harbor-console?sort=semver" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Go-1.27.2-00ADD8?logo=go&logoColor=white" alt="Go 1.27.2">
+  <img src="https://img.shields.io/badge/Go-1.27.3-00ADD8?logo=go&logoColor=white" alt="Go 1.27.3">
   <img src="https://img.shields.io/badge/Harbor-v2.15.x-60B932" alt="Harbor v2.15.x">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
 </p>
@@ -44,17 +44,17 @@ Harbor Console gives Harbor administrators one consistent workspace for projects
 | --- | --- |
 | Harbor | v2.15.x |
 | Prebuilt binaries | Linux, macOS or Windows on amd64 / arm64 |
-| Building from source | Go 1.27.2+, Node.js 22.22.2+ (22.x), 24.15.0+ (24.x) or 26+, npm |
+| Building from source | Go 1.27.3+, Node.js 22.23.4+ (22.x), 24.22.1+ (24.x) or 26.12.1+, npm |
 | Container image | Docker or another OCI builder |
 
 ## Quick Start
 
 ### 1. Download a release
 
-Download the archive for your platform from [Releases](https://github.com/jiazixin/harbor-console/releases/latest) and verify it against `checksums.txt`. Replace `1.0.0` with the version you are installing:
+Download the archive for your platform from [Releases](https://github.com/jiazixin/harbor-console/releases/latest) and verify it against `checksums.txt`. Replace `1.0.1` with the version you are installing:
 
 ```sh
-VERSION=1.0.0
+VERSION=1.0.1
 curl -LO "https://github.com/jiazixin/harbor-console/releases/download/v${VERSION}/harbor-console_${VERSION}_linux_amd64.tar.gz"
 curl -LO "https://github.com/jiazixin/harbor-console/releases/download/v${VERSION}/checksums.txt"
 sha256sum --ignore-missing -c checksums.txt
