@@ -188,3 +188,33 @@ func TestLoadConfigurationPaths(t *testing.T) {
 		t.Fatal("explicit empty config should fail")
 	}
 }
+
+func TestLoadFileOverridesSelectionButRetainsEnvironmentFields(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("PORT", "9010")
+	t.Setenv("HEALTH_URI", "")
+	if err := os.Unsetenv("HEALTH_URI"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("custom.yaml", []byte("server:\n  port: 8088\nhealth:\n  uri: /custom-health\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	absolute, err := filepath.Abs("custom.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, environmentPath := range []string{"", "missing.yaml"} {
+		t.Setenv("CONFIG_FILE", environmentPath)
+		for _, path := range []string{"custom.yaml", absolute} {
+			cfg, err := LoadFile(path)
+			if err != nil || cfg.Health.URI != "/custom-health" || cfg.Server.Port != 9010 {
+				t.Fatalf("LoadFile(%q) = %#v, %v", path, cfg, err)
+			}
+		}
+	}
+	for _, path := range []string{"", "   ", "missing.yaml"} {
+		if _, err := LoadFile(path); err == nil {
+			t.Fatalf("LoadFile(%q) should fail", path)
+		}
+	}
+}

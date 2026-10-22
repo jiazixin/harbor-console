@@ -83,12 +83,21 @@ CGO_ENABLED=0 go build -trimpath -o bin/harbor-console ./cmd/harbor-console
 
 ## 配置
 
-优先级为环境变量 > YAML 文件 > 内置默认值。`CONFIG_FILE` 指定 YAML 文件；未设置时读取工作目录下可选的 `configs/config.local.yaml`。显式指定空路径或不存在的文件会报错。相对路径以进程工作目录为基准，部署时建议使用绝对路径。
+配置文件选择顺序为 `-c` / `--config` > `CONFIG_FILE` > 工作目录下可选的 `configs/config.local.yaml`。文件内的字段仍按环境变量 > YAML 文件 > 内置默认值覆盖。显式指定空路径或不存在的文件会报错；多次指定不一致的配置路径也会报错。相对路径以进程工作目录为基准，部署时建议使用绝对路径。
 
 ```sh
 cp configs/config.example.yaml configs/config.local.yaml
+./bin/harbor-console -c "$PWD/configs/config.local.yaml"
+# 等价长参数：--config；也可继续使用环境变量
 CONFIG_FILE="$PWD/configs/config.local.yaml" ./bin/harbor-console
 ```
+
+```sh
+./bin/harbor-console -h          # 或 --help：显示帮助
+./bin/harbor-console --version   # 显示版本、提交与构建时间
+```
+
+帮助和版本命令不读取配置、不启动服务。无参数启动仍使用上述配置选择顺序，默认文件缺失时使用内置默认值。参数错误退出码为 2，配置或启动失败为 1，帮助和版本正常输出为 0。
 
 | 环境变量 | 作用 | 默认值 |
 | --- | --- | --- |
@@ -172,7 +181,7 @@ npm --prefix web run test:browser   # Playwright 路由矩阵
 
 - 发布 tag 采用 `v主版本.次版本.修订版本`，预发布如 `v1.2.0-rc.1` 会自动标为 Pre-release。
 - 推送 tag 触发 [Release 工作流](.github/workflows/release.yml)：先测试该提交，核对构建出的二进制恰好报告该版本和提交，再由 GoReleaser 发布 linux / darwin / windows 的 amd64 与 arm64 包及 `checksums.txt`。
-- 版本、提交和构建时间通过 `-ldflags` 注入 `internal/buildinfo`，显示在 `server_started` 日志和“关于”页面中；直接 `go build` 显示 `dev`。
+- 版本、提交和构建时间通过 `-ldflags` 注入 `internal/buildinfo`，显示在 `--version`、`server_started` 日志和“关于”页面中；直接 `go build` 显示 `dev`。
 
 本地预演（不发布，输出在忽略的 `bin/release/`）：
 
@@ -214,6 +223,7 @@ bin/                     忽略的本机二进制，含 bin/release/ GoReleaser 
 | 基线规则 | 实际行为 | 原因与依据 | 适用范围 / 重新评估条件 |
 | --- | --- | --- | --- |
 | §3 根目录 README | 中文 `README.md` 为主入口，英文翻译为 `README.en.md` | 用户要求中文 README 优先展示 | 两份同步维护；放弃英文版时评估 |
+| §7.1 配置入口 | 增加 `-c` / `--config`，优先于 `CONFIG_FILE`；默认路径和字段环境覆盖保持不变 | 用户要求增加命令行参数 | 程序启动；配置协议改变时评估 |
 | §4 `bin/` 只放可执行文件 | GoReleaser 输出（二进制、压缩包、checksums、元数据）在 `bin/release/` | 根 `dist/` 未被忽略，且保留给 Node / Web 产物 | 发布构建；更换发布工具时评估 |
 
 ## 参与贡献

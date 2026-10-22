@@ -15,11 +15,7 @@ import (
 	"harbor-console/internal/observability"
 )
 
-func Run(ctx context.Context, output io.Writer) error {
-	runtimeConfig, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("load configuration: %w", err)
-	}
+func Run(ctx context.Context, output io.Writer, runtimeConfig config.Config) error {
 	logger, err := observability.NewLogger(output, runtimeConfig.Logging)
 	if err != nil {
 		return fmt.Errorf("initialize logger: %w", err)

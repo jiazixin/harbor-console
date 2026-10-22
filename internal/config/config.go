@@ -84,6 +84,15 @@ func Load() (Config, error) {
 	return loadRuntimeConfig(strings.TrimSpace(configPath), explicitlyConfigured, os.LookupEnv)
 }
 
+// LoadFile selects an explicit YAML file while retaining field environment overrides.
+func LoadFile(path string) (Config, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return Config{}, fmt.Errorf("配置文件路径不能为空")
+	}
+	return loadRuntimeConfig(path, true, os.LookupEnv)
+}
+
 func loadRuntimeConfig(configPath string, requireFile bool, lookup environmentLookup) (Config, error) {
 	config := Default()
 	if requireFile && strings.TrimSpace(configPath) == "" {

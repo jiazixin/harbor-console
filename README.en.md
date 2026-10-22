@@ -83,12 +83,21 @@ CGO_ENABLED=0 go build -trimpath -o bin/harbor-console ./cmd/harbor-console
 
 ## Configuration
 
-Precedence is environment variables > YAML file > built-in defaults. `CONFIG_FILE` selects the YAML file; when it is unset, the optional `configs/config.local.yaml` under the working directory is read. An explicitly empty or missing path is an error. Relative paths resolve against the process working directory, so use absolute paths in deployments.
+Configuration file selection follows `-c` / `--config` > `CONFIG_FILE` > the optional `configs/config.local.yaml` under the working directory. Field precedence remains environment variables > YAML file > built-in defaults. An explicitly empty or missing path is an error, as are conflicting repeated configuration paths. Relative paths resolve against the process working directory, so use absolute paths in deployments.
 
 ```sh
 cp configs/config.example.yaml configs/config.local.yaml
+./bin/harbor-console -c "$PWD/configs/config.local.yaml"
+# Equivalent long option: --config; environment selection also remains supported
 CONFIG_FILE="$PWD/configs/config.local.yaml" ./bin/harbor-console
 ```
+
+```sh
+./bin/harbor-console -h          # Or --help: show usage
+./bin/harbor-console --version   # Show version, commit and build date
+```
+
+Help and version commands do not read configuration or start the server. Starting without arguments retains the selection order above; a missing default file uses built-in defaults. Exit codes are 2 for argument errors, 1 for configuration or startup failures, and 0 for successful help/version output.
 
 | Environment variable | Purpose | Default |
 | --- | --- | --- |
@@ -172,7 +181,7 @@ Browser engines, coverage, vulnerability audits and where to change what are cov
 
 - Releases are tagged `vMAJOR.MINOR.PATCH` (pre-releases such as `v1.2.0-rc.1` are marked as such automatically).
 - Pushing a tag triggers the [Release workflow](.github/workflows/release.yml): it tests the tagged commit, checks that the built binary reports exactly that version and commit, then uses GoReleaser to publish archives and `checksums.txt` for linux / darwin / windows on amd64 and arm64.
-- The version, commit and build date are injected with `-ldflags` into `internal/buildinfo`. They appear in the `server_started` log line and on the About page. Plain `go build` reports `dev`.
+- The version, commit and build date are injected with `-ldflags` into `internal/buildinfo`. They appear in `--version`, the `server_started` log line and on the About page. Plain `go build` reports `dev`.
 
 Local dry run (nothing is published; output goes to the ignored `bin/release/`):
 
@@ -214,6 +223,7 @@ The directory baseline is maintained only in [目录规范.md](目录规范.md);
 | Baseline rule | Actual behaviour | Reason | Scope / re-evaluate when |
 | --- | --- | --- | --- |
 | §3 root README | Chinese `README.md` is the main entry; the English translation is `README.en.md` | The maintainer wants the Chinese README shown first | Keep both in sync; re-evaluate if the English version is dropped |
+| §7.1 configuration entry point | Add `-c` / `--config` ahead of `CONFIG_FILE`; retain default paths and field environment overrides | User-requested CLI options | Startup; revisit if the configuration protocol changes |
 | §4 `bin/` holds executables only | GoReleaser output (binaries, archives, checksums, metadata) goes to `bin/release/` | A root `dist/` is not ignored and is reserved for Node / Web output | Release builds; when the release tool changes |
 
 ## Contributing
