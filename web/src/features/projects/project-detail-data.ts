@@ -1,4 +1,5 @@
 import { ApiError, controlApi } from "../../app/api-client";
+import { auditQueryValue } from "../../app/audit-log";
 import type {
   AuditLog,
   ControlPagination,
@@ -67,12 +68,6 @@ function rejectionMessage(result: PromiseSettledResult<unknown>): string {
   return result.reason instanceof Error
     ? result.reason.message
     : String(result.reason);
-}
-
-function auditQueryValue(value: string): string {
-  const normalized = value.trim().slice(0, 200);
-  if (/^[-A-Za-z0-9_.@:/+]+$/.test(normalized)) return normalized;
-  return `"${normalized.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
 async function listAllRepositories(

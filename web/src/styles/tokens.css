@@ -31,7 +31,6 @@
   --motion-standard: 220ms;
   --motion-content: 220ms;
   --motion-global: 220ms;
-  --motion-distance-small: 2px;
   --motion-distance-medium: 4px;
   --motion-linear: linear;
   --motion-ease: cubic-bezier(0.2, 0, 0, 1);

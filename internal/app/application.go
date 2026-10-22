@@ -55,10 +55,6 @@ func (e *upstreamError) Error() string {
 	return e.Message
 }
 
-func newApp() (*app, error) {
-	return newAppWithConfig(config.Default(), slog.New(slog.NewTextHandler(io.Discard, nil)))
-}
-
 func newAppWithConfig(runtimeConfig config.Config, logger *slog.Logger) (*app, error) {
 	if err := runtimeConfig.Validate(); err != nil {
 		return nil, err

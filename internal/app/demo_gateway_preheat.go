@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// handlePreheatControl serves preheat providers and provider instances.
 func (state *demoState) handlePreheatControl(
 	w http.ResponseWriter,
 	method, operation string,
@@ -120,6 +121,23 @@ func (state *demoState) handlePreheatControl(
 		}
 		data = providers
 
+	default:
+		handled = false
+	}
+	return
+}
+
+// handlePreheatPolicyControl serves project preheat policies and their executions.
+func (state *demoState) handlePreheatPolicyControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "preheat-policies":
 		projectName := query.Get("project")
 		if method == http.MethodGet {

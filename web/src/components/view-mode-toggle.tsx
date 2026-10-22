@@ -1,6 +1,6 @@
 import { Icon } from "./icons";
 
-export type ViewMode = "card" | "list";
+type ViewMode = "card" | "list";
 
 export function ViewModeToggle({
   value,

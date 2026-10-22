@@ -62,7 +62,7 @@ import {
   type AdministrationAction,
 } from "./administration-resource-dialogs";
 
-export type AdministrationSection =
+type AdministrationSection =
   | "users"
   | "groups"
   | "robots"

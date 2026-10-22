@@ -54,7 +54,6 @@
   color: var(--orange-strong);
 }
 
-.badge-amber,
 .severity-medium,
 .status-stopped {
   background: var(--amber-soft);
@@ -184,7 +183,6 @@
 }
 
 .spinner,
-.refresh-button[aria-busy="true"] .icon,
-.operation-kind.status-running .icon {
+.refresh-button[aria-busy="true"] .icon {
   animation: motion-spin var(--motion-spin) var(--motion-linear) infinite;
 }

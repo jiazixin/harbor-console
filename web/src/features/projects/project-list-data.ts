@@ -5,7 +5,7 @@ import type { ConsoleRoute } from "../../app/hash-router";
 import type { ControlList, ProjectSummary } from "../../app/models";
 import { createSortValues } from "../../components/data-table";
 
-export const defaultPageSize = 50;
+const defaultPageSize = 50;
 export const pageSizeOptions = [20, 50, 100];
 const defaultSort = "name";
 const validSorts = createSortValues([
@@ -126,7 +126,7 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
-export type ProjectListData = {
+type ProjectListData = {
   /** The current table page, or undefined while it loads. */
   table?: ControlList<ProjectSummary>;
   tableLoading: boolean;

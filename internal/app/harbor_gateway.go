@@ -72,7 +72,7 @@ func (a *app) handleControl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if current.Demo {
-		current.DemoData.handleControl(w, r.Method, operation, r.URL.Query(), decoded, methodConfig.list)
+		current.DemoData.handleControl(w, r.Method, operation, r.URL.Query(), decoded)
 		return
 	}
 	if operation == "system-cve-allowlist" && r.Method == http.MethodPut {
@@ -133,7 +133,7 @@ func (a *app) requireCurrentUserID(r *http.Request, current *session, requestedI
 	var user struct {
 		UserID int64 `json:"user_id"`
 	}
-	if err := a.harborJSON(r.Context(), current, http.MethodGet, "/api/v2.0/users/current", nil, &user); err != nil {
+	if err := a.harborGetJSON(r.Context(), current, "/api/v2.0/users/current", nil, &user); err != nil {
 		return err
 	}
 	actualID, err := strconv.ParseInt(requestedID, 10, 64)

@@ -58,7 +58,7 @@ func (a *app) prepareConnection(ctx context.Context, input connectRequest) (*ses
 	// protected current-user endpoint so a successful response proves the supplied
 	// credentials are actually valid before creating or adding a session.
 	var currentUser map[string]any
-	if err := a.harborJSON(ctx, candidate, http.MethodGet, "/api/v2.0/users/current", nil, &currentUser); err != nil {
+	if err := a.harborGetJSON(ctx, candidate, "/api/v2.0/users/current", nil, &currentUser); err != nil {
 		closeSessionClient(candidate)
 		status := http.StatusBadGateway
 		if upstream, ok := errors.AsType[*upstreamError](err); ok && (upstream.StatusCode == http.StatusUnauthorized || upstream.StatusCode == http.StatusForbidden) {

@@ -9,6 +9,7 @@ import {
 
 import { ApiError, controlApi } from "../../app/api-client";
 import {
+  auditQueryValue,
   globalAuditDescriptionLabel,
   globalAuditOperationLabel,
 } from "../../app/audit-log";
@@ -43,10 +44,6 @@ type AuditRouteState = AuditFilters & {
   sort: "op_time" | "-op_time";
 };
 
-export function parseAuditRoute(route: ConsoleRoute): AuditRouteState {
-  return parseAuditQuery(route.query);
-}
-
 function parseAuditQuery(query: URLSearchParams): AuditRouteState {
   const pageValue = Number(query.get("page"));
   const pageSizeValue = Number(query.get("page_size"));
@@ -60,12 +57,6 @@ function parseAuditQuery(query: URLSearchParams): AuditRouteState {
     result: result === "success" || result === "failed" ? result : "",
     sort: query.get("sort") === "op_time" ? "op_time" : "-op_time",
   };
-}
-
-export function auditQueryValue(value: string): string {
-  const normalized = value.trim().slice(0, 200);
-  if (/^[A-Za-z0-9_.@:/+-]+$/.test(normalized)) return normalized;
-  return `"${normalized.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
 export function auditControlQuery(filters: AuditFilters): string {

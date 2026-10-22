@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// handleArtifactControl serves artifacts, their accessories and build additions.
 func (state *demoState) handleArtifactControl(
 	w http.ResponseWriter,
 	method, operation string,
@@ -83,6 +84,54 @@ func (state *demoState) handleArtifactControl(
 			updateDemoArtifactCount(state.repositories, query.Get("project"), repositoryName, len(demoVisibleArtifacts(state.artifacts[repositoryName])))
 		}
 
+	case "artifact-accessories":
+		repositoryName := query.Get("repository")
+		artifactIndex, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
+		if !found {
+			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			break
+		}
+		accessories, _ := state.artifacts[repositoryName][artifactIndex]["accessories"].([]any)
+		state.writeListAny(w, accessories, query)
+		return
+
+	case "artifact-icon":
+		if query.Get("digest") != demoArtifactIconDigest {
+			errStatus, errMessage = http.StatusNotFound, "制品图标不存在"
+			break
+		}
+		data = map[string]any{"content-type": "image/png", "content": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL07wAAAABJRU5ErkJggg=="}
+
+	case "artifact-addition":
+		repositoryName := query.Get("repository")
+		if _, found := findArtifact(state.artifacts[repositoryName], query.Get("reference")); !found {
+			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			break
+		}
+		addition, found := demoArtifactAddition(query.Get("addition"))
+		if !found {
+			errStatus, errMessage = http.StatusNotFound, "当前制品没有该附加信息"
+			break
+		}
+		data = addition
+
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleArtifactReferenceControl serves the tags and labels attached to an artifact.
+func (state *demoState) handleArtifactReferenceControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "artifact-tags":
 		repositoryName := query.Get("repository")
 		index, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
@@ -173,37 +222,23 @@ func (state *demoState) handleArtifactControl(
 		labels = append(labels[:labelIndex], labels[labelIndex+1:]...)
 		state.artifacts[repositoryName][artifactIndex]["labels"] = mapsToAny(labels)
 
-	case "artifact-accessories":
-		repositoryName := query.Get("repository")
-		artifactIndex, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
-		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
-			break
-		}
-		accessories, _ := state.artifacts[repositoryName][artifactIndex]["accessories"].([]any)
-		state.writeListAny(w, accessories, query)
-		return
+	default:
+		handled = false
+	}
+	return
+}
 
-	case "artifact-icon":
-		if query.Get("digest") != demoArtifactIconDigest {
-			errStatus, errMessage = http.StatusNotFound, "制品图标不存在"
-			break
-		}
-		data = map[string]any{"content-type": "image/png", "content": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL07wAAAABJRU5ErkJggg=="}
+// handleArtifactScanControl serves artifact scans and their vulnerability reports.
+func (state *demoState) handleArtifactScanControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
 
-	case "artifact-addition":
-		repositoryName := query.Get("repository")
-		if _, found := findArtifact(state.artifacts[repositoryName], query.Get("reference")); !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
-			break
-		}
-		addition, found := demoArtifactAddition(query.Get("addition"))
-		if !found {
-			errStatus, errMessage = http.StatusNotFound, "当前制品没有该附加信息"
-			break
-		}
-		data = addition
-
+	switch operation {
 	case "artifact-scan":
 		repositoryName := query.Get("repository")
 		index, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
@@ -266,6 +301,23 @@ func (state *demoState) handleArtifactControl(
 		}
 		data = demoVulnerabilityReport()
 
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleRobotControl serves robot accounts.
+func (state *demoState) handleRobotControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "robots":
 		if method == http.MethodGet {
 			items := state.robots
@@ -347,6 +399,23 @@ func (state *demoState) handleArtifactControl(
 			state.robots = append(state.robots[:index], state.robots[index+1:]...)
 		}
 
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleLabelControl serves global and project label definitions.
+func (state *demoState) handleLabelControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "labels":
 		if method == http.MethodGet {
 			items := state.labels

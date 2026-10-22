@@ -1,5 +1,12 @@
 import type { AuditLog, Locale } from "./models";
 
+/** Quotes a free-text audit filter for Harbor's `q` query syntax. */
+export function auditQueryValue(value: string): string {
+  const normalized = value.trim().slice(0, 200);
+  if (/^[-A-Za-z0-9_.@:/+]+$/.test(normalized)) return normalized;
+  return `"${normalized.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
 type Translate = (source: string) => string;
 
 const exactTranslations: Record<string, string> = {

@@ -679,13 +679,13 @@ export function artifactAdditionText(raw: unknown): string {
 
 function AdditionContent({
   tab,
-  data,
+  addition,
 }: {
   tab: ArtifactDetailTab;
-  data: unknown;
+  addition: unknown;
 }) {
   const { locale, t } = useLocale();
-  const record = isRecord(data) ? data : {};
+  const record = isRecord(addition) ? addition : {};
   if (tab === "sbom") {
     const packages = recordArray(record.packages);
     if (packages.length)
@@ -736,7 +736,7 @@ function AdditionContent({
       );
   }
   if (tab === "license") {
-    const licenses = recordArray(record.licenses ?? data);
+    const licenses = recordArray(record.licenses ?? addition);
     if (licenses.length)
       return (
         <div className="table-scroll">
@@ -776,7 +776,7 @@ function AdditionContent({
       );
   }
   if (tab === "files") {
-    const files = arrayValue(record.files ?? data);
+    const files = arrayValue(record.files ?? addition);
     if (files.length)
       return (
         <div className="artifact-file-list">
@@ -793,7 +793,7 @@ function AdditionContent({
       );
   }
   if (tab === "build") {
-    const history = recordArray(record.history ?? data);
+    const history = recordArray(record.history ?? addition);
     if (history.length)
       return (
         <div className="table-scroll">
@@ -831,7 +831,7 @@ function AdditionContent({
       );
   }
   if (tab === "dependencies") {
-    const dependencies = recordArray(record.dependencies ?? data);
+    const dependencies = recordArray(record.dependencies ?? addition);
     if (dependencies.length)
       return (
         <div className="table-scroll">
@@ -864,7 +864,7 @@ function AdditionContent({
   }
   return (
     <pre className="artifact-addition-code">
-      <code>{artifactAdditionText(data)}</code>
+      <code>{artifactAdditionText(addition)}</code>
     </pre>
   );
 }
@@ -898,12 +898,12 @@ export function ArtifactAdditionSection({
         />
       </section>
     );
-  const data = normalizedAddition(value);
+  const addition = normalizedAddition(value);
   if (
-    data === undefined ||
-    data === null ||
-    data === "" ||
-    (Array.isArray(data) && !data.length)
+    addition === undefined ||
+    addition === null ||
+    addition === "" ||
+    (Array.isArray(addition) && !addition.length)
   )
     return (
       <section className="panel">
@@ -941,7 +941,7 @@ export function ArtifactAdditionSection({
           <span>{t("下载")}</span>
         </button>
       </div>
-      <AdditionContent tab={tab} data={data} />
+      <AdditionContent tab={tab} addition={addition} />
     </section>
   );
 }

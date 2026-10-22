@@ -14,7 +14,7 @@ export type RobotMutationPayload = {
   permissions: RobotPermission[];
 };
 
-export type RobotUpdatePayload = Pick<
+type RobotUpdatePayload = Pick<
   RobotMutationPayload,
   "description" | "disable" | "duration" | "level" | "name" | "permissions"
 >;

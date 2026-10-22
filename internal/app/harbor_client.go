@@ -18,8 +18,9 @@ import (
 
 const harborRequestTimeout = 18 * time.Second
 
-func (a *app) harborJSON(ctx context.Context, current *session, method, path string, query url.Values, out any) error {
-	response, err := a.harborRequest(ctx, current, method, path, query, nil, nil)
+// harborGetJSON reads a Harbor resource and decodes its JSON body into out.
+func (a *app) harborGetJSON(ctx context.Context, current *session, path string, query url.Values, out any) error {
+	response, err := a.harborRequest(ctx, current, http.MethodGet, path, query, nil, nil)
 	if err != nil {
 		return err
 	}

@@ -14,7 +14,7 @@ import {
   type RepositoryRouteState,
 } from "./repository-artifacts-data";
 
-export type ArtifactFilters = Pick<
+type ArtifactFilters = Pick<
   RepositoryRouteState,
   "artifactType" | "labelId" | "query" | "scanStatus" | "tagState"
 >;

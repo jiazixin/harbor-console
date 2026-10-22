@@ -11,8 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"harbor-console/internal/config"
 	"harbor-console/web"
 )
+
+// newApp builds the default demo application with logging discarded.
+func newApp() (*app, error) {
+	return newAppWithConfig(config.Default(), nil)
+}
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
@@ -94,7 +100,7 @@ func TestEmbeddedFrontendIsOfflineAndCSPCompatible(t *testing.T) {
 
 	contents := make(map[string]string, len(paths))
 	for _, path := range paths {
-		content, err := webui.ReadFile(path)
+		content, err := fs.ReadFile(webRoot, path)
 		if err != nil {
 			t.Fatalf("read embedded web %s: %v", path, err)
 		}
@@ -105,7 +111,7 @@ func TestEmbeddedFrontendIsOfflineAndCSPCompatible(t *testing.T) {
 			t.Fatalf("%s contains an inline style that the production CSP will block", path)
 		}
 	}
-	if _, err := webui.ReadFile("date-utils.test.cjs"); err == nil {
+	if _, err := fs.Stat(webRoot, "date-utils.test.cjs"); err == nil {
 		t.Fatal("web test source must not be embedded in the production binary")
 	}
 
@@ -163,8 +169,10 @@ func TestSameOriginChecksSchemeAndHost(t *testing.T) {
 
 func TestRateLimiter(t *testing.T) {
 	limiter := newRateLimiter(2, time.Minute)
-	if !limiter.allow("client") || !limiter.allow("client") {
-		t.Fatal("initial requests should be allowed")
+	for attempt := 1; attempt <= 2; attempt++ {
+		if !limiter.allow("client") {
+			t.Fatalf("request %d within the limit should be allowed", attempt)
+		}
 	}
 	if limiter.allow("client") {
 		t.Fatal("request over the limit should be rejected")

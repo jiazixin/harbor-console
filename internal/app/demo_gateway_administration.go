@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// handleAdministrationControl serves instance configuration and LDAP / OIDC checks.
 func (state *demoState) handleAdministrationControl(
 	w http.ResponseWriter,
 	method, operation string,
@@ -25,6 +26,84 @@ func (state *demoState) handleAdministrationControl(
 	case "ping":
 		data = map[string]any{"status": "healthy"}
 
+	case "configurations":
+		if method == http.MethodGet {
+			data = state.configurations
+			break
+		}
+		for key, value := range body {
+			item, ok := state.configurations[key].(map[string]any)
+			if !ok {
+				item = map[string]any{"editable": true}
+				state.configurations[key] = item
+			}
+			item["value"] = value
+		}
+		data = state.configurations
+
+	case "system-root-certificate":
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", `attachment; filename="harbor-ca.crt"`)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		_, _ = w.Write([]byte("-----BEGIN CERTIFICATE-----\nMIIBdemoHarborConsoleRootCertificate\n-----END CERTIFICATE-----\n"))
+		return
+
+	case "ldap-ping":
+		data = map[string]any{"success": true, "message": "LDAP 服务连接成功"}
+
+	case "ldap-users-search":
+		state.writeList(w, filterMaps(state.ldapUsers, query.Get("username"), "username"), query)
+		return
+
+	case "ldap-users-import":
+		uids := body["ldap_uid_list"].([]any)
+		for _, rawUID := range uids {
+			uid := stringValue(rawUID)
+			index, found := findMap(state.ldapUsers, "username", uid)
+			if !found {
+				continue
+			}
+			state.nextUserID++
+			candidate := cloneMap(state.ldapUsers[index])
+			candidate["user_id"] = state.nextUserID
+			candidate["comment"] = "从 LDAP 目录导入"
+			candidate["sysadmin_flag"] = false
+			candidate["creation_time"] = time.Now().UTC().Format(time.RFC3339)
+			state.users = append(state.users, candidate)
+			state.ldapUsers = append(state.ldapUsers[:index], state.ldapUsers[index+1:]...)
+		}
+		data = map[string]any{"imported": len(uids)}
+
+	case "ldap-groups-search":
+		items := state.ldapGroups
+		if name := query.Get("groupname"); name != "" {
+			items = filterMaps(items, name, "group_name")
+		} else if dn := query.Get("groupdn"); dn != "" {
+			items = filterMaps(items, dn, "ldap_group_dn")
+		}
+		state.writeList(w, items, query)
+		return
+
+	case "oidc-ping":
+		data = map[string]any{"success": true}
+
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleRetentionControl serves Tag retention policies and their runs.
+func (state *demoState) handleRetentionControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "retentions":
 		scope, _ := body["scope"].(map[string]any)
 		projectIndex, found := findMapNumber(state.projects, "project_id", fmt.Sprint(numberValue(scope["ref"])))
@@ -132,6 +211,23 @@ func (state *demoState) handleAdministrationControl(
 		}
 		data = logText
 
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleCleanupControl serves garbage collection and audit log purge jobs.
+func (state *demoState) handleCleanupControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "gc-history":
 		state.writeList(w, state.gcHistory, query)
 		return
@@ -236,6 +332,23 @@ func (state *demoState) handleAdministrationControl(
 			data = state.purgeSchedule
 		}
 
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleJobserviceControl serves job service pools, workers, queues and schedules.
+func (state *demoState) handleJobserviceControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "jobservice-pools":
 		data = mapsToAny(state.jobPools)
 
@@ -313,6 +426,23 @@ func (state *demoState) handleAdministrationControl(
 	case "jobservice-schedule-status":
 		data = map[string]any{"paused": state.jobSchedulePaused}
 
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleSecurityHubControl serves system-wide scanning, vulnerability summaries, the CVE allowlist and CVE exports.
+func (state *demoState) handleSecurityHubControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "scan-all-metrics":
 		data = state.scanMetrics
 
@@ -390,67 +520,6 @@ func (state *demoState) handleAdministrationControl(
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		_, _ = w.Write([]byte(content))
 		return
-
-	case "configurations":
-		if method == http.MethodGet {
-			data = state.configurations
-			break
-		}
-		for key, value := range body {
-			item, ok := state.configurations[key].(map[string]any)
-			if !ok {
-				item = map[string]any{"editable": true}
-				state.configurations[key] = item
-			}
-			item["value"] = value
-		}
-		data = state.configurations
-
-	case "system-root-certificate":
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Disposition", `attachment; filename="harbor-ca.crt"`)
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		_, _ = w.Write([]byte("-----BEGIN CERTIFICATE-----\nMIIBdemoHarborConsoleRootCertificate\n-----END CERTIFICATE-----\n"))
-		return
-
-	case "ldap-ping":
-		data = map[string]any{"success": true, "message": "LDAP 服务连接成功"}
-
-	case "ldap-users-search":
-		state.writeList(w, filterMaps(state.ldapUsers, query.Get("username"), "username"), query)
-		return
-
-	case "ldap-users-import":
-		uids := body["ldap_uid_list"].([]any)
-		for _, rawUID := range uids {
-			uid := stringValue(rawUID)
-			index, found := findMap(state.ldapUsers, "username", uid)
-			if !found {
-				continue
-			}
-			state.nextUserID++
-			candidate := cloneMap(state.ldapUsers[index])
-			candidate["user_id"] = state.nextUserID
-			candidate["comment"] = "从 LDAP 目录导入"
-			candidate["sysadmin_flag"] = false
-			candidate["creation_time"] = time.Now().UTC().Format(time.RFC3339)
-			state.users = append(state.users, candidate)
-			state.ldapUsers = append(state.ldapUsers[:index], state.ldapUsers[index+1:]...)
-		}
-		data = map[string]any{"imported": len(uids)}
-
-	case "ldap-groups-search":
-		items := state.ldapGroups
-		if name := query.Get("groupname"); name != "" {
-			items = filterMaps(items, name, "group_name")
-		} else if dn := query.Get("groupdn"); dn != "" {
-			items = filterMaps(items, dn, "ldap_group_dn")
-		}
-		state.writeList(w, items, query)
-		return
-
-	case "oidc-ping":
-		data = map[string]any{"success": true}
 
 	default:
 		handled = false

@@ -6,7 +6,7 @@ import type {
   Locale,
 } from "../../app/models";
 
-export type ArtifactScanState = {
+type ArtifactScanState = {
   status: string;
   severity: string;
   reportId: string;
@@ -16,7 +16,7 @@ export type ArtifactScanState = {
   total: number;
 };
 
-export type NormalizedArtifactPlatform = {
+type NormalizedArtifactPlatform = {
   os: string;
   architecture: string;
   variant: string;
@@ -101,7 +101,7 @@ export function artifactScanState(
 // BuildKit stores provenance and SBOM attestations as extra index entries with
 // an "unknown/unknown" platform. They are not runnable images, so platform
 // counts and lists leave them out, matching the Harbor portal.
-export function isAttestationReference(reference: ArtifactReference): boolean {
+function isAttestationReference(reference: ArtifactReference): boolean {
   return (
     reference.annotations?.["vnd.docker.reference.type"] ===
       "attestation-manifest" ||
@@ -154,10 +154,7 @@ export function artifactArchitectureSummary(
     : artifactPlatformLabel(platforms[0]);
 }
 
-export function fullRepositoryName(
-  project: string,
-  repository: string,
-): string {
+function fullRepositoryName(project: string, repository: string): string {
   const value = repository.replace(/^\/+/, "");
   return value.startsWith(`${project}/`) ? value : `${project}/${value}`;
 }

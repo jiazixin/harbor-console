@@ -22,9 +22,9 @@ const scanStatuses = [
   "unscanned",
 ] as const;
 
-export type ArtifactType = (typeof artifactTypes)[number] | "";
-export type TagState = (typeof tagStates)[number] | "";
-export type ScanStatus = (typeof scanStatuses)[number] | "";
+type ArtifactType = (typeof artifactTypes)[number] | "";
+type TagState = (typeof tagStates)[number] | "";
+type ScanStatus = (typeof scanStatuses)[number] | "";
 
 export type RepositoryRouteState = {
   project: string;
@@ -37,7 +37,7 @@ export type RepositoryRouteState = {
   scanStatus: ScanStatus;
 };
 
-export type RepositoryData = {
+type RepositoryData = {
   repository: RepositorySummary;
   project: ProjectSummary;
   artifacts: ControlList<HarborArtifact>;

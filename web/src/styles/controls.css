@@ -312,15 +312,6 @@
   color: var(--ink);
 }
 
-.registry-list-toolbar-actions .view-mode-toggle {
-  flex: 0 0 auto;
-}
-
-.permission-state .button {
-  display: inline-flex;
-  margin-top: 14px;
-}
-
 .danger-icon {
   color: var(--red);
 }

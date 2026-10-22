@@ -6,12 +6,6 @@
     flex-wrap: wrap;
   }
 
-  .replication-policies-section .replication-list-toolbar-meta {
-    width: 100%;
-    margin-left: 0;
-    flex-wrap: wrap;
-  }
-
   .replication-policies-section .toolbar-field {
     flex: 1 1 150px;
   }

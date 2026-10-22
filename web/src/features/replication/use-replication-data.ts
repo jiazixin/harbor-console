@@ -13,7 +13,7 @@ import type {
   ReplicationTab,
 } from "./replication-routing";
 
-export type ReplicationData = {
+type ReplicationData = {
   policies?: ReplicationPolicy[];
   /** Loaded only while the executions tab is open. */
   executions?: ReplicationExecution[];

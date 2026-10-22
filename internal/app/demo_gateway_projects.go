@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// handleProjectControl serves projects and their summaries.
 func (state *demoState) handleProjectControl(
 	w http.ResponseWriter,
 	method, operation string,
@@ -144,6 +145,78 @@ func (state *demoState) handleProjectControl(
 			data = map[string]any{"deletable": true}
 		}
 
+	case "project-artifacts":
+		projectName := query.Get("project")
+		items := make([]map[string]any, 0)
+		for repositoryName, artifacts := range state.artifacts {
+			if strings.HasPrefix(repositoryName, projectName+"/") {
+				items = append(items, demoVisibleArtifacts(artifacts)...)
+			}
+		}
+		state.writeList(w, items, query)
+		return
+
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleProjectSettingsControl serves project metadata and the project scanner.
+func (state *demoState) handleProjectSettingsControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
+	case "project-metadatas":
+		projectName := query.Get("project")
+		index, found := findMap(state.projects, "name", projectName)
+		if !found {
+			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+			break
+		}
+		metadata, _ := state.projects[index]["metadata"].(map[string]any)
+		if method == http.MethodGet {
+			data = metadata
+			break
+		}
+		key := strings.TrimSpace(stringValue(body["key"]))
+		value := stringValue(body["value"])
+		if key == "" {
+			errStatus, errMessage = http.StatusBadRequest, "metadata key 不能为空"
+			break
+		}
+		metadata[key] = value
+		data = metadata
+
+	case "project-metadata":
+		projectName := query.Get("project")
+		index, found := findMap(state.projects, "name", projectName)
+		if !found {
+			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+			break
+		}
+		metadata, _ := state.projects[index]["metadata"].(map[string]any)
+		key := query.Get("meta")
+		if method == http.MethodGet {
+			value, exists := metadata[key]
+			if !exists {
+				errStatus, errMessage = http.StatusNotFound, "metadata 不存在"
+				break
+			}
+			data = map[string]any{"value": value}
+		} else if method == http.MethodPut {
+			metadata[key] = body["value"]
+			data = map[string]any{"value": metadata[key]}
+		} else {
+			delete(metadata, key)
+		}
+
 	case "project-scanner":
 		projectName := query.Get("project")
 		if _, found := findMap(state.projects, "name", projectName); !found {
@@ -182,6 +255,23 @@ func (state *demoState) handleProjectControl(
 		state.writeList(w, items, query)
 		return
 
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleProjectMemberControl serves project members.
+func (state *demoState) handleProjectMemberControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "project-members":
 		projectName := query.Get("project")
 		if _, found := state.members[projectName]; !found {
@@ -245,61 +335,23 @@ func (state *demoState) handleProjectControl(
 		}
 		data = state.members[projectName][index]
 
-	case "project-artifacts":
-		projectName := query.Get("project")
-		items := make([]map[string]any, 0)
-		for repositoryName, artifacts := range state.artifacts {
-			if strings.HasPrefix(repositoryName, projectName+"/") {
-				items = append(items, demoVisibleArtifacts(artifacts)...)
-			}
-		}
-		state.writeList(w, items, query)
-		return
+	default:
+		handled = false
+	}
+	return
+}
 
-	case "project-metadatas":
-		projectName := query.Get("project")
-		index, found := findMap(state.projects, "name", projectName)
-		if !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
-			break
-		}
-		metadata, _ := state.projects[index]["metadata"].(map[string]any)
-		if method == http.MethodGet {
-			data = metadata
-			break
-		}
-		key := strings.TrimSpace(stringValue(body["key"]))
-		value := stringValue(body["value"])
-		if key == "" {
-			errStatus, errMessage = http.StatusBadRequest, "metadata key 不能为空"
-			break
-		}
-		metadata[key] = value
-		data = metadata
+// handleRepositoryControl serves repositories across and within projects.
+func (state *demoState) handleRepositoryControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
 
-	case "project-metadata":
-		projectName := query.Get("project")
-		index, found := findMap(state.projects, "name", projectName)
-		if !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
-			break
-		}
-		metadata, _ := state.projects[index]["metadata"].(map[string]any)
-		key := query.Get("meta")
-		if method == http.MethodGet {
-			value, exists := metadata[key]
-			if !exists {
-				errStatus, errMessage = http.StatusNotFound, "metadata 不存在"
-				break
-			}
-			data = map[string]any{"value": value}
-		} else if method == http.MethodPut {
-			metadata[key] = body["value"]
-			data = map[string]any{"value": metadata[key]}
-		} else {
-			delete(metadata, key)
-		}
-
+	switch operation {
 	case "all-repositories":
 		items := make([]map[string]any, 0)
 		for _, repositories := range state.repositories {

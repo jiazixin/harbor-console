@@ -154,7 +154,7 @@ export function DeleteReplicationPolicyDialog({
   );
 }
 
-export function StopReplicationExecutionDialog({
+function StopReplicationExecutionDialog({
   execution,
   onClose,
   onStopped,

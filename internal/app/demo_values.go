@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 )
 
@@ -57,12 +56,6 @@ func cloneDemoValue(value any) any {
 func stringValue(value any) string {
 	text, _ := value.(string)
 	return text
-}
-
-func sortDemoByID(items []map[string]any) {
-	sort.SliceStable(items, func(left, right int) bool {
-		return numberValue(items[left]["id"]) > numberValue(items[right]["id"])
-	})
 }
 
 func parseDemoID(value string) int64 {

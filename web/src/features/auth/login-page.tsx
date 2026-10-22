@@ -68,9 +68,9 @@ export function LoginPage({
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const username = formString(data, "username").trim();
-    const password = formString(data, "password");
+    const form = new FormData(event.currentTarget);
+    const username = formString(form, "username").trim();
+    const password = formString(form, "password");
     const url = normalizedAddress(address, protocol);
     if (!url || !username || !password) {
       setError(t("请完整填写 Harbor 地址、用户名和密码。"));

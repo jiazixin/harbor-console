@@ -108,7 +108,7 @@ export function navigationView(view: string): string {
     : view;
 }
 
-export type ConsoleRouteContext = {
+type ConsoleRouteContext = {
   route: ConsoleRoute;
   session: Session;
   consoleData: ConsoleData;

@@ -29,13 +29,13 @@ export type HarborInstanceCollection = {
   expires_at: string;
 };
 
-export type SearchProject = {
+type SearchProject = {
   name: string;
   project_id?: number;
   public?: boolean;
 };
 
-export type SearchRepository = {
+type SearchRepository = {
   repository_name: string;
   project_name?: string;
   project_id?: number;
@@ -72,12 +72,12 @@ export type PublicCatalogState = PublicCatalogRequest & {
   depth: number;
 };
 
-export type HarborHealth = {
+type HarborHealth = {
   status?: string;
   components?: { name?: string; status?: string }[];
 };
 
-export type HarborSystemInfo = {
+type HarborSystemInfo = {
   harbor_version?: string;
   banner_message?: string;
   auth_mode?: string;
@@ -134,7 +134,7 @@ export type CveAllowlist = {
   update_time?: string;
 };
 
-export type SecurityDangerousCve = {
+type SecurityDangerousCve = {
   cve_id?: string;
   severity?: string;
   cvss_score_v3?: number;
@@ -264,7 +264,7 @@ export type Registry = {
   update_time?: string;
 };
 
-export type RegistryAdapterEndpoint = {
+type RegistryAdapterEndpoint = {
   key?: string;
   value?: string;
 };
@@ -281,7 +281,7 @@ export type RegistryAdapterInfo = {
   };
 };
 
-export type ReplicationResourceFilterStyle = {
+type ReplicationResourceFilterStyle = {
   type?: "label" | "name" | "resource" | "tag";
   style?: string;
   values?: string[];
@@ -481,7 +481,7 @@ export type HarborConfigurationItem = {
   editable?: boolean;
 };
 
-export type HarborConfigurationValue =
+type HarborConfigurationValue =
   HarborConfigurationItem | boolean | number | string | null;
 
 export type HarborConfiguration = Record<string, HarborConfigurationValue>;
@@ -494,7 +494,7 @@ export type RobotCredential = {
   expires_at?: number;
 };
 
-export type WebhookTarget = {
+type WebhookTarget = {
   type?: string;
   address?: string;
   auth_header?: string;
@@ -523,7 +523,7 @@ export type WebhookEventMetadata = {
   }[];
 };
 
-export type ExecutionMetrics = {
+type ExecutionMetrics = {
   task_count?: number;
   success_task_count?: number;
   error_task_count?: number;
@@ -586,12 +586,12 @@ export type ImmutableTagRule = {
   };
 };
 
-export type RetentionSelectorMetadata = {
+type RetentionSelectorMetadata = {
   kind?: string;
   decorations?: string[];
 };
 
-export type RetentionTemplateMetadata = {
+type RetentionTemplateMetadata = {
   rule_template?: string;
   display_text?: string;
   action?: string;
@@ -826,7 +826,7 @@ export type ArtifactVulnerabilityCounts = {
   low: number;
 };
 
-export type ArtifactScanOverview = {
+type ArtifactScanOverview = {
   scan_status?: string;
   severity?: string;
   report_id?: string;
@@ -920,7 +920,7 @@ export type ArtifactLabelCollection = {
   load_error?: string;
 };
 
-export type DashboardStatistics = {
+type DashboardStatistics = {
   total_project_count?: number;
   public_project_count?: number;
   private_project_count?: number;
@@ -931,12 +931,12 @@ export type DashboardStatistics = {
   total_storage_consumption?: number;
 };
 
-export type ReplicationRegistry = {
+type ReplicationRegistry = {
   id?: number;
   name?: string;
 };
 
-export type ReplicationTrigger = {
+type ReplicationTrigger = {
   type?: string;
   trigger_settings?: {
     cron?: string;

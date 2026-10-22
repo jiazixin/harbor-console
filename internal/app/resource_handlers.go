@@ -119,7 +119,7 @@ func (a *app) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var payload any
-	if err := a.harborJSON(r.Context(), current, http.MethodGet, "/api/v2.0/search", url.Values{"q": {term}}, &payload); err != nil {
+	if err := a.harborGetJSON(r.Context(), current, "/api/v2.0/search", url.Values{"q": {term}}, &payload); err != nil {
 		writeUpstreamError(w, err)
 		return
 	}

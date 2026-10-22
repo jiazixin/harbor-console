@@ -20,7 +20,7 @@ type cveAllowlistState struct {
 // successful clear when Harbor retained an item.
 func (a *app) updateSystemCVEAllowlist(ctx context.Context, current *session, path string, requested map[string]any, headers http.Header) (*harborResponse, error) {
 	var authoritative map[string]any
-	if err := a.harborJSON(ctx, current, http.MethodGet, path, nil, &authoritative); err != nil {
+	if err := a.harborGetJSON(ctx, current, path, nil, &authoritative); err != nil {
 		return nil, err
 	}
 
@@ -52,7 +52,7 @@ func (a *app) updateSystemCVEAllowlist(ctx context.Context, current *session, pa
 	}
 
 	var persisted map[string]any
-	if err := a.harborJSON(ctx, current, http.MethodGet, path, nil, &persisted); err != nil {
+	if err := a.harborGetJSON(ctx, current, path, nil, &persisted); err != nil {
 		return nil, &writeConfirmationError{err: err}
 	}
 	got, err := decodeCVEAllowlistState(persisted)

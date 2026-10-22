@@ -35,7 +35,7 @@ export type RepositoryAssetRoute = {
   sort: string;
 };
 
-export type RepositoryAssetData = {
+type RepositoryAssetData = {
   repositories: RepositoryAsset[];
   /** One "project: message" entry per project that could not be read. */
   failures: string[];

@@ -565,7 +565,7 @@ export function PreheatExecutionsDialog({
   );
 }
 
-export function StopPreheatExecutionDialog({
+function StopPreheatExecutionDialog({
   project,
   policy,
   execution,

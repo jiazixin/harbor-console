@@ -62,12 +62,12 @@ export function RegistryDialog({
     ? adapters
     : ["harbor", "docker-hub", "docker-registry"];
   const [type, setType] = useState(registry?.type ?? availableAdapters[0]);
-  const info = adapterInfos[type] ?? {};
-  const endpoints = info.endpoint_pattern?.endpoints ?? [];
+  const adapterInfo = adapterInfos[type] ?? {};
+  const endpoints = adapterInfo.endpoint_pattern?.endpoints ?? [];
   const fixedEndpoint =
-    info.endpoint_pattern?.endpoint_type === "EndpointPatternTypeFix";
+    adapterInfo.endpoint_pattern?.endpoint_type === "EndpointPatternTypeFix";
   const listedEndpoint =
-    info.endpoint_pattern?.endpoint_type === "EndpointPatternTypeList" &&
+    adapterInfo.endpoint_pattern?.endpoint_type === "EndpointPatternTypeList" &&
     endpoints.length > 0;
   const initialUrl =
     registry?.url ??
@@ -75,7 +75,7 @@ export function RegistryDialog({
   const [url, setUrl] = useState(initialUrl);
   const [accessKey, setAccessKey] = useState(
     registry?.credential?.access_key ??
-      info.credential_pattern?.access_key_data ??
+      adapterInfo.credential_pattern?.access_key_data ??
       "",
   );
   const [accessSecret, setAccessSecret] = useState("");
@@ -84,9 +84,10 @@ export function RegistryDialog({
     registry?.ca_certificate ?? "",
   );
   const secretIsFile =
-    info.credential_pattern?.access_secret_type === "AccessSecretTypeFile";
+    adapterInfo.credential_pattern?.access_secret_type ===
+    "AccessSecretTypeFile";
   const accessKeyFixed =
-    info.credential_pattern?.access_key_type === "AccessKeyTypeFix";
+    adapterInfo.credential_pattern?.access_key_type === "AccessKeyTypeFix";
 
   const draft = useMemo<RegistryDraft>(
     () => ({ type, url, accessKey, accessSecret, insecure, caCertificate }),

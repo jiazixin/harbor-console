@@ -5,13 +5,16 @@ import (
 	"net/url"
 )
 
+// demoControlHandler answers the demo operations of one domain. It reports
+// handled=false for operations it does not own; otherwise it returns either a
+// success status with data or an error status and message, unless it already
+// wrote the response itself (for example a paginated list).
 type demoControlHandler func(
-	http.ResponseWriter,
-	string,
-	string,
-	url.Values,
-	map[string]any,
-) (bool, int, any, int, string)
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string)
 
 type demoControlResponseWriter struct {
 	http.ResponseWriter
@@ -28,21 +31,35 @@ func (writer *demoControlResponseWriter) Write(body []byte) (int, error) {
 	return writer.ResponseWriter.Write(body)
 }
 
-func (state *demoState) handleControl(w http.ResponseWriter, method, operation string, query url.Values, body map[string]any, list bool) {
+func (state *demoState) handleControl(w http.ResponseWriter, method, operation string, query url.Values, body map[string]any) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
 
 	writer := &demoControlResponseWriter{ResponseWriter: w}
 	handlers := []demoControlHandler{
 		state.handleProjectControl,
+		state.handleProjectSettingsControl,
+		state.handleProjectMemberControl,
+		state.handleRepositoryControl,
 		state.handleArtifactControl,
+		state.handleArtifactReferenceControl,
+		state.handleArtifactScanControl,
+		state.handleRobotControl,
+		state.handleLabelControl,
 		state.handlePreheatControl,
+		state.handlePreheatPolicyControl,
 		state.handleImmutabilityControl,
 		state.handleWebhookControl,
 		state.handleIdentityControl,
+		state.handleUserControl,
+		state.handleUserGroupControl,
 		state.handleQuotaControl,
 		state.handleScannerControl,
 		state.handleAdministrationControl,
+		state.handleRetentionControl,
+		state.handleCleanupControl,
+		state.handleJobserviceControl,
+		state.handleSecurityHubControl,
 		state.handleReplicationControl,
 		state.handleRegistryControl,
 		state.handleAuditControl,

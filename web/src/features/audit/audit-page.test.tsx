@@ -8,16 +8,12 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { controlApi } from "../../app/api-client";
+import { auditQueryValue } from "../../app/audit-log";
 import { parseHashRoute } from "../../app/hash-router";
 import { LocaleProvider } from "../../app/locale-context";
 import type { AuditLog } from "../../app/models";
 import { IconSprite } from "../../components/icons";
-import {
-  auditControlQuery,
-  auditPath,
-  auditQueryValue,
-  AuditPage,
-} from "./audit-page";
+import { auditControlQuery, auditPath, AuditPage } from "./audit-page";
 
 const log: AuditLog = {
   id: 48320,

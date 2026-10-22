@@ -87,8 +87,13 @@ export function ReplicationPage({
   const { locale, t } = useLocale();
   const { tab, page, pageSize, sort, policyFilter, executionFilters } =
     parseReplicationRoute(route);
-  const data = useReplicationData(tab, policyFilter, executionFilters);
-  const { policies, executions, registries, labels, localInfo } = data;
+  const replicationData = useReplicationData(
+    tab,
+    policyFilter,
+    executionFilters,
+  );
+  const { policies, executions, registries, labels, localInfo } =
+    replicationData;
 
   const sortedPolicies = useMemo(
     () => sortPolicies(policies ?? [], sort, locale),
@@ -137,8 +142,8 @@ export function ReplicationPage({
     />
   );
   const waitingForList =
-    data.loading &&
-    !data.error &&
+    replicationData.loading &&
+    !replicationData.error &&
     (tab === "policies" ? !policies : !executions);
 
   return (
@@ -151,7 +156,7 @@ export function ReplicationPage({
             <RefreshButton
               refreshing={refreshing || !policies}
               onRefresh={() => {
-                data.reload();
+                replicationData.reload();
                 onRefresh();
               }}
             />
@@ -189,11 +194,11 @@ export function ReplicationPage({
         </a>
       </nav>
       <ContentTransition mode={tab}>
-        {data.error ? (
+        {replicationData.error ? (
           <ErrorView
             title="复制数据载入失败"
-            message={data.error}
-            retry={data.reload}
+            message={replicationData.error}
+            retry={replicationData.reload}
           />
         ) : null}
         {waitingForList ? <TableLoading /> : null}

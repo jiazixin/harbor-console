@@ -3,10 +3,10 @@ import type { HarborPermission } from "../../app/models";
 import { createSortValues } from "../../components/data-table";
 import { type IconName } from "../../components/icons";
 
-export const defaultPageSize = 50;
-export const defaultRepositorySort = "-update_time";
-export const defaultAuditSort = "-op_time";
-export const validSections = new Set([
+const defaultPageSize = 50;
+const defaultRepositorySort = "-update_time";
+const defaultAuditSort = "-op_time";
+const validSections = new Set([
   "repositories",
   "members",
   "robots",
@@ -17,13 +17,13 @@ export const validSections = new Set([
   "preheat",
   "settings",
 ]);
-export const validRepositorySorts = createSortValues([
+const validRepositorySorts = createSortValues([
   "name",
   "artifact_count",
   "pull_count",
   "update_time",
 ]);
-export const validAuditSorts = createSortValues([
+const validAuditSorts = createSortValues([
   "id",
   "op_time",
   "username",
@@ -32,7 +32,7 @@ export const validAuditSorts = createSortValues([
   "operation_result",
 ]);
 
-export type ProjectSection =
+type ProjectSection =
   | "audit"
   | "members"
   | "preheat"

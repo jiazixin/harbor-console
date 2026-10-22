@@ -529,8 +529,7 @@ td.id-cell {
 }
 
 .filter-toolbar-controls,
-.filter-toolbar-actions,
-.filter-toolbar-meta {
+.filter-toolbar-actions {
   min-width: 0;
   min-height: var(--control-height-compact);
   display: flex;
@@ -542,17 +541,12 @@ td.id-cell {
   flex-wrap: wrap;
 }
 
-.filter-toolbar-actions,
-.filter-toolbar-meta {
+.filter-toolbar-actions {
   align-self: start;
 }
 
 .filter-toolbar-actions .button {
   min-height: var(--control-height-compact);
-}
-
-.filter-toolbar-meta {
-  justify-content: flex-end;
 }
 
 .table-shell {
@@ -563,51 +557,6 @@ td.id-cell {
   border-radius: var(--radius-panel);
   background: var(--surface);
   container-type: inline-size;
-}
-
-.table-footer {
-  min-height: 49px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 13px;
-  border-top: 1px solid var(--line);
-  color: var(--ink-faint);
-  font-size: 11px;
-}
-
-.pager {
-  display: flex;
-  gap: 4px;
-}
-
-.pager button {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  background: var(--surface);
-  color: var(--ink-soft);
-}
-
-.pager button:disabled {
-  cursor: not-allowed;
-  opacity: 0.4;
-}
-
-.pager .icon {
-  width: 14px;
-  height: 14px;
-}
-
-.registry-list-toolbar-primary > .toolbar-search {
-  margin: 0;
-  width: min(280px, 100%);
-  flex: 0 1 280px;
 }
 
 .project-filter-toolbar {
@@ -886,10 +835,6 @@ td.id-cell {
 @media (max-width: 1400px) {
   #replication-execution-filter.filter-toolbar {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  #replication-execution-filter .filter-toolbar-meta {
-    justify-content: flex-end;
   }
 }
 

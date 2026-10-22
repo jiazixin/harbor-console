@@ -77,10 +77,10 @@ export function useTaskLog<Task extends LogTask>(
   return { task, log, loading, timezone, setTimezone, panelRef, open, close };
 }
 
-export type TaskLog<Task extends LogTask> = ReturnType<typeof useTaskLog<Task>>;
+type TaskLog<Task extends LogTask> = ReturnType<typeof useTaskLog<Task>>;
 
 /** Translation keys for the accessible names and messages of one log type. */
-export type TaskLogLabels = {
+type TaskLogLabels = {
   refresh: string;
   copy: string;
   download: string;

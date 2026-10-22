@@ -225,7 +225,7 @@ export function ArtifactScanLogDialog({
     setLoading(true);
     setLoadError("");
     try {
-      const data = await controlApi.data<unknown>(
+      const scanLog = await controlApi.data<unknown>(
         "artifact-scan-log",
         {
           project,
@@ -236,7 +236,9 @@ export function ArtifactScanLogDialog({
         controller.signal,
       );
       const text =
-        typeof data === "string" ? data : JSON.stringify(data ?? "", null, 2);
+        typeof scanLog === "string"
+          ? scanLog
+          : JSON.stringify(scanLog ?? "", null, 2);
       if (requestVersion.current === version) setValue(text);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;

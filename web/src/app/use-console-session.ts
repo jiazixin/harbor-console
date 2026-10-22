@@ -44,10 +44,10 @@ export function useConsoleSession(navigate: (path: string) => void) {
     async (currentSession: Session, controller: AbortController) => {
       setSessionError("");
       try {
-        const data = await loadConsoleData(controller.signal);
+        const loadedConsoleData = await loadConsoleData(controller.signal);
         if (controller.signal.aborted || activeRequest.current !== controller)
           return;
-        setConsoleData(data);
+        setConsoleData(loadedConsoleData);
         setSession(currentSession);
       } catch (loadError) {
         if (controller.signal.aborted || activeRequest.current !== controller)

@@ -108,8 +108,6 @@ export type ApplicationDialog =
   | { kind: "replication"; action: ReplicationAction }
   | { kind: "preheat-instance"; action: PreheatInstanceAction };
 
-export type ApplicationDialogKind = ApplicationDialog["kind"];
-
 /** What happens after a dialog finishes a change. */
 export type DialogCompletion = {
   /** The page showing the changed data; it reloads from Harbor. */

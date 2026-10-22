@@ -44,7 +44,7 @@ func (a *app) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	for _, item := range targets {
 		wg.Go(func() {
 			var payload any
-			err := a.harborJSON(ctx, current, http.MethodGet, item.path, item.query, &payload)
+			err := a.harborGetJSON(ctx, current, item.path, item.query, &payload)
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -154,11 +154,6 @@ projectLoop:
 	}
 	wg.Wait()
 	return hadError || ctx.Err() != nil
-}
-
-func (a *app) projectArtifactCount(ctx context.Context, current *session, encodedProjectName string, headers http.Header) (int64, error) {
-	counts, err := a.projectAssetCounts(ctx, current, encodedProjectName, headers)
-	return counts.artifactCount, err
 }
 
 type projectAssetCountsResult struct {

@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// handleIdentityControl serves the signed-in account and its permissions.
 func (state *demoState) handleIdentityControl(
 	w http.ResponseWriter,
 	method, operation string,
@@ -56,6 +57,23 @@ func (state *demoState) handleIdentityControl(
 		state.writeListAny(w, permissions, query)
 		return
 
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleUserControl serves local users and their credentials.
+func (state *demoState) handleUserControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "users":
 		if method == http.MethodGet {
 			items := state.users
@@ -134,6 +152,23 @@ func (state *demoState) handleIdentityControl(
 		state.users[index]["has_cli_secret"] = true
 		data = map[string]any{"updated": true}
 
+	default:
+		handled = false
+	}
+	return
+}
+
+// handleUserGroupControl serves user groups.
+func (state *demoState) handleUserGroupControl(
+	w http.ResponseWriter,
+	method, operation string,
+	query url.Values,
+	body map[string]any,
+) (handled bool, status int, data any, errStatus int, errMessage string) {
+	handled = true
+	status = http.StatusOK
+
+	switch operation {
 	case "user-groups":
 		if method == http.MethodGet {
 			state.writeList(w, filterMaps(state.userGroups, query.Get("group_name"), "group_name"), query)

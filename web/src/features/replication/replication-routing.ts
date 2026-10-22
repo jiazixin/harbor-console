@@ -38,7 +38,7 @@ const defaultSorts: Record<ReplicationTab, string> = {
   executions: "-start_time",
 };
 
-export type ReplicationRouteState = {
+type ReplicationRouteState = {
   tab: ReplicationTab;
   page: number;
   pageSize: number;

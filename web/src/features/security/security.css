@@ -201,11 +201,6 @@
   flex: 0 1 150px;
 }
 
-.security-filter-form .security-page-size {
-  margin-left: auto;
-  flex-basis: 100px;
-}
-
 .security-filter-form > .button.button-small {
   min-height: 34px;
 }

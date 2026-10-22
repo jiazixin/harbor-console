@@ -5,7 +5,7 @@ import { useLocale } from "../app/locale-context";
 import { StatusBadge } from "./status-badge";
 
 /** One counter of an execution, such as its failed tasks. */
-export type ExecutionStat = {
+type ExecutionStat = {
   label: string;
   value: number | undefined;
   tone?: "danger" | "success";
