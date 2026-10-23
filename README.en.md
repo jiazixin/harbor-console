@@ -94,10 +94,10 @@ CONFIG_FILE="$PWD/configs/config.local.yaml" ./bin/harbor-console
 
 ```sh
 ./bin/harbor-console -h          # Or --help: show usage
-./bin/harbor-console --version   # Show version, commit and build date
+./bin/harbor-console --version   # Show version and commit, e.g. harbor-console v1.2.0 (revision=0123456789ab)
 ```
 
-Help and version commands do not read configuration or start the server. Starting without arguments retains the selection order above; a missing default file uses built-in defaults. Exit codes are 2 for argument errors, 1 for configuration or startup failures, and 0 for successful help/version output.
+Help (in English) and version output go to stdout; neither reads configuration or starts the server. Starting without arguments retains the selection order above; a missing default file uses built-in defaults. Exit codes are 2 for argument errors, 1 for configuration or startup failures, and 0 for successful help/version output. Errors before the logger is ready are written to stderr as plain text `harbor-console: <error>`; argument errors add `Run 'harbor-console --help' for usage.`.
 
 | Environment variable | Purpose | Default |
 | --- | --- | --- |
@@ -181,7 +181,7 @@ Browser engines, coverage, vulnerability audits and where to change what are cov
 
 - Releases are tagged `vMAJOR.MINOR.PATCH` (pre-releases such as `v1.2.0-rc.1` are marked as such automatically).
 - Pushing a tag triggers the [Release workflow](.github/workflows/release.yml): it tests the tagged commit, checks that the built binary reports exactly that version and commit, then uses GoReleaser to publish archives and `checksums.txt` for linux / darwin / windows on amd64 and arm64.
-- The version, commit and build date are injected with `-ldflags` into `internal/buildinfo`. They appear in `--version`, the `server_started` log line and on the About page. Plain `go build` reports `dev`.
+- The version, commit and build date come from the tag or pseudo-version, commit and commit time that Go embeds from git; startup copies them into `internal/buildinfo`. They appear in `--version`, the `server_started` log line and on the About page. GoReleaser no longer injects anything. Builds without `.git` (such as Docker) can only set the version with `-ldflags "-X main.version=..."` (`--build-arg VERSION=...` for Docker); otherwise they report `dev`.
 
 Local dry run (nothing is published; output goes to the ignored `bin/release/`):
 

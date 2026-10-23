@@ -94,10 +94,10 @@ CONFIG_FILE="$PWD/configs/config.local.yaml" ./bin/harbor-console
 
 ```sh
 ./bin/harbor-console -h          # 或 --help：显示帮助
-./bin/harbor-console --version   # 显示版本、提交与构建时间
+./bin/harbor-console --version   # 显示版本与提交，如 harbor-console v1.2.0 (revision=0123456789ab)
 ```
 
-帮助和版本命令不读取配置、不启动服务。无参数启动仍使用上述配置选择顺序，默认文件缺失时使用内置默认值。参数错误退出码为 2，配置或启动失败为 1，帮助和版本正常输出为 0。
+帮助（英文）和版本信息输出到 stdout，不读取配置、不启动服务。无参数启动仍使用上述配置选择顺序，默认文件缺失时使用内置默认值。参数错误退出码为 2，配置或启动失败为 1，帮助和版本正常输出为 0。日志器就绪前的错误以 `harbor-console: <错误>` 纯文本写入 stderr，参数错误另附 `Run 'harbor-console --help' for usage.`。
 
 | 环境变量 | 作用 | 默认值 |
 | --- | --- | --- |
@@ -181,7 +181,7 @@ npm --prefix web run test:browser   # Playwright 路由矩阵
 
 - 发布 tag 采用 `v主版本.次版本.修订版本`，预发布如 `v1.2.0-rc.1` 会自动标为 Pre-release。
 - 推送 tag 触发 [Release 工作流](.github/workflows/release.yml)：先测试该提交，核对构建出的二进制恰好报告该版本和提交，再由 GoReleaser 发布 linux / darwin / windows 的 amd64 与 arm64 包及 `checksums.txt`。
-- 版本、提交和构建时间通过 `-ldflags` 注入 `internal/buildinfo`，显示在 `--version`、`server_started` 日志和“关于”页面中；直接 `go build` 显示 `dev`。
+- 版本、提交和构建时间取自 Go 根据 git 嵌入的 tag / 伪版本、提交和提交时间，启动时写入 `internal/buildinfo`，显示在 `--version`、`server_started` 日志和“关于”页面中；GoReleaser 不再注入任何值。没有 `.git` 的构建（如 Docker）只能通过 `-ldflags "-X main.version=..."`（Docker 为 `--build-arg VERSION=...`）指定版本；都没有时显示 `dev`。
 
 本地预演（不发布，输出在忽略的 `bin/release/`）：
 

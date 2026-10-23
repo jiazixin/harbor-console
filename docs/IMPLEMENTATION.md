@@ -113,8 +113,8 @@ Docker 和 CI 定义分别位于 `Dockerfile` 与 `.github/workflows`。
 发布 tag 采用 `v主版本.次版本.修订版本`（如 `v1.0.0`），预发布为 `v1.2.0-rc.1` 并自动标为 Pre-release；工作流只匹配这两种格式。推送 tag（`git tag v1.0.0 && git push github v1.0.0`）触发 `release.yml`：
 
 1. 在不使用缓存的 runner 上执行 `go mod verify`、Web 构建与测试、Go 竞态测试；
-2. `goreleaser build --single-target` 构建 linux/amd64，并用 `scripts/check-build-version.sh` 启动该二进制，核对 `server_started` 日志中的 `version` 等于去掉 `v` 的 tag、`commit` 等于当前提交，不一致即中止；
-3. GoReleaser v2.18.3 按 `.goreleaser.yaml` 以 `CGO_ENABLED=0 -trimpath -ldflags='-s -w -X …/buildinfo.*'` 构建 linux / darwin / windows 的 amd64 与 arm64，上传 GitHub Release。
+2. `goreleaser build --single-target` 构建 linux/amd64，并用 `scripts/check-build-version.sh` 启动该二进制，核对 `server_started` 日志中的 `version` 等于 tag、`commit` 等于当前提交的 12 位短 ID，不一致即中止；
+3. GoReleaser v2.18.3 按 `.goreleaser.yaml` 以 `CGO_ENABLED=0 -trimpath -ldflags='-s -w'` 构建（不注入版本，Go 从 git 嵌入 tag、提交与提交时间） linux / darwin / windows 的 amd64 与 arm64，上传 GitHub Release。
 
 产物为 `harbor-console_<版本>_<系统>_<架构>.tar.gz`（Windows 为 `.zip`，均含二进制、`LICENSE`、两份 README 与 `configs/config.example.yaml`）及 `checksums.txt`（SHA-256）。`BuildDate` 取提交时间以保证可复现；CI 只实际运行 linux/amd64 二进制，其余目标仅交叉编译与交叉 vet。
 
@@ -124,7 +124,7 @@ CI 的 `release-snapshot` 任务对每次推送执行 `goreleaser check` 与 `go
 go install github.com/goreleaser/goreleaser/v2@v2.18.3
 goreleaser check
 goreleaser release --snapshot --clean
-scripts/check-build-version.sh bin/release/harbor-console_darwin_arm64_v8.0/harbor-console "$(jq -r .version bin/release/metadata.json)" "$(git rev-parse HEAD)"
+scripts/check-build-version.sh bin/release/harbor-console_darwin_arm64_v8.0/harbor-console "$(go version -m bin/release/harbor-console_darwin_arm64_v8.0/harbor-console | awk '$1 == "mod" { print $3 }')" "$(git rev-parse --short=12 HEAD)"
 ```真实 Harbor 写入验证要求明确的实例与账号授权、操作前记录原值、写后回读及清理；不能用 demo 测试替代。
 
 ## 文档维护

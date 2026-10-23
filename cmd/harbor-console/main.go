@@ -1,6 +1,8 @@
+// Command harbor-console serves the Harbor administration console.
 package main
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -13,40 +15,52 @@ import (
 	"harbor-console/internal/config"
 )
 
+const (
+	exitOK      = 0
+	exitFailure = 1
+	exitUsage   = 2
+)
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
+// run reports usage and startup errors as plain text on stderr; once the
+// configuration loads, the service logs through its configured logger.
 func run(args []string, stdout, stderr io.Writer) int {
-	options, err := parseArgs(args)
+	o, err := parseArgs(args)
 	if err != nil {
-		fmt.Fprintf(stderr, "harbor-console: %v\n使用 --help 查看帮助。\n", err)
-		return 2
+		fmt.Fprintf(stderr, "harbor-console: %v\nRun 'harbor-console --help' for usage.\n", err)
+		return exitUsage
 	}
-	if options.Help {
-		fmt.Fprint(stdout, usageText)
-		return 0
+	build := currentBuild()
+	switch {
+	case o.help:
+		fmt.Fprint(stdout, usage)
+		return exitOK
+	case o.version:
+		fmt.Fprintln(stdout, "harbor-console", build)
+		return exitOK
 	}
-	if options.Version {
-		fmt.Fprintf(stdout, "harbor-console %s (commit: %s, built: %s)\n", buildinfo.Version, buildinfo.Commit, buildinfo.BuildDate)
-		return 0
-	}
-	var runtimeConfig config.Config
-	if options.ConfigPath != "" {
-		runtimeConfig, err = config.LoadFile(options.ConfigPath)
+	buildinfo.Version = build.Version
+	buildinfo.Commit = cmp.Or(build.Revision, "unknown")
+	buildinfo.BuildDate = cmp.Or(build.Time, "unknown")
+
+	var c config.Config
+	if o.configFile != "" {
+		c, err = config.LoadFile(o.configFile)
 	} else {
-		runtimeConfig, err = config.Load()
+		c, err = config.Load()
 	}
 	if err != nil {
-		fmt.Fprintf(stderr, "harbor-console: load configuration: %v\n", err)
-		return 1
+		fmt.Fprintf(stderr, "harbor-console: config: %v\n", err)
+		return exitFailure
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	if err := app.Run(ctx, stdout, runtimeConfig); err != nil {
+	if err := app.Run(ctx, stdout, c); err != nil {
 		fmt.Fprintf(stderr, "harbor-console: %v\n", err)
-		return 1
+		return exitFailure
 	}
-	return 0
+	return exitOK
 }

@@ -1,52 +1,62 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"strings"
 )
 
-type cliOptions struct {
-	ConfigPath string
-	Help       bool
-	Version    bool
-}
+const usage = `harbor-console - administration console for Harbor
 
-const usageText = `harbor-console — Harbor 管理控制台
-用法：harbor-console [-c config.yaml | --config config.yaml]
-  -c, --config  指定 YAML 配置文件（优先于 CONFIG_FILE）
-  -h, --help    显示帮助
-      --version 显示版本、提交与构建时间
-未指定配置文件时读取 CONFIG_FILE；未设置时读取可选的 configs/config.local.yaml。
-相对配置路径以当前工作目录为基准；配置字段优先级：环境变量 > YAML > 内置默认值。
+Usage:
+  harbor-console [options]
+
+Options:
+  -c, --config <file>  Configuration file (default: configs/config.local.yaml)
+  -h, --help           Print this help and exit
+      --version        Print version information and exit
+
+Environment:
+  CONFIG_FILE          Configuration file, used when --config is not given
+
+Settings resolve as environment variables > YAML > built-in defaults; without
+a configuration file the built-in defaults apply. Relative paths resolve
+against the working directory.
 `
 
-func parseArgs(args []string) (cliOptions, error) {
-	var options cliOptions
+type options struct {
+	configFile string // empty: CONFIG_FILE or the default file
+	help       bool
+	version    bool
+}
+
+// parseArgs accepts -x and --x spellings, "--config file" and "--config=file".
+func parseArgs(args []string) (options, error) {
+	var o options
 	flags := flag.NewFlagSet("harbor-console", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	setConfig := func(value string) error {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			return fmt.Errorf("配置文件路径不能为空")
+	setConfig := func(v string) error {
+		if strings.TrimSpace(v) == "" {
+			return errors.New("configuration path must not be empty")
 		}
-		if options.ConfigPath != "" && options.ConfigPath != value {
-			return fmt.Errorf("多次指定的配置文件路径不一致")
+		if o.configFile != "" && o.configFile != v {
+			return errors.New("-c and --config name different files")
 		}
-		options.ConfigPath = value
+		o.configFile = v
 		return nil
 	}
-	flags.Func("c", "配置文件路径", setConfig)
-	flags.Func("config", "配置文件路径", setConfig)
-	flags.BoolVar(&options.Help, "h", false, "显示帮助")
-	flags.BoolVar(&options.Help, "help", false, "显示帮助")
-	flags.BoolVar(&options.Version, "version", false, "显示版本")
+	flags.Func("c", "", setConfig)
+	flags.Func("config", "", setConfig)
+	flags.BoolVar(&o.help, "h", false, "")
+	flags.BoolVar(&o.help, "help", false, "")
+	flags.BoolVar(&o.version, "version", false, "")
 	if err := flags.Parse(args); err != nil {
-		return cliOptions{}, err
+		return options{}, err
 	}
 	if flags.NArg() > 0 {
-		return cliOptions{}, fmt.Errorf("不接受额外位置参数")
+		return options{}, fmt.Errorf("unexpected argument %q", flags.Arg(0))
 	}
-	return options, nil
+	return o, nil
 }

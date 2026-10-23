@@ -28,7 +28,7 @@ Harbor v2.15.x
 | `internal/app` | 路由、会话、固定 API 网关、校验、demo 与操作编排 |
 | `internal/config` | YAML 与环境变量配置 |
 | `internal/observability` | 应用与访问日志 |
-| `internal/buildinfo` | 编译时版本、提交与时间 |
+| `internal/buildinfo` | 运行版本、提交与构建时间（`cmd/harbor-console` 启动时填入） |
 | `web/src/app` | 类型、API 客户端、路由、语言、偏好与应用装配 |
 | `web/src/layouts` | 侧栏、顶栏和全局浮层 |
 | `web/src/components` | 共享控件、表格、弹窗和状态 |

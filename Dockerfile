@@ -9,13 +9,12 @@ COPY web ./web
 COPY cmd ./cmd
 COPY internal ./internal
 
+# The build context has no .git, so the version comes from the build argument.
 ARG VERSION=dev
-ARG COMMIT=unknown
-ARG BUILD_DATE=unknown
 
 RUN npm --prefix web run build && \
     CGO_ENABLED=0 go build -trimpath \
-    -ldflags="-s -w -X harbor-console/internal/buildinfo.Version=${VERSION} -X harbor-console/internal/buildinfo.Commit=${COMMIT} -X harbor-console/internal/buildinfo.BuildDate=${BUILD_DATE}" \
+    -ldflags="-s -w -X main.version=${VERSION}" \
     -o /out/harbor-console ./cmd/harbor-console
 
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab

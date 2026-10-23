@@ -63,7 +63,7 @@ jobs:
         run: |
           GOOS=linux GOARCH=amd64 goreleaser build --clean --single-target --id harbor-console
           binary=$(find bin/release -path '*linux_amd64*' -type f -name harbor-console)
-          scripts/check-build-version.sh "$binary" "${TAG#v}" "$(git rev-parse HEAD)"
+          scripts/check-build-version.sh "$binary" "$TAG" "$(git rev-parse --short=12 HEAD)"
 
       - name: Publish GitHub release
         env:
