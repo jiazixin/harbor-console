@@ -41,5 +41,13 @@
 
 - 本轮没有连接或写入真实 Harbor；浏览器使用内存演示数据，网关行为由合成 HTTP 服务和测试数据验证。真实扫描器、外部复制、Webhook、P2P 预热和不同权限账号仍需要指定环境的集成验收，不能用 demo 结果声称这些外部链路已经通过。
 - 本机实际运行 macOS arm64 和容器内 Linux；其他目标执行交叉 vet 与编译，没有声称在全部操作系统 / CPU 上运行过二进制。
-- GitHub Actions 配置已更新并完成本地对应检查；此次只提交，不推送、不触发远端 CI，也不发布版本。CI 的 Node 24.22.1 环境由远端运行另行验证。
+- 初轮验收只执行本地验证；随后按用户指示推送 `main` 与 `v1.0.3`，远端结果及修复记录见下节。
 - 静态检查、测试和人工审查是本次对齐结论的依据，不构成对所有未来输入、外部版本与部署环境的无缺陷证明。
+
+## 远端 CI 失败复核（2026-10-31）
+
+`v1.0.3` 对应提交 `a5a1f2e` 的 [CI](https://github.com/jiazixin/harbor-console/actions/runs/41096192096) 与 [Release](https://github.com/jiazixin/harbor-console/actions/runs/41096191954) 在相同的 Web 架构测试失败：测试先于构建运行，却直接扫描尚不存在的 `web/dist`，抛出 ENOENT。其余 275 项 Web 测试通过，Go 检查、依赖审计和六平台快照构建通过；浏览器与容器 job 因依赖失败跳过，Release 未发布。
+
+此前本地 Web 测试使用已有构建输出；全新副本验证执行了安装、构建及 Go 测试，没有复现 CI 的“Web 测试先于构建”顺序。这是验证覆盖的遗漏。
+
+修复将产物检查迁到 `web/embed_test.go`，直接检查二进制实际嵌入的文件；Web 架构测试只保留源码归属检查。没有修改 CI 的规范顺序或跳过检查。修复已在 Linux 容器与 Node 24.22.1 下验证：从无 `dist`、无依赖的源码副本开始，依次执行 `npm ci --ignore-scripts`、format、lint、typecheck、全部 276 项 Web 测试和 build，全部通过；测试完成时再次确认 `dist` 尚不存在。随后实际构建产物的 `go test ./web` 通过。另在隔离副本中注入临时 sourcemap，嵌入测试按预期失败，移除后恢复通过；Go vet / staticcheck 通过。

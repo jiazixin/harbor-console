@@ -181,8 +181,8 @@ npm --prefix web run dev      # Vite 开发服务器，代理到 Go 后端
 npm --prefix web run format:check   # Prettier
 npm --prefix web run lint     # ESLint、Stylelint
 npm --prefix web run typecheck  # TypeScript
-npm --prefix web run build    # 生成 web/dist；任何 Go 命令之前必须执行
 npm --prefix web test         # 合同与组件测试
+npm --prefix web run build    # 生成 web/dist；任何 Go 命令之前必须执行
 go vet ./...
 CGO_ENABLED=1 go test -race -count=1 ./...
 npm --prefix web run test:e2e   # Playwright 路由矩阵

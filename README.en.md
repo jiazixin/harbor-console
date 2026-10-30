@@ -181,8 +181,8 @@ npm --prefix web run dev      # Vite dev server with a proxy to the Go backend
 npm --prefix web run format:check   # Prettier
 npm --prefix web run lint     # ESLint, Stylelint
 npm --prefix web run typecheck  # TypeScript
-npm --prefix web run build    # web/dist; required before any Go command
 npm --prefix web test         # contract and component tests
+npm --prefix web run build    # web/dist; required before any Go command
 go vet ./...
 CGO_ENABLED=1 go test -race -count=1 ./...
 npm --prefix web run test:e2e   # Playwright route matrix

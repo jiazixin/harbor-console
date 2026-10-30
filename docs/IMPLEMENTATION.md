@@ -67,6 +67,8 @@ CI/CD 在 `.github/workflows/ci.yml` 中直接编排检查、测试和构建，t
 
 ### 本地命令
 
+默认 Web 测试只依赖源码，必须能在没有 `web/dist` 的干净检出中运行。生成资源是否混入源码、CommonJS 或 sourcemap，由构建后的 `go test ./web` 检查实际嵌入文件；该测试已包含在 `go test ./...` 中。
+
 ```bash
 npm --prefix web run format:check
 npm --prefix web run lint

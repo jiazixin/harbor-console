@@ -47,7 +47,7 @@ test("legacy runtime, parser dependency, and preview entry are removed", () => {
   assert.doesNotMatch(packageManifest, /html-react-parser|check:runtime/);
 });
 
-test("embedded web UI boundary contains only Go ownership and generated assets", () => {
+test("embedded web UI source boundary belongs to the web package", () => {
   const webUIRoot = webRoot;
   assert.ok(fs.existsSync(path.join(webUIRoot, "embed.go")));
   assert.equal(
@@ -55,15 +55,8 @@ test("embedded web UI boundary contains only Go ownership and generated assets",
     false,
   );
 
-  const unexpectedFiles = fs
-    .readdirSync(path.join(webUIRoot, "dist"), {
-      recursive: true,
-      withFileTypes: true,
-    })
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .filter((name) => /\.(?:cjs|map|ts|tsx)$/.test(name));
-  assert.deepEqual(unexpectedFiles, []);
+  // Generated assets are checked by web/embed_test.go after the web build.
+  // Source tests must also run in a fresh checkout without dist.
 });
 
 test("typed source does not recreate classic string-template controllers", () => {
