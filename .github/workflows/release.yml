@@ -50,11 +50,31 @@ jobs:
       # never passed CI on main.
       - name: Test tagged commit
         run: |
-          go mod verify
           npm --prefix web ci --ignore-scripts
-          npm --prefix web run build
+          node scripts/check-whitespace.mjs
+          node scripts/check-deployment-pins.mjs
+          node scripts/generate-css-types.mjs --check
+          web/node_modules/.bin/prettier --check scripts
+          npm --prefix web run format:check
+          npm --prefix web run lint
+          npm --prefix web run typecheck
           npm --prefix web test
-          go test -race ./cmd/... ./internal/... ./web -count=1
+          npm --prefix web run build
+          npm --prefix web audit --audit-level=high --omit=dev
+          go mod verify
+          go mod tidy -diff
+          unformatted=$(gofmt -l $(git ls-files '*.go'))
+          [ -z "$unformatted" ] || { echo "$unformatted"; exit 1; }
+          unformatted=$(go run golang.org/x/tools/cmd/goimports@v0.50.0 -local harbor-console -l $(git ls-files '*.go'))
+          [ -z "$unformatted" ] || { echo "$unformatted"; exit 1; }
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            GOOS=${target%/*} GOARCH=${target#*/} go vet ./...
+          done
+          go vet -tags integration,scale ./...
+          go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+          CGO_ENABLED=1 go test -race -count=1 ./...
+          go test -tags integration ./cmd/harbor-console -count=1
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
       # Publish only when the binary embeds exactly this tag and commit.
       - name: Verify embedded build metadata

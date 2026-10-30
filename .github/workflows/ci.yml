@@ -39,12 +39,16 @@ jobs:
         run: |
           node scripts/check-whitespace.mjs
           node scripts/check-deployment-pins.mjs
+          node scripts/generate-css-types.mjs --check
+          web/node_modules/.bin/prettier --check scripts
 
       - name: Check, build and test web
         run: |
-          npm --prefix web run check
-          npm --prefix web run build
+          npm --prefix web run format:check
+          npm --prefix web run lint
+          npm --prefix web run typecheck
           npm --prefix web test
+          npm --prefix web run build
 
   go:
     name: Go checks and tests
@@ -79,21 +83,32 @@ jobs:
         run: |
           go mod verify
           go mod tidy -diff
-          unformatted=$(gofmt -l cmd internal web/embed.go)
+          unformatted=$(gofmt -l $(git ls-files '*.go'))
           if [ -n "$unformatted" ]; then
             printf '%s\n' "$unformatted"
             exit 1
           fi
 
-      - name: Vet
+      - name: Check Go imports
         run: |
-          go vet ./cmd/... ./internal/... ./web
-          # Release targets other than linux/amd64 are cross-checked only.
-          GOOS=darwin GOARCH=arm64 go vet ./cmd/... ./internal/... ./web
-          GOOS=windows GOARCH=amd64 go vet ./cmd/... ./internal/... ./web
+          unformatted=$(go run golang.org/x/tools/cmd/goimports@v0.50.0 -local harbor-console -l $(git ls-files '*.go'))
+          [ -z "$unformatted" ] || { echo "$unformatted"; exit 1; }
 
-      - name: Test
-        run: go test -race ./cmd/... ./internal/... ./web -count=1
+      - name: Vet all release platforms and build tags
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            GOOS=${target%/*} GOARCH=${target#*/} go vet ./...
+          done
+          go vet -tags integration,scale ./...
+
+      - name: Static analysis
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+
+      - name: Race tests
+        run: CGO_ENABLED=1 go test -race -count=1 ./...
+
+      - name: CLI integration tests
+        run: go test -tags integration ./cmd/harbor-console -count=1
 
   security:
     name: Dependency vulnerability audit
@@ -122,8 +137,8 @@ jobs:
         run: |
           npm --prefix web ci --ignore-scripts
           npm --prefix web run build
-          npm --prefix web run audit
-          GOTOOLCHAIN="go$(sed -n 's/^go //p' go.mod)" go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./cmd/... ./internal/... ./web
+          npm --prefix web audit --audit-level=high --omit=dev
+          GOTOOLCHAIN="go$(sed -n 's/^go //p' go.mod)" go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   browser:
     name: Browser route matrix
@@ -159,7 +174,7 @@ jobs:
       - name: Build and run authenticated route matrix
         run: |
           npm --prefix web run build
-          npm --prefix web run test:browser
+          npm --prefix web run test:e2e
 
   container:
     name: Container build and smoke test
@@ -207,7 +222,7 @@ jobs:
           trap cleanup EXIT
 
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error http://127.0.0.1:18080/health >"$RUNNER_TEMP/health.json"; then
+            if curl --connect-timeout 2 --max-time 5 --fail --silent --show-error http://127.0.0.1:18080/healthz >"$RUNNER_TEMP/health.json"; then
               break
             fi
             if [ "${attempt}" -eq 30 ]; then
@@ -217,11 +232,10 @@ jobs:
             sleep 1
           done
 
-          grep -F '"service":"harbor-console"' "$RUNNER_TEMP/health.json"
-          grep -F '"status":"ok"' "$RUNNER_TEMP/health.json"
-          curl --fail --silent --show-error http://127.0.0.1:18080/ | grep -F '<title>Harbor'
+          grep -F '{"status":"ok"}' "$RUNNER_TEMP/health.json"
+          curl --connect-timeout 2 --max-time 5 --fail --silent --show-error http://127.0.0.1:18080/ | grep -F '<title>Harbor'
 
-          docker stop --time 15 "${container_name}"
+          docker stop --timeout 15 "${container_name}"
           test "$(docker inspect "${container_name}" --format '{{.State.ExitCode}}')" = "0"
 
   release-snapshot:
