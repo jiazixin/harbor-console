@@ -1,0 +1,115 @@
+@layer ui-dialogs {
+  .searchDialog {
+    width: min(620px, 100%);
+    max-height: min(650px, 78vh);
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-dialog);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-dialog);
+  }
+}
+
+@layer ui-dialogs {
+  .searchInputRow {
+    height: 58px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px 0 17px;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@layer ui-dialogs {
+  .searchInputRow input {
+    flex: 1;
+    height: auto;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+    font-size: 15px;
+  }
+}
+
+@layer ui-dialogs {
+  .searchInputRow input:focus-visible {
+    outline: 2px solid var(--orange-strong);
+    outline-offset: 2px;
+  }
+}
+
+@layer ui-dialogs {
+  .searchResults {
+    max-height: calc(min(650px, 78vh) - 58px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px;
+  }
+}
+
+@layer ui-dialogs {
+  .searchHint {
+    padding: 30px;
+    color: var(--ink-faint);
+    font-size: 12px;
+    text-align: center;
+  }
+}
+
+@layer ui-dialogs {
+  .searchGroupLabel {
+    display: block;
+    padding: 9px 9px 5px;
+    color: var(--ink-faint);
+    font-size: 11px;
+    font-weight: 700;
+  }
+}
+
+@layer ui-dialogs {
+  .searchResult {
+    width: 100%;
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 9px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    text-align: left;
+  }
+}
+
+@layer ui-dialogs {
+  .searchResult:hover,
+  .searchResult:focus-visible {
+    background: var(--surface-subtle);
+    outline: 0;
+  }
+}
+
+@layer ui-dialogs {
+  .searchResult :global(.hc_8b938f52_icon):last-child {
+    width: 14px;
+    height: 14px;
+    color: var(--ink-faint);
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.searchDialog {
+}
+.searchResult {
+}
+.searchInputRow {
+}
+.searchResults {
+}
+.searchHint {
+}
+.searchGroupLabel {
+}

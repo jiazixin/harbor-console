@@ -1,14 +1,9 @@
-import { useMemo } from "react";
-
 import { useLocale } from "../app/locale-context";
-
-export type LogTimezone = "local" | "utc";
-
-type ParsedLogLine = {
-  time: string;
-  level: string;
-  content: string;
-};
+import { createClassNames } from "../lib/css/class-names";
+import { formatLogTimestamp } from "../lib/format/formatters";
+import uiStyles0 from "./shared-ui.module.css";
+import { type LogTimezone, parseHarborLogLine } from "./structured-log-support";
+import uiStyles1 from "./structured-log.module.css";
 
 const knownLevels = new Set([
   "TRACE",
@@ -19,93 +14,39 @@ const knownLevels = new Set([
   "FATAL",
 ]);
 
-export function parseHarborLogLine(value: string): ParsedLogLine {
-  const match =
-    /^(\d{4}-\d{2}-\d{2}[T ][0-9:.+-]+Z?)\s+\[?(TRACE|DEBUG|INFO|WARNING|WARN|ERROR|FATAL)\]?\s*(.*)$/i.exec(
-      value,
-    );
-  if (!match) return { time: "", level: "LOG", content: value };
-  return {
-    time: match[1],
-    level:
-      match[2].toUpperCase() === "WARNING" ? "WARN" : match[2].toUpperCase(),
-    content: match[3],
-  };
-}
-
-function displayLogTime(
-  value: string,
-  timezone: LogTimezone,
-  locale: "zh-CN" | "en-US",
-): string {
-  if (!value || timezone === "utc") return value || "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  })
-    .format(date)
-    .replaceAll("/", "-");
-}
-
-export function LogTimezoneControl({
-  value,
-  onChange,
-}: {
-  value: LogTimezone;
-  onChange: (value: LogTimezone) => void;
-}) {
-  const { t } = useLocale();
-  return (
-    <div
-      className="log-timezone-control"
-      role="group"
-      aria-label={t("日志时区")}
-    >
-      {(["local", "utc"] as const).map((timezone) => (
-        <button
-          key={timezone}
-          type="button"
-          className={value === timezone ? "active" : ""}
-          aria-pressed={value === timezone}
-          onClick={() => onChange(timezone)}
-        >
-          {timezone === "local" ? t("本地") : "UTC"}
-        </button>
-      ))}
-    </div>
-  );
-}
+type StructuredLogProps = {
+  value: string;
+  timezone: LogTimezone;
+  emptyMessage: string;
+  ariaLabel?: string;
+};
 
 export function StructuredLog({
   value,
   timezone,
   emptyMessage,
   ariaLabel = "日志内容",
-}: {
-  value: string;
-  timezone: LogTimezone;
-  emptyMessage: string;
-  ariaLabel?: string;
-}) {
+}: StructuredLogProps) {
   const { locale, t } = useLocale();
-  const lines = useMemo(() => {
+  const lines = (() => {
     const normalized = value.replace(/\r\n?/g, "\n").split("\n");
     if (normalized.at(-1) === "") normalized.pop();
     return normalized.map(parseHarborLogLine);
-  }, [value]);
+  })();
   if (!lines.length) {
-    return <div className="structured-log-empty">{t(emptyMessage)}</div>;
+    return (
+      <div className={resolveClasses("structured-log-empty")}>
+        {t(emptyMessage)}
+      </div>
+    );
   }
   return (
-    <div className="structured-log-view" role="table" aria-label={t(ariaLabel)}>
-      <div className="structured-log-header" role="row">
+    <div
+      className={resolveClasses("structured-log-view")}
+      role="table"
+      aria-label={t(ariaLabel)}
+    >
+      <div className={resolveClasses("structured-log-header")} role="row">
         <span role="columnheader">{t("时间")}</span>
         <span role="columnheader">{t("等级")}</span>
         <span role="columnheader">{t("日志内容")}</span>
@@ -114,17 +55,25 @@ export function StructuredLog({
         const level = knownLevels.has(line.level) ? line.level : "LOG";
         return (
           <div
-            className={`structured-log-row log-level-${level.toLowerCase()}`}
+            className={resolveClasses(
+              `structured-log-row log-level-${level.toLowerCase()}`,
+            )}
             role="row"
             key={`${line.time}-${String(index)}`}
           >
             <time role="cell">
-              {displayLogTime(line.time, timezone, locale)}
+              {formatLogTimestamp(line.time, timezone, locale)}
             </time>
-            <span className="structured-log-level" role="cell">
+            <span
+              className={resolveClasses("structured-log-level")}
+              role="cell"
+            >
               {level}
             </span>
-            <span className="structured-log-message" role="cell">
+            <span
+              className={resolveClasses("structured-log-message")}
+              role="cell"
+            >
               {line.content || " "}
             </span>
           </div>
@@ -133,3 +82,25 @@ export function StructuredLog({
     </div>
   );
 }
+
+const resolveClasses = createClassNames({
+  "structured-log-empty": uiStyles0.structuredLogEmpty,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+  "structured-log-view": uiStyles1.structuredLogView,
+  "structured-log-header": uiStyles1.structuredLogHeader,
+  "structured-log-row": uiStyles1.structuredLogRow,
+  "structured-log-level": uiStyles1.structuredLogLevel,
+  "structured-log-message": uiStyles1.structuredLogMessage,
+});

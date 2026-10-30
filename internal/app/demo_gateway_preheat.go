@@ -3,78 +3,74 @@ package app
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
-	"time"
+
+	"harbor-console/internal/timefmt"
 )
 
 // handlePreheatControl serves preheat providers and provider instances.
-func (state *demoState) handlePreheatControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handlePreheatControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "preheat-providers":
-		data = cloneMaps(state.preheatProviders)
+		data = cloneMaps(ds.preheatProviders)
 
 	case "preheat-instances":
 		if method == http.MethodGet {
-			items := state.preheatInstances
+			items := ds.preheatInstances
 			if name := demoQueryString(query.Get("q"), "name"); name != "" {
 				items = filterMaps(items, name, "name")
 			}
 			if endpoint := demoQueryString(query.Get("q"), "endpoint"); endpoint != "" {
 				items = filterMaps(items, endpoint, "endpoint")
 			}
-			state.writeList(w, items, query)
+			ds.writeList(w, items, query)
 			return
 		}
 		name := stringValue(body["name"])
-		if _, found := findMap(state.preheatInstances, "name", name); found {
-			errStatus, errMessage = http.StatusConflict, "P2P 实例名称已经存在"
+		if _, found := findMap(ds.preheatInstances, "name", name); found {
+			errStatus, errMessage = http.StatusConflict, "P2P instance name already exists"
 			break
 		}
-		for _, instance := range state.preheatInstances {
+		for _, instance := range ds.preheatInstances {
 			if stringValue(instance["endpoint"]) == stringValue(body["endpoint"]) {
-				errStatus, errMessage = http.StatusConflict, "P2P 实例地址已经注册"
+				errStatus, errMessage = http.StatusConflict, "P2P instance endpoint already registered"
 				break
 			}
 		}
 		if errStatus != 0 {
 			break
 		}
-		state.nextPreheatID++
+		ds.nextPreheatID++
 		instance := cloneMap(body)
-		instance["id"] = state.nextPreheatID
+		instance["id"] = ds.nextPreheatID
 		instance["status"] = "Healthy"
-		instance["default"] = len(state.preheatInstances) == 0
-		instance["setup_timestamp"] = time.Now().Unix()
+		instance["default"] = len(ds.preheatInstances) == 0
+		instance["setup_timestamp"] = ds.now().Unix()
 		if authInfo, ok := instance["auth_info"].(map[string]any); ok {
 			for key := range authInfo {
 				authInfo[key] = ""
 			}
 		}
-		state.preheatInstances = append(state.preheatInstances, instance)
+		ds.preheatInstances = append(ds.preheatInstances, instance)
 		status, data = http.StatusCreated, instance
 
 	case "preheat-instance":
-		index, found := findMap(state.preheatInstances, "name", query.Get("name"))
+		index, found := findMap(ds.preheatInstances, "name", query.Get("name"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "P2P 实例不存在"
+			errStatus, errMessage = http.StatusNotFound, "P2P instance not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.preheatInstances[index]
+			data = ds.preheatInstances[index]
 		} else if method == http.MethodPut {
-			id := state.preheatInstances[index]["id"]
-			setup := state.preheatInstances[index]["setup_timestamp"]
-			currentAuth := state.preheatInstances[index]["auth_info"]
+			id := ds.preheatInstances[index]["id"]
+			setup := ds.preheatInstances[index]["setup_timestamp"]
+			currentAuth := ds.preheatInstances[index]["auth_info"]
 			next := cloneMap(body)
 			next["id"], next["setup_timestamp"], next["status"] = id, setup, "Healthy"
 			if authInfo, exists := next["auth_info"].(map[string]any); !exists || len(authInfo) == 0 {
@@ -86,35 +82,35 @@ func (state *demoState) handlePreheatControl(
 					authInfo[key] = ""
 				}
 			}
-			state.preheatInstances[index] = next
+			ds.preheatInstances[index] = next
 			data = next
 		} else {
-			instanceID := numberValue(state.preheatInstances[index]["id"])
-			for _, policies := range state.preheatPolicies {
+			instanceID := numberValue(ds.preheatInstances[index]["id"])
+			for _, policies := range ds.preheatPolicies {
 				for _, policy := range policies {
 					if numberValue(policy["provider_id"]) == instanceID {
-						errStatus, errMessage = http.StatusConflict, "该 P2P 实例仍被预热策略使用"
+						errStatus, errMessage = http.StatusConflict, "P2P instance is still used by a preheat policy"
 						break
 					}
 				}
 			}
 			if errStatus == 0 {
-				state.preheatInstances = append(state.preheatInstances[:index], state.preheatInstances[index+1:]...)
+				ds.preheatInstances = append(ds.preheatInstances[:index], ds.preheatInstances[index+1:]...)
 			}
 		}
 
 	case "preheat-instance-ping":
 		if id := numberValue(body["id"]); id > 0 {
-			if _, found := findMapNumber(state.preheatInstances, "id", strconv.FormatInt(id, 10)); !found {
-				errStatus, errMessage = http.StatusNotFound, "P2P 实例不存在"
+			if _, found := findMapNumber(ds.preheatInstances, "id", strconv.FormatInt(id, 10)); !found {
+				errStatus, errMessage = http.StatusNotFound, "P2P instance not found"
 			}
 		} else if strings.Contains(strings.ToLower(stringValue(body["endpoint"])), "down") {
-			errStatus, errMessage = http.StatusBadGateway, "P2P Provider 无法连接"
+			errStatus, errMessage = http.StatusServiceUnavailable, "cannot connect to the P2P provider"
 		}
 
 	case "project-preheat-providers":
 		providers := make([]any, 0)
-		for _, instance := range state.preheatInstances {
+		for _, instance := range ds.preheatInstances {
 			if instance["enabled"] == true {
 				providers = append(providers, map[string]any{"id": instance["id"], "provider": instance["vendor"], "enabled": instance["enabled"], "default": instance["default"]})
 			}
@@ -128,12 +124,8 @@ func (state *demoState) handlePreheatControl(
 }
 
 // handlePreheatPolicyControl serves project preheat policies and their executions.
-func (state *demoState) handlePreheatPolicyControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handlePreheatPolicyControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
@@ -141,108 +133,108 @@ func (state *demoState) handlePreheatPolicyControl(
 	case "preheat-policies":
 		projectName := query.Get("project")
 		if method == http.MethodGet {
-			items := state.preheatPolicies[projectName]
+			items := ds.preheatPolicies[projectName]
 			if name := demoQueryString(query.Get("q"), "name"); name != "" {
 				items = filterMaps(items, name, "name")
 			}
-			state.writeList(w, items, query)
+			ds.writeList(w, items, query)
 			return
 		}
 		name := stringValue(body["name"])
-		if _, found := findMap(state.preheatPolicies[projectName], "name", name); found {
-			errStatus, errMessage = http.StatusConflict, "预热策略名称已经存在"
+		if _, found := findMap(ds.preheatPolicies[projectName], "name", name); found {
+			errStatus, errMessage = http.StatusConflict, "preheat policy name already exists"
 			break
 		}
-		state.nextPreheatPolicy++
+		ds.nextPreheatPolicy++
 		policy := cloneMap(body)
-		policy["id"] = state.nextPreheatPolicy
-		policy["project_id"] = projectID(state.projects, projectName)
-		now := time.Now().UTC().Format(time.RFC3339)
+		policy["id"] = ds.nextPreheatPolicy
+		policy["project_id"] = projectID(ds.projects, projectName)
+		now := ds.now().UTC().Format(timefmt.Layout)
 		policy["creation_time"], policy["update_time"] = now, now
-		state.preheatPolicies[projectName] = append(state.preheatPolicies[projectName], policy)
-		state.preheatExecutions[projectName+"/"+name] = []map[string]any{}
+		ds.preheatPolicies[projectName] = append(ds.preheatPolicies[projectName], policy)
+		ds.preheatExecutions[projectName+"/"+name] = []map[string]any{}
 		status, data = http.StatusCreated, policy
 
 	case "preheat-policy":
 		projectName, originalName := query.Get("project"), query.Get("name")
-		index, found := findMap(state.preheatPolicies[projectName], "name", originalName)
+		index, found := findMap(ds.preheatPolicies[projectName], "name", originalName)
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "预热策略不存在"
+			errStatus, errMessage = http.StatusNotFound, "preheat policy not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.preheatPolicies[projectName][index]
+			data = ds.preheatPolicies[projectName][index]
 		} else if method == http.MethodPut {
-			id := state.preheatPolicies[projectName][index]["id"]
-			projectIDValue := state.preheatPolicies[projectName][index]["project_id"]
-			created := state.preheatPolicies[projectName][index]["creation_time"]
+			id := ds.preheatPolicies[projectName][index]["id"]
+			projectIDValue := ds.preheatPolicies[projectName][index]["project_id"]
+			created := ds.preheatPolicies[projectName][index]["creation_time"]
 			policy := cloneMap(body)
 			policy["id"], policy["project_id"], policy["creation_time"] = id, projectIDValue, created
-			policy["update_time"] = time.Now().UTC().Format(time.RFC3339)
-			state.preheatPolicies[projectName][index] = policy
+			policy["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+			ds.preheatPolicies[projectName][index] = policy
 			newName := stringValue(policy["name"])
 			if newName != originalName {
-				state.preheatExecutions[projectName+"/"+newName] = state.preheatExecutions[projectName+"/"+originalName]
-				delete(state.preheatExecutions, projectName+"/"+originalName)
+				ds.preheatExecutions[projectName+"/"+newName] = ds.preheatExecutions[projectName+"/"+originalName]
+				delete(ds.preheatExecutions, projectName+"/"+originalName)
 			}
 			data = policy
 		} else if method == http.MethodPost {
-			state.nextPreheatRun++
-			state.nextPreheatTask++
-			now := time.Now().UTC().Format(time.RFC3339)
-			execution := map[string]any{"id": state.nextPreheatRun, "vendor_type": "PREHEAT", "vendor_id": state.preheatPolicies[projectName][index]["id"], "status": "Running", "status_message": "", "metrics": map[string]any{"task_count": 1, "success_task_count": 0, "error_task_count": 0, "pending_task_count": 0, "running_task_count": 1, "scheduled_task_count": 0, "stopped_task_count": 0}, "trigger": "Manual", "extra_attrs": map[string]any{}, "start_time": now, "end_time": ""}
+			ds.nextPreheatRun++
+			ds.nextPreheatTask++
+			now := ds.now().UTC().Format(timefmt.Layout)
+			execution := map[string]any{"id": ds.nextPreheatRun, "vendor_type": "PREHEAT", "vendor_id": ds.preheatPolicies[projectName][index]["id"], "status": "Running", "status_message": "", "metrics": map[string]any{"task_count": 1, "success_task_count": 0, "error_task_count": 0, "pending_task_count": 0, "running_task_count": 1, "scheduled_task_count": 0, "stopped_task_count": 0}, "trigger": "Manual", "extra_attrs": map[string]any{}, "start_time": now, "end_time": ""}
 			key := projectName + "/" + originalName
-			state.preheatExecutions[key] = append([]map[string]any{execution}, state.preheatExecutions[key]...)
-			task := map[string]any{"id": state.nextPreheatTask, "execution_id": state.nextPreheatRun, "status": "Running", "status_message": "", "run_count": 1, "extra_attrs": map[string]any{"artifact": projectName + "/gateway:latest", "digest": "sha256:demo", "kind": "IMAGE"}, "creation_time": now, "update_time": now, "start_time": now, "end_time": ""}
-			state.preheatTasks[state.nextPreheatRun] = []map[string]any{task}
-			state.preheatLogs[fmt.Sprintf("%d:%d", state.nextPreheatRun, state.nextPreheatTask)] = now + " [INFO] 已提交 P2P 预热任务\n"
+			ds.preheatExecutions[key] = append([]map[string]any{execution}, ds.preheatExecutions[key]...)
+			task := map[string]any{"id": ds.nextPreheatTask, "execution_id": ds.nextPreheatRun, "status": "Running", "status_message": "", "run_count": 1, "extra_attrs": map[string]any{"artifact": projectName + "/gateway:latest", "digest": "sha256:demo", "kind": "IMAGE"}, "creation_time": now, "update_time": now, "start_time": now, "end_time": ""}
+			ds.preheatTasks[ds.nextPreheatRun] = []map[string]any{task}
+			ds.preheatLogs[fmt.Sprintf("%d:%d", ds.nextPreheatRun, ds.nextPreheatTask)] = now + " [INFO] P2P preheat task submitted\n"
 			status, data = http.StatusCreated, execution
 		} else {
-			state.preheatPolicies[projectName] = append(state.preheatPolicies[projectName][:index], state.preheatPolicies[projectName][index+1:]...)
-			delete(state.preheatExecutions, projectName+"/"+originalName)
+			ds.preheatPolicies[projectName] = append(ds.preheatPolicies[projectName][:index], ds.preheatPolicies[projectName][index+1:]...)
+			delete(ds.preheatExecutions, projectName+"/"+originalName)
 		}
 
 	case "preheat-executions":
 		key := query.Get("project") + "/" + query.Get("name")
-		if _, found := findMap(state.preheatPolicies[query.Get("project")], "name", query.Get("name")); !found {
-			errStatus, errMessage = http.StatusNotFound, "预热策略不存在"
+		if _, found := findMap(ds.preheatPolicies[query.Get("project")], "name", query.Get("name")); !found {
+			errStatus, errMessage = http.StatusNotFound, "preheat policy not found"
 			break
 		}
-		state.writeList(w, state.preheatExecutions[key], query)
+		ds.writeList(w, ds.preheatExecutions[key], query)
 		return
 
 	case "preheat-execution":
 		key := query.Get("project") + "/" + query.Get("name")
-		index, found := findMapNumber(state.preheatExecutions[key], "id", query.Get("id"))
+		index, found := findMapNumber(ds.preheatExecutions[key], "id", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "预热执行记录不存在"
+			errStatus, errMessage = http.StatusNotFound, "preheat execution not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.preheatExecutions[key][index]
+			data = ds.preheatExecutions[key][index]
 		} else {
-			execution := state.preheatExecutions[key][index]
+			execution := ds.preheatExecutions[key][index]
 			execution["status"] = "Stopped"
-			execution["end_time"] = time.Now().UTC().Format(time.RFC3339)
+			execution["end_time"] = ds.now().UTC().Format(timefmt.Layout)
 			metrics, _ := execution["metrics"].(map[string]any)
 			metrics["running_task_count"], metrics["stopped_task_count"] = 0, metrics["task_count"]
 			executionID := parseDemoID(query.Get("id"))
-			for taskIndex := range state.preheatTasks[executionID] {
-				state.preheatTasks[executionID][taskIndex]["status"] = "Stopped"
-				state.preheatTasks[executionID][taskIndex]["end_time"] = execution["end_time"]
+			for taskIndex := range ds.preheatTasks[executionID] {
+				ds.preheatTasks[executionID][taskIndex]["status"] = "Stopped"
+				ds.preheatTasks[executionID][taskIndex]["end_time"] = execution["end_time"]
 			}
 			data = execution
 		}
 
 	case "preheat-tasks":
 		executionID := parseDemoID(query.Get("id"))
-		state.writeList(w, state.preheatTasks[executionID], query)
+		ds.writeList(w, ds.preheatTasks[executionID], query)
 		return
 
 	case "preheat-task-log":
-		logText, found := state.preheatLogs[query.Get("id")+":"+query.Get("task")]
+		logText, found := ds.preheatLogs[query.Get("id")+":"+query.Get("task")]
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "预热任务日志不存在"
+			errStatus, errMessage = http.StatusNotFound, "preheat task log not found"
 			break
 		}
 		data = logText

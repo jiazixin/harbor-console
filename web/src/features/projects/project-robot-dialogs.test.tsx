@@ -1,27 +1,24 @@
 import {
   cleanup,
-  fireEvent,
   render,
   screen,
-  within,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
 import type {
   HarborPermission,
   ProjectRobot,
   RobotCredential,
 } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
 import { RobotCredentialDialog } from "../../components/robot-credential-dialog";
-import {
-  DeleteProjectRobotDialog,
-  ProjectRobotDialog,
-  ResetRobotSecretDialog,
-} from "./project-robot-dialogs";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { DeleteProjectRobotDialog } from "./delete-project-robot-dialog";
+import { ProjectRobotDialog } from "./project-robot-dialog";
+import { ResetRobotSecretDialog } from "./reset-robot-secret-dialog";
 
 const permissionCandidates: HarborPermission[] = [
   { resource: "repository", action: "pull" },
@@ -50,10 +47,10 @@ const robot: ProjectRobot = {
 
 function renderDialog(content: React.ReactNode) {
   return render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       {content}
-    </LocaleProvider>,
+    </TestProviders>,
   );
 }
 
@@ -65,6 +62,7 @@ afterEach(() => {
 
 describe("project robot dialogs", () => {
   it("preserves the legacy English permission copy and creates an account", async () => {
+    const user = setupUser();
     window.localStorage.setItem("harbor-console-language", "en-US");
     const credential: RobotCredential = {
       id: 52,
@@ -73,7 +71,7 @@ describe("project robot dialogs", () => {
     };
     const mutation = vi
       .spyOn(controlApi, "mutate")
-      .mockResolvedValue({ data: credential });
+      .mockResolvedValue(credential);
     const onCreated = vi.fn();
 
     renderDialog(
@@ -98,63 +96,83 @@ describe("project robot dialogs", () => {
       ),
     ).toBeVisible();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Account name" }), {
-      target: { value: "release" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "Description" }), {
-      target: { value: "Release automation" },
-    });
-    fireEvent.click(screen.getByRole("checkbox", { name: "Push" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Never expires" }));
-    fireEvent.click(
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "Account name" }),
+      "release",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "Description" }),
+      "Release automation",
+    );
+    await user.click(screen.getByRole("checkbox", { name: "Push" }));
+    await user.click(screen.getByRole("checkbox", { name: "Never expires" }));
+    await user.click(
       screen.getByRole("checkbox", {
         name: /Disable account.*Keep the configuration but prevent authentication/,
       }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    await user.click(screen.getByRole("button", { name: "Create account" }));
 
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(credential));
-    expect(mutation).toHaveBeenCalledWith("robots", {}, "POST", {
-      name: "release",
-      description: "Release automation",
-      level: "project",
-      duration: -1,
-      disable: true,
-      permissions: [
-        {
-          kind: "project",
-          namespace: "platform",
-          access: [
-            { resource: "repository", action: "pull", effect: "allow" },
-            { resource: "repository", action: "read", effect: "allow" },
-            { resource: "artifact", action: "read", effect: "allow" },
-            { resource: "artifact", action: "list", effect: "allow" },
-            { resource: "tag", action: "list", effect: "allow" },
-            { resource: "repository", action: "push", effect: "allow" },
-          ],
-        },
-      ],
+    await waitFor(() => {
+      expect(onCreated).toHaveBeenCalledWith(credential);
     });
-    expect(mutation).toHaveBeenCalledWith("robot", { id: 52 }, "PUT", {
-      name: "robot$platform+release",
-      description: "Release automation",
-      level: "project",
-      duration: -1,
-      disable: true,
-      permissions: [
-        {
-          kind: "project",
-          namespace: "platform",
-          access: [
-            { resource: "repository", action: "pull", effect: "allow" },
-            { resource: "repository", action: "read", effect: "allow" },
-            { resource: "artifact", action: "read", effect: "allow" },
-            { resource: "artifact", action: "list", effect: "allow" },
-            { resource: "tag", action: "list", effect: "allow" },
-            { resource: "repository", action: "push", effect: "allow" },
-          ],
-        },
-      ],
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "robots",
+      parameters: {},
+      method: "POST",
+      payload: {
+        name: "release",
+        description: "Release automation",
+        level: "project",
+        duration: -1,
+        disable: true,
+        permissions: [
+          {
+            kind: "project",
+            namespace: "platform",
+            access: [
+              { resource: "repository", action: "pull", effect: "allow" },
+              { resource: "repository", action: "read", effect: "allow" },
+              { resource: "artifact", action: "read", effect: "allow" },
+              { resource: "artifact", action: "list", effect: "allow" },
+              { resource: "tag", action: "list", effect: "allow" },
+              { resource: "repository", action: "push", effect: "allow" },
+            ],
+          },
+        ],
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "robot",
+      parameters: { id: 52 },
+      method: "PUT",
+      payload: {
+        name: "robot$platform+release",
+        description: "Release automation",
+        level: "project",
+        duration: -1,
+        disable: true,
+        permissions: [
+          {
+            kind: "project",
+            namespace: "platform",
+            access: [
+              { resource: "repository", action: "pull", effect: "allow" },
+              { resource: "repository", action: "read", effect: "allow" },
+              { resource: "artifact", action: "read", effect: "allow" },
+              { resource: "artifact", action: "list", effect: "allow" },
+              { resource: "tag", action: "list", effect: "allow" },
+              { resource: "repository", action: "push", effect: "allow" },
+            ],
+          },
+        ],
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
     });
     expect(mutation.mock.invocationCallOrder[0]).toBeLessThan(
       mutation.mock.invocationCallOrder[1] ?? 0,
@@ -162,6 +180,7 @@ describe("project robot dialogs", () => {
   });
 
   it("updates a robot with the editable production fields", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -178,37 +197,48 @@ describe("project robot dialogs", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "描述" }), {
-      target: { value: "更新后的流水线" },
-    });
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "描述" }),
+      "更新后的流水线",
+    );
     const repositoryPermission = screen
       .getByText("镜像仓库")
       .closest("section");
     expect(repositoryPermission).not.toBeNull();
     if (!repositoryPermission)
       throw new Error("repository permission is missing");
-    fireEvent.click(
+    await user.click(
       within(repositoryPermission).getByRole("checkbox", { name: "查看" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "保存账号" }));
+    await user.click(screen.getByRole("button", { name: "保存账号" }));
 
-    await waitFor(() => expect(onUpdated).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith("robot", { id: 41 }, "PUT", {
-      name: "robot$platform+ci-release",
-      description: "更新后的流水线",
-      level: "project",
-      duration: 365,
-      disable: false,
-      permissions: [
-        {
-          kind: "project",
-          namespace: "platform",
-          access: [
-            { resource: "repository", action: "pull", effect: "allow" },
-            { resource: "repository", action: "read", effect: "allow" },
-          ],
-        },
-      ],
+    await waitFor(() => {
+      expect(onUpdated).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "robot",
+      parameters: { id: 41 },
+      method: "PUT",
+      payload: {
+        name: "robot$platform+ci-release",
+        description: "更新后的流水线",
+        level: "project",
+        duration: 365,
+        disable: false,
+        permissions: [
+          {
+            kind: "project",
+            namespace: "platform",
+            access: [
+              { resource: "repository", action: "pull", effect: "allow" },
+              { resource: "repository", action: "read", effect: "allow" },
+            ],
+          },
+        ],
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
     });
   });
 
@@ -231,9 +261,10 @@ describe("project robot dialogs", () => {
   });
 
   it("resets a robot secret and returns one-time credentials", async () => {
-    const mutation = vi.spyOn(controlApi, "mutate").mockResolvedValue({
-      data: { secret: "rotated-secret" },
-    });
+    const user = setupUser();
+    const mutation = vi
+      .spyOn(controlApi, "mutate")
+      .mockResolvedValue({ secret: "rotated-secret" });
     const onReset = vi.fn();
 
     renderDialog(
@@ -243,20 +274,28 @@ describe("project robot dialogs", () => {
         onReset={onReset}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "重置密钥" }));
+    await user.click(screen.getByRole("button", { name: "重置密钥" }));
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(onReset).toHaveBeenCalledWith({
         name: "robot$platform+ci-release",
         secret: "rotated-secret",
-      }),
-    );
-    expect(mutation).toHaveBeenCalledWith("robot", { id: 41 }, "PATCH", {
-      secret: "",
+      });
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "robot",
+      parameters: { id: 41 },
+      method: "PATCH",
+      payload: {
+        secret: "",
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
     });
   });
 
   it("renders credentials once and deletes the selected account", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -273,7 +312,7 @@ describe("project robot dialogs", () => {
     expect(screen.getByText("one-time-secret")).toBeVisible();
 
     rerender(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <DeleteProjectRobotDialog
           project="platform"
@@ -281,11 +320,19 @@ describe("project robot dialogs", () => {
           onClose={vi.fn()}
           onDeleted={onDeleted}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "删除账号" }));
+    await user.click(screen.getByRole("button", { name: "删除账号" }));
 
-    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith("robot", { id: 41 }, "DELETE");
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "robot",
+      parameters: { id: 41 },
+      method: "DELETE",
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 });

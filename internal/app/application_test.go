@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -17,7 +16,7 @@ import (
 
 // newApp builds the default demo application with logging discarded.
 func newApp() (*app, error) {
-	return newAppWithConfig(config.Default(), nil)
+	return newAppWithConfig(config.Default(), nil, Build{})
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -73,7 +72,7 @@ func TestDashboardRequiresSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/dashboards/current", nil)
 	application.routes().ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
@@ -81,7 +80,7 @@ func TestDashboardRequiresSession(t *testing.T) {
 }
 
 func TestEmbeddedFrontendIsOfflineAndCSPCompatible(t *testing.T) {
-	webRoot, err := webui.Files()
+	webRoot, err := web.Files()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,19 +150,37 @@ func TestEmbeddedFrontendIsOfflineAndCSPCompatible(t *testing.T) {
 	}
 }
 
-func TestSameOriginChecksSchemeAndHost(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "http://console.test/api/demo", nil)
-	request.Header.Set("Origin", "http://console.test")
-	if !sameOrigin(request) {
-		t.Fatal("matching HTTP origin should be allowed")
-	}
-	request.Header.Set("Origin", "https://console.test")
-	if sameOrigin(request) {
-		t.Fatal("mismatched origin scheme should be rejected")
-	}
-	request.Header.Set("Origin", "http://attacker.test")
-	if sameOrigin(request) {
-		t.Fatal("mismatched origin host should be rejected")
+func TestCrossOriginGuardRejectsCrossSiteWrites(t *testing.T) {
+	handler := crossOriginGuard(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	for _, test := range []struct {
+		name    string
+		method  string
+		headers map[string]string
+		want    int
+	}{
+		{"same-origin fetch", http.MethodPost, map[string]string{"Sec-Fetch-Site": "same-origin"}, http.StatusNoContent},
+		{"matching origin", http.MethodPost, map[string]string{"Origin": "http://console.test"}, http.StatusNoContent},
+		{"command-line client", http.MethodPost, nil, http.StatusNoContent},
+		{"cross-site fetch", http.MethodPost, map[string]string{"Sec-Fetch-Site": "cross-site"}, http.StatusForbidden},
+		{"foreign origin", http.MethodDelete, map[string]string{"Origin": "http://attacker.test"}, http.StatusForbidden},
+		{"cross-site read", http.MethodGet, map[string]string{"Sec-Fetch-Site": "cross-site"}, http.StatusNoContent},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(test.method, "http://console.test/api/sessions/current", nil)
+			for name, value := range test.headers {
+				request.Header.Set(name, value)
+			}
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			if recorder.Code != test.want {
+				t.Fatalf("status = %d, want %d", recorder.Code, test.want)
+			}
+			if test.want == http.StatusForbidden && !strings.Contains(recorder.Body.String(), `"permission_denied"`) {
+				t.Fatalf("body = %s, want the permission_denied envelope", recorder.Body.String())
+			}
+		})
 	}
 }
 
@@ -207,15 +224,15 @@ func TestDemoCreatesUsableSession(t *testing.T) {
 	}
 	handler := application.routes()
 	login := httptest.NewRecorder()
-	handler.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/demo", strings.NewReader("{}")))
-	if login.Code != http.StatusOK {
+	handler.ServeHTTP(login, jsonRequest(http.MethodPost, "/api/demo-sessions", strings.NewReader("{}")))
+	if login.Code != http.StatusCreated {
 		t.Fatalf("demo status = %d, body = %s", login.Code, login.Body.String())
 	}
 	cookies := login.Result().Cookies()
 	if len(cookies) != 1 || cookies[0].Name != sessionCookie || !cookies[0].HttpOnly {
 		t.Fatalf("unexpected cookies: %#v", cookies)
 	}
-	dashboardRequest := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
+	dashboardRequest := httptest.NewRequest(http.MethodGet, "/api/dashboards/current", nil)
 	dashboardRequest.AddCookie(cookies[0])
 	dashboard := httptest.NewRecorder()
 	handler.ServeHTTP(dashboard, dashboardRequest)
@@ -266,11 +283,11 @@ func TestDemoInstancesAreIsolatedAndSwitchable(t *testing.T) {
 	}
 	handler := application.routes()
 	login := httptest.NewRecorder()
-	handler.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/demo", strings.NewReader("{}")))
+	handler.ServeHTTP(login, jsonRequest(http.MethodPost, "/api/demo-sessions", strings.NewReader("{}")))
 	cookie := login.Result().Cookies()[0]
 	request := func(method, target, body string) *httptest.ResponseRecorder {
 		t.Helper()
-		req := httptest.NewRequest(method, target, strings.NewReader(body))
+		req := jsonRequest(method, target, strings.NewReader(body))
 		req.AddCookie(cookie)
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, req)
@@ -293,7 +310,7 @@ func TestDemoInstancesAreIsolatedAndSwitchable(t *testing.T) {
 	}
 	firstID := listed.ActiveID
 
-	createdProject := request(http.MethodPost, "/api/control/projects", `{"project_name":"first-only","metadata":{"public":"false"}}`)
+	createdProject := request(http.MethodPost, "/api/operations/projects", `{"project_name":"first-only","metadata":{"public":"false"}}`)
 	if createdProject.Code != http.StatusCreated {
 		t.Fatalf("project create status = %d, body = %s", createdProject.Code, createdProject.Body.String())
 	}
@@ -310,7 +327,7 @@ func TestDemoInstancesAreIsolatedAndSwitchable(t *testing.T) {
 		t.Fatalf("invalid second instance: %s", second.Body.String())
 	}
 
-	secondProjects := request(http.MethodGet, "/api/control/projects?page=1&page_size=50&name=first-only", "")
+	secondProjects := request(http.MethodGet, "/api/operations/projects?offset=0&limit=50&name=first-only", "")
 	if secondProjects.Code != http.StatusOK || strings.Contains(secondProjects.Body.String(), `"name":"first-only"`) {
 		t.Fatalf("demo instance state leaked: %d %s", secondProjects.Code, secondProjects.Body.String())
 	}
@@ -318,7 +335,7 @@ func TestDemoInstancesAreIsolatedAndSwitchable(t *testing.T) {
 	if switched.Code != http.StatusOK || !strings.Contains(switched.Body.String(), `"connection_id":"`+firstID+`"`) {
 		t.Fatalf("switch status = %d, body = %s", switched.Code, switched.Body.String())
 	}
-	firstProjects := request(http.MethodGet, "/api/control/projects?page=1&page_size=50&name=first-only", "")
+	firstProjects := request(http.MethodGet, "/api/operations/projects?offset=0&limit=50&name=first-only", "")
 	if firstProjects.Code != http.StatusOK || !strings.Contains(firstProjects.Body.String(), `"name":"first-only"`) {
 		t.Fatalf("first instance state was not restored: %d %s", firstProjects.Code, firstProjects.Body.String())
 	}
@@ -354,10 +371,10 @@ func TestConnectUsesBasicAuth(t *testing.T) {
 	}
 	body := `{"url":"https://harbor.test","username":"admin","password":"correct-horse"}`
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/api/connect", strings.NewReader(body))
+	request := jsonRequest(http.MethodPost, "/api/sessions", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	application.routes().ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
+	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 	if len(recorder.Result().Cookies()) != 1 {
@@ -377,9 +394,7 @@ func TestResourceAllowsOnlyKnownQueryParameters(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := &session{InstanceURL: "https://harbor.test", Username: "admin", Password: "password", Client: client}
-	if err := application.sessions.create(current); err != nil {
-		t.Fatal(err)
-	}
+	application.sessions.create(current)
 	request := httptest.NewRequest(http.MethodGet, "/api/resources/projects?page=2&page_size=25&evil=ignored", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
@@ -416,7 +431,7 @@ func TestProjectAssetEnrichmentUsesOfficialProjectAPIs(t *testing.T) {
 	})
 	projects := []any{map[string]any{"project_id": 1, "name": "platform", "repo_count": 2}}
 	current := &session{InstanceURL: "https://harbor.test", Username: "admin", Password: "password", Client: client}
-	if application.enrichProjectAssets(context.Background(), current, projects) {
+	if application.enrichProjectAssets(t.Context(), current, projects) {
 		t.Fatal("asset enrichment unexpectedly reported an error")
 	}
 	project := projects[0].(map[string]any)
@@ -449,7 +464,7 @@ func TestListAllProjectsFollowsOfficialPaginationHeaders(t *testing.T) {
 		}, nil
 	})}
 	current := &session{InstanceURL: "https://harbor.test", Username: "admin", Password: "password", Client: client}
-	projects, err := application.listAllProjects(context.Background(), current)
+	projects, err := application.listAllProjects(t.Context(), current)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -480,7 +495,7 @@ func TestProjectAssetEnrichmentReadsAllRepositoryPages(t *testing.T) {
 	})}
 	projects := []any{map[string]any{"project_id": 1, "name": "platform", "repo_count": 1001}}
 	current := &session{InstanceURL: "https://harbor.test", Username: "admin", Password: "password", Client: client}
-	if application.enrichProjectAssets(context.Background(), current, projects) {
+	if application.enrichProjectAssets(t.Context(), current, projects) {
 		t.Fatal("asset enrichment unexpectedly reported an error")
 	}
 	if len(requestedPages) != 11 || requestedPages[0] != "1" || requestedPages[10] != "11" {
@@ -503,7 +518,7 @@ func TestConnectRejectsBadCredentials(t *testing.T) {
 	}
 	body := `{"url":"https://harbor.test","username":"admin","password":"wrong"}`
 	recorder := httptest.NewRecorder()
-	application.routes().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/connect", strings.NewReader(body)))
+	application.routes().ServeHTTP(recorder, jsonRequest(http.MethodPost, "/api/sessions", strings.NewReader(body)))
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d; body = %s", recorder.Code, http.StatusUnauthorized, recorder.Body.String())
 	}
@@ -530,7 +545,7 @@ func TestConnectRejectsBadCredentialsWhenProjectsArePublic(t *testing.T) {
 	}
 	body := `{"url":"https://harbor.test","username":"admin","password":"wrong"}`
 	recorder := httptest.NewRecorder()
-	application.routes().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/connect", strings.NewReader(body)))
+	application.routes().ServeHTTP(recorder, jsonRequest(http.MethodPost, "/api/sessions", strings.NewReader(body)))
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401; body = %s", recorder.Code, recorder.Body.String())
 	}
@@ -555,9 +570,9 @@ func TestAddInstanceRejectsBadCredentialsBeforePersisting(t *testing.T) {
 			return http.StatusUnauthorized, `{"errors":[{"message":"unauthorized"}]}`
 		})
 	}
-	current := createTestSession(t, application, nil, false)
+	current := createTestSession(t, testSessionOptions{application: application, client: nil, demo: false})
 	body := `{"url":"https://another.harbor.test","username":"admin","password":"wrong"}`
-	request := httptest.NewRequest(http.MethodPost, "/api/instances", strings.NewReader(body))
+	request := jsonRequest(http.MethodPost, "/api/instances", strings.NewReader(body))
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -583,7 +598,7 @@ func TestConnectRejectsNonRootURLBeforeUpstreamRequest(t *testing.T) {
 	}
 	body := `{"url":"https://harbor.test/harbor","username":"admin","password":"Password-123"}`
 	recorder := httptest.NewRecorder()
-	application.routes().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/connect", strings.NewReader(body)))
+	application.routes().ServeHTTP(recorder, jsonRequest(http.MethodPost, "/api/sessions", strings.NewReader(body)))
 	if recorder.Code != http.StatusBadRequest || called {
 		t.Fatalf("status = %d, upstream called = %v; body = %s", recorder.Code, called, recorder.Body.String())
 	}
@@ -600,35 +615,35 @@ func TestUserCommentLimitMatchesHarbor(t *testing.T) {
 		{
 			name:       "create at limit",
 			method:     http.MethodPost,
-			consoleURL: "/api/control/users",
+			consoleURL: "/api/operations/users",
 			body:       `{"username":"acceptance-user","password":"Password-123","email":"user@example.com","realname":"Acceptance","comment":"123456789012345678901234567890"}`,
 			wantStatus: http.StatusCreated,
 		},
 		{
 			name:       "create over limit",
 			method:     http.MethodPost,
-			consoleURL: "/api/control/users",
+			consoleURL: "/api/operations/users",
 			body:       `{"username":"acceptance-user","password":"Password-123","email":"user@example.com","realname":"Acceptance","comment":"1234567890123456789012345678901"}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "update over limit",
 			method:     http.MethodPut,
-			consoleURL: "/api/control/user?id=7",
+			consoleURL: "/api/operations/user?id=7",
 			body:       `{"email":"user@example.com","realname":"Acceptance","comment":"1234567890123456789012345678901"}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "multibyte at byte limit",
 			method:     http.MethodPut,
-			consoleURL: "/api/control/user?id=7",
+			consoleURL: "/api/operations/user?id=7",
 			body:       `{"email":"user@example.com","realname":"Acceptance","comment":"测试测试测试测试测试"}`,
 			wantStatus: http.StatusCreated,
 		},
 		{
 			name:       "multibyte over byte limit",
 			method:     http.MethodPut,
-			consoleURL: "/api/control/user?id=7",
+			consoleURL: "/api/operations/user?id=7",
 			body:       `{"email":"user@example.com","realname":"Acceptance","comment":"测试测试测试测试测试测"}`,
 			wantStatus: http.StatusBadRequest,
 		},
@@ -644,8 +659,8 @@ func TestUserCommentLimitMatchesHarbor(t *testing.T) {
 				called = true
 				return http.StatusCreated, `{}`
 			})
-			current := createTestSession(t, application, client, false)
-			request := httptest.NewRequest(test.method, test.consoleURL, strings.NewReader(test.body))
+			current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+			request := jsonRequest(test.method, test.consoleURL, strings.NewReader(test.body))
 			request.Host = "console.test"
 			request.Header.Set("Origin", "http://console.test")
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})

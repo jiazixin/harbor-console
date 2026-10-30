@@ -1,0 +1,426 @@
+.architectureCell {
+  min-width: 150px;
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.architectureCell small {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.architectureBadge {
+  font-family: var(--font-mono);
+}
+
+.artifactFilterToolbar {
+  gap: var(--space-control);
+  flex-wrap: wrap;
+}
+
+.artifactFilterToolbar :global(.hc_8b938f52_controlSearchForm) {
+  flex: 0 1 280px;
+  width: min(280px, 100%);
+}
+
+.artifactFilterToolbar :global(.hc_8b938f52_toolbarField) {
+  flex: 0 1 148px;
+}
+
+.artifactFilterToolbar :global(.hc_8b938f52_toolbarSelect) {
+  min-width: 104px;
+}
+
+/* Repository and artifact detail pages styles. */
+/* Repository views, preferences, and operation center */
+.artifactSelectTable :global(.hc_8b938f52_selectionCell) {
+  width: 42px;
+  padding-inline: 12px 4px;
+  text-align: center;
+}
+
+.artifactSelectTable :global(.hc_8b938f52_selectionCell) input {
+  display: block;
+  accent-color: var(--orange);
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.artifactSelectTable tr:global(.hc_8b938f52_selectedRow) > td {
+  background: color-mix(in srgb, var(--orange-soft) 44%, var(--surface));
+}
+
+.artifactIdentity {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--orange);
+  background: var(--surface);
+}
+
+.artifactDetailActions {
+  max-width: 640px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-control);
+}
+
+.artifactIdentity > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.artifactAnnotationSummary {
+  min-width: 120px;
+  display: grid;
+  gap: 3px;
+}
+
+.artifactAnnotationSummary code {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifactAnnotationSummary a {
+  color: var(--blue);
+  font-size: 11px;
+}
+
+.artifactAnnotationsPanel {
+  margin-top: 18px;
+  overflow: hidden;
+}
+
+.artifactAnnotationsList > div {
+  grid-template-columns: minmax(170px, 0.6fr) minmax(0, 1.4fr);
+}
+
+.artifactAnnotationsList dt,
+.artifactAnnotationsList dd {
+  min-width: 0;
+}
+
+.artifactAnnotationsList code {
+  display: block;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.artifactAnnotationsList dd {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: start;
+  gap: 8px;
+}
+
+.artifactIdentityLabels,
+.artifactRowLabels {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.artifactIdentityLabels {
+  margin-top: 5px;
+}
+
+.artifactRowLabels {
+  margin-top: 2px;
+}
+
+.artifactLabelChip {
+  min-width: 0;
+  max-width: 260px;
+  min-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.artifactLabelChip > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifactLabelSwatch {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.artifactTabs {
+  scrollbar-width: thin;
+}
+
+.artifactInlineWarning {
+  margin: 12px 14px 0;
+}
+
+.artifactLabelList {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+
+.artifactLabelRow {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.artifactLabelRow:last-child {
+  border-bottom: 0;
+}
+
+.artifactLabelOptions {
+  max-height: 260px;
+  display: grid;
+  overflow-y: auto;
+  margin-top: 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+}
+
+.artifactLabelOptions > div {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.artifactLabelOptions > div:last-child {
+  border-bottom: 0;
+}
+
+.artifactAdditionPanel {
+  overflow: hidden;
+}
+
+.additionSummary {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+.artifactAdditionCode {
+  max-height: min(620px, 65vh);
+  margin: 0;
+  overflow: auto;
+  padding: 16px;
+  border-top: 1px solid var(--line);
+  background: var(--code-bg);
+  color: var(--palette-e8e8e8);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.artifactFileList {
+  max-height: min(620px, 65vh);
+  display: grid;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+}
+
+.artifactFileList code {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.artifactFileList code:last-child {
+  border-bottom: 0;
+}
+
+.additionCommand {
+  display: block;
+  max-width: min(720px, 55vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.digestFull {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.detailColumns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+  gap: 18px;
+}
+
+.commandPanel {
+  overflow: hidden;
+}
+
+.commandPanel
+  :global(.hc_8b938f52_panelHead)
+  + :global(.hc_8b938f52_commandRow) {
+  border-top: 0;
+}
+
+.artifactPlatformPanel {
+  margin-top: 18px;
+  overflow: hidden;
+}
+
+.artifactPlatformList {
+  border-top: 1px solid var(--line);
+}
+
+.artifactPlatformRow {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.65fr) minmax(190px, 1fr) max-content;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.artifactPlatformRow:last-child {
+  border-bottom: 0;
+}
+
+.platformIdentity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.artifactPlatformRow code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platformActionPlaceholder {
+  width: 34px;
+}
+
+.scanTypeOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+:global(.hc_8b938f52_controlDialog) .scanTypeOption {
+  min-height: 104px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-subtle);
+}
+
+.scanTypeOption strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.scanTypeOption strong :global(.hc_8b938f52_icon) {
+  width: 16px;
+  height: 16px;
+  color: var(--orange-strong);
+}
+
+@media (max-width: 900px) {
+  .detailColumns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .artifactIdentity {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .artifactIdentity :global(.hc_8b938f52_button) {
+    justify-content: center;
+  }
+
+  .artifactPlatformRow {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 8px;
+  }
+
+  .artifactAnnotationsList > div {
+    grid-template-columns: 1fr;
+  }
+
+  .artifactPlatformRow code {
+    grid-column: 1;
+    padding-left: 37px;
+  }
+
+  .artifactPlatformRow :global(.hc_8b938f52_rowActions),
+  .artifactPlatformRow .platformActionPlaceholder {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .scanTypeOptions {
+    grid-template-columns: 1fr;
+  }
+}

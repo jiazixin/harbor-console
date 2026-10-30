@@ -1,100 +1,68 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
 import { controlApi } from "../../app/api-client";
+import { errorText } from "../../app/errors";
 import type { ReplicationAdapterInfo } from "../../app/models";
+import { useLoadedQuery } from "../../app/use-loaded-query";
+import { replicationKeys } from "./replication-keys";
 import {
   defaultCapability,
   type ReplicationDirection,
-  type TriggerType,
 } from "./replication-policy-form";
 export function useReplicationCapabilities({
   direction,
   initialDirection,
   localInfo,
   registryId,
-  setTrigger,
-  setCopyByChunk,
 }: {
   direction: ReplicationDirection;
   initialDirection: ReplicationDirection;
   localInfo?: ReplicationAdapterInfo;
   registryId: string;
-  setTrigger: Dispatch<SetStateAction<TriggerType>>;
-  setCopyByChunk: Dispatch<SetStateAction<boolean>>;
 }) {
-  const [capability, setCapability] = useState<ReplicationAdapterInfo>(
-    initialDirection === "push"
-      ? (localInfo ?? defaultCapability)
-      : defaultCapability,
-  );
-  const [remoteInfo, setRemoteInfo] =
-    useState<ReplicationAdapterInfo>(defaultCapability);
-  const [capabilityError, setCapabilityError] = useState("");
-  const [capabilityReady, setCapabilityReady] = useState(false);
-  const firstCapabilityLoad = useRef(true);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const remoteId = Number(registryId);
-    if (!remoteId) return () => controller.abort();
-    setCapabilityReady(false);
-    const capabilityPromise =
-      direction === "push" && localInfo
-        ? Promise.resolve(localInfo)
-        : controlApi.data<ReplicationAdapterInfo>(
-            "registry-info",
-            { id: direction === "push" ? 0 : remoteId },
-            controller.signal,
-          );
-    void Promise.allSettled([
-      capabilityPromise,
-      controlApi.data<ReplicationAdapterInfo>(
-        "registry-info",
-        { id: remoteId },
-        controller.signal,
-      ),
-    ]).then((results) => {
-      if (controller.signal.aborted) return;
-      const nextCapability =
-        results[0].status === "fulfilled" && results[0].value
-          ? results[0].value
-          : defaultCapability;
-      const nextRemote =
-        results[1].status === "fulfilled" && results[1].value
-          ? results[1].value
-          : defaultCapability;
-      setCapability(nextCapability);
-      setRemoteInfo(nextRemote);
-      setCapabilityError(
-        results
+  const remoteId = Number(registryId);
+  const capabilityQuery = useLoadedQuery(
+    replicationKeys.capabilities({ direction, localInfo, remoteId }),
+    async (signal) => {
+      const results = await Promise.allSettled([
+        direction === "push" && localInfo
+          ? Promise.resolve(localInfo)
+          : controlApi.data<ReplicationAdapterInfo>(
+              "registry-info",
+              { id: direction === "push" ? 0 : remoteId },
+              signal,
+            ),
+        controlApi.data<ReplicationAdapterInfo>(
+          "registry-info",
+          { id: remoteId },
+          signal,
+        ),
+      ]);
+      return {
+        capability:
+          results[0].status === "fulfilled" && results[0].value
+            ? results[0].value
+            : defaultCapability,
+        remote:
+          results[1].status === "fulfilled" && results[1].value
+            ? results[1].value
+            : defaultCapability,
+        error: results
           .filter((result) => result.status === "rejected")
-          .map((result) =>
-            result.reason instanceof Error
-              ? result.reason.message
-              : String(result.reason),
-          )
+          .map((result) => errorText(result.reason))
           .join("；"),
-      );
-      if (!firstCapabilityLoad.current) {
-        const supported = (nextCapability.supported_triggers ?? []).filter(
-          (value): value is TriggerType =>
-            ["event_based", "manual", "scheduled"].includes(value),
-        );
-        setTrigger((current) =>
-          supported.includes(current) ? current : (supported[0] ?? "manual"),
-        );
-      }
-      firstCapabilityLoad.current = false;
-      if (!nextRemote.supported_copy_by_chunk) setCopyByChunk(false);
-      setCapabilityReady(true);
-    });
-    return () => controller.abort();
-  }, [direction, localInfo, registryId]);
+      };
+    },
+    { enabled: remoteId > 0 },
+  );
+  const loaded = capabilityQuery.data;
+  const capability =
+    loaded?.capability ??
+    (initialDirection === "push"
+      ? (localInfo ?? defaultCapability)
+      : defaultCapability);
+  const remoteInfo = loaded?.remote ?? defaultCapability;
+  const capabilityError = loaded?.error ?? "";
+  const capabilityReady =
+    remoteId > 0 && loaded !== undefined && !capabilityQuery.loading;
 
   return { capability, remoteInfo, capabilityError, capabilityReady };
 }

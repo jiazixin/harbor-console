@@ -1,0 +1,9 @@
+@layer ui-feedback {
+  .errorState :global(.hc_8b938f52_stateIcon) {
+    background: var(--red-soft);
+    color: var(--red);
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.errorState {
+}

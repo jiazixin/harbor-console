@@ -1,15 +1,7 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { ContentTransition } from "../../components/content-transition";
-
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError, controlApi } from "../../app/api-client";
-import { formatBytes, formatDate, formatNumber } from "../../app/formatters";
-import type { ConsoleRoute } from "../../app/hash-router";
+import type { ConsoleRoute } from "../../app/console-route";
+import { errorText } from "../../app/errors";
 import { useLocale } from "../../app/locale-context";
 import type {
   AuditPurgeJob,
@@ -32,35 +24,48 @@ import type {
   ScanAllMetrics,
   SystemRobot,
 } from "../../app/models";
-import { Pagination } from "../../components/data-table";
+import { displayTimeZone } from "../../app/preferences";
+import { useLoadedQuery } from "../../app/use-loaded-query";
+import { ColorSwatch } from "../../components/color-swatch";
+import { ContentTransition } from "../../components/content-transition";
+import { DemoBanner } from "../../components/demo-banner";
 import { EmptyState } from "../../components/empty-state";
-import { ErrorView } from "../../components/feedback";
-import { Icon, type IconName } from "../../components/icons";
+import { ErrorView } from "../../components/error-view";
+import { Icon } from "../../components/icon";
+import { type IconName } from "../../components/icons-support";
 import { OverflowText } from "../../components/overflow-text";
-import {
-  DemoBanner,
-  PageHeader,
-  RefreshButton,
-  SectionHeading,
-} from "../../components/page-elements";
+import { PageHeader } from "../../components/page-header";
+import { Pagination } from "../../components/pagination";
+import { RefreshButton } from "../../components/refresh-button";
+import { SectionHeading } from "../../components/section-heading";
+import uiStyles0 from "../../components/shared-ui.module.css";
 import { ToolbarSearchForm } from "../../components/toolbar-search-form";
-import { useResettableState } from "../../components/use-resettable-state";
+import { createClassNames } from "../../lib/css/class-names";
+import {
+  formatBytes,
+  formatDate,
+  formatDecimal,
+  formatNumber,
+} from "../../lib/format/formatters";
+import { useResettableState } from "../../lib/state/use-resettable-state";
 import {
   AdministrationConfigurationSection,
   type ConfigurationData,
 } from "./administration-configuration";
+import { AdministrationJobServiceSection } from "./administration-job-service-section";
+import { administrationKeys } from "./administration-keys";
+import { AdministrationMaintenanceSection } from "./administration-maintenance-section";
 import {
-  AdministrationJobServiceSection,
-  AdministrationMaintenanceSection,
-  AdministrationPurgeSection,
   type JobServiceData,
   type MaintenanceData,
   type PurgeData,
-} from "./administration-operations";
+} from "./administration-operations-support";
+import { AdministrationPurgeSection } from "./administration-purge-section";
 import {
   AdministrationDialog,
   type AdministrationAction,
 } from "./administration-resource-dialogs";
+import styles from "./administration.module.css";
 
 type AdministrationSection =
   | "users"
@@ -152,15 +157,20 @@ async function loadAllProjects(signal: AbortSignal): Promise<ProjectSummary[]> {
 }
 
 function loadErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return errorText(error);
 }
 
-async function loadOptionalObject<T extends object>(
-  operation: string,
-  parameters: Record<string, boolean | number | string> = {},
-  fallback: T,
-  signal: AbortSignal,
-): Promise<T & { load_error?: string; load_status?: number }> {
+async function loadOptionalObject<T extends object>({
+  operation,
+  parameters = {},
+  fallback,
+  signal,
+}: {
+  operation: string;
+  parameters?: Record<string, boolean | number | string>;
+  fallback: T;
+  signal: AbortSignal;
+}): Promise<T & { load_error?: string; load_status?: number }> {
   try {
     return (
       (await controlApi.data<T>(operation, parameters, signal)) ?? fallback
@@ -221,12 +231,17 @@ function normalizeAuditEvents(value: unknown): string[] {
   });
 }
 
-async function loadAdministrationData(
-  section: AdministrationSection,
-  page: number,
-  filter: string,
-  signal: AbortSignal,
-): Promise<AdministrationData | undefined> {
+async function loadAdministrationData({
+  section,
+  page,
+  filter,
+  signal,
+}: {
+  section: AdministrationSection;
+  page: number;
+  filter: string;
+  signal: AbortSignal;
+}): Promise<AdministrationData | undefined> {
   if (section === "users") {
     return {
       section,
@@ -310,19 +325,24 @@ async function loadAdministrationData(
           { page, page_size: 10, sort: "-creation_time" },
           signal,
         ),
-        loadOptionalObject<HarborScheduleConfiguration>(
-          "gc-schedule",
-          {},
-          {},
-          signal,
-        ),
-        loadOptionalObject<HarborScheduleConfiguration>(
-          "scan-all-schedule",
-          {},
-          {},
-          signal,
-        ),
-        loadOptionalObject<ScanAllMetrics>("scan-all-metrics", {}, {}, signal),
+        loadOptionalObject<HarborScheduleConfiguration>({
+          operation: "gc-schedule",
+          parameters: {},
+          fallback: {},
+          signal: signal,
+        }),
+        loadOptionalObject<HarborScheduleConfiguration>({
+          operation: "scan-all-schedule",
+          parameters: {},
+          fallback: {},
+          signal: signal,
+        }),
+        loadOptionalObject<ScanAllMetrics>({
+          operation: "scan-all-metrics",
+          parameters: {},
+          fallback: {},
+          signal: signal,
+        }),
       ]);
     return {
       section,
@@ -339,12 +359,12 @@ async function loadAdministrationData(
         { page, page_size: 20, sort: "-creation_time" },
         signal,
       ),
-      loadOptionalObject<HarborScheduleConfiguration>(
-        "purge-schedule",
-        {},
-        {},
-        signal,
-      ),
+      loadOptionalObject<HarborScheduleConfiguration>({
+        operation: "purge-schedule",
+        parameters: {},
+        fallback: {},
+        signal: signal,
+      }),
       loadOptionalArray<unknown>("audit-log-events", {}, signal),
     ]);
     return {
@@ -369,12 +389,12 @@ async function loadAdministrationData(
           { page, page_size: 20 },
           signal,
         ),
-        loadOptionalObject<JobServiceScheduleStatus>(
-          "jobservice-schedule-status",
-          { type: "all" },
-          {},
-          signal,
-        ),
+        loadOptionalObject<JobServiceScheduleStatus>({
+          operation: "jobservice-schedule-status",
+          parameters: { type: "all" },
+          fallback: {},
+          signal: signal,
+        }),
       ]);
     return {
       section,
@@ -413,41 +433,47 @@ async function loadAdministrationData(
   };
 }
 
+type SearchToolbarProps = {
+  filter: string;
+  placeholder: string;
+  action: ReactNode;
+  onSearch: (value: string) => void;
+};
+
 function SearchToolbar({
   filter,
   placeholder,
   action,
   onSearch,
-}: {
-  filter: string;
-  placeholder: string;
-  action: ReactNode;
-  onSearch: (value: string) => void;
-}) {
+}: SearchToolbarProps) {
   const [value, setValue] = useResettableState(filter);
 
   return (
-    <div className="table-toolbar">
+    <div className={resolveClasses("table-toolbar")}>
       <ToolbarSearchForm
         placeholder={placeholder}
         value={value}
         onChange={setValue}
         onSubmit={onSearch}
       />
-      <div className="toolbar-spacer" />
+      <div className={resolveClasses("toolbar-spacer")} />
       {action}
     </div>
   );
 }
 
-function AdministrationTabs({ selected }: { selected: AdministrationSection }) {
+type AdministrationTabsProps = { selected: AdministrationSection };
+
+function AdministrationTabs({ selected }: AdministrationTabsProps) {
   const { locale, t } = useLocale();
   const navigationRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const navigation = navigationRef.current;
-      const active = navigation?.querySelector<HTMLElement>(".active");
+      const active = navigation?.querySelector<HTMLElement>(
+        ".hc_8b938f52_active",
+      );
       if (
         !navigation ||
         !active ||
@@ -466,20 +492,24 @@ function AdministrationTabs({ selected }: { selected: AdministrationSection }) {
         Math.min(target, navigation.scrollWidth - navigation.clientWidth),
       );
     });
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
   }, [locale, selected]);
 
   return (
     <nav
       ref={navigationRef}
-      className="resource-tabs administration-tabs"
+      className={resolveClasses(`resource-tabs ${styles.administrationTabs}`)}
       aria-label={t("系统管理页面")}
     >
       {tabs.map((tab) => (
         <a
           key={tab.key}
           href={`#/${routePath(tab.key)}`}
-          className={selected === tab.key ? "active" : undefined}
+          className={resolveClasses(
+            selected === tab.key ? "active" : undefined,
+          )}
           aria-current={selected === tab.key ? "page" : undefined}
         >
           <Icon name={tab.icon} />
@@ -490,25 +520,29 @@ function AdministrationTabs({ selected }: { selected: AdministrationSection }) {
   );
 }
 
-function RowActions({ children }: { children: ReactNode }) {
-  return <div className="row-actions">{children}</div>;
+type RowActionsProps = { children: ReactNode };
+
+function RowActions({ children }: RowActionsProps) {
+  return <div className={resolveClasses("row-actions")}>{children}</div>;
 }
+
+type ActionButtonProps = {
+  label: string;
+  icon: IconName;
+  danger?: boolean;
+  onClick: () => void;
+};
 
 function ActionButton({
   label,
   icon,
   danger = false,
   onClick,
-}: {
-  label: string;
-  icon: IconName;
-  danger?: boolean;
-  onClick: () => void;
-}) {
+}: ActionButtonProps) {
   const { t } = useLocale();
   return (
     <button
-      className={`icon-button${danger ? " danger-icon" : ""}`}
+      className={resolveClasses(`icon-button${danger ? " danger-icon" : ""}`)}
       type="button"
       title={t(label)}
       aria-label={t(label)}
@@ -519,15 +553,13 @@ function ActionButton({
   );
 }
 
-function UsersTable({
-  users,
-  authMode,
-  onAction,
-}: {
+type UsersTableProps = {
   users: HarborUser[];
   authMode: string;
   onAction: (action: AdministrationAction) => void;
-}) {
+};
+
+function UsersTable({ users, authMode, onAction }: UsersTableProps) {
   const { locale, t } = useLocale();
   if (!users.length) {
     return (
@@ -545,7 +577,7 @@ function UsersTable({
           <th>{t("用户")}</th>
           <th>{t("邮箱")}</th>
           <th>{t("权限")}</th>
-          <th className="table-cell-time">{t("创建时间")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("创建时间")}</th>
           <th />
         </tr>
       </thead>
@@ -553,18 +585,22 @@ function UsersTable({
         {users.map((user) => (
           <tr key={user.user_id}>
             <td>
-              <div className="cell-title">
-                <span className="user-avatar-small">
+              <div className={resolveClasses("cell-title")}>
+                <span className={resolveClasses("user-avatar-small")}>
                   {Array.from(user.username || "U")[0]?.toUpperCase() ?? "U"}
                 </span>
-                <span className="cell-stack">
+                <span className={resolveClasses("cell-stack")}>
                   <OverflowText as="strong">{user.username}</OverflowText>
                   <OverflowText as="small">
-                    {user.realname?.trim()
-                      ? user.realname
-                      : user.comment?.trim()
-                        ? user.comment
-                        : `${t("用户")} #${String(user.user_id)}`}
+                    {(() => {
+                      if (user.realname?.trim()) {
+                        return user.realname;
+                      }
+                      if (user.comment?.trim()) {
+                        return user.comment;
+                      }
+                      return `${t("用户")} #${String(user.user_id)}`;
+                    })()}
                   </OverflowText>
                 </span>
               </div>
@@ -574,40 +610,51 @@ function UsersTable({
             </td>
             <td>
               <span
-                className={`badge ${user.sysadmin_flag ? "badge-orange" : "badge-blue"}`}
+                className={resolveClasses(
+                  `badge ${user.sysadmin_flag ? "badge-orange" : "badge-blue"}`,
+                )}
               >
                 {t(user.sysadmin_flag ? "系统管理员" : "普通用户")}
               </span>
             </td>
-            <td className="table-cell-time">
-              {formatDate(user.creation_time, locale)}
+            <td className={resolveClasses("table-cell-time")}>
+              {formatDate(user.creation_time, {
+                locale: locale,
+                timeZone: displayTimeZone(),
+              })}
             </td>
             <td>
               <RowActions>
                 <ActionButton
                   label={user.sysadmin_flag ? "撤销管理员" : "设为管理员"}
                   icon="shield"
-                  onClick={() => onAction({ kind: "toggle-user-admin", user })}
+                  onClick={() => {
+                    onAction({ kind: "toggle-user-admin", user });
+                  }}
                 />
                 {authMode === "db_auth" ? (
                   <ActionButton
                     label="重置密码"
                     icon="refresh"
-                    onClick={() =>
-                      onAction({ kind: "reset-user-password", user })
-                    }
+                    onClick={() => {
+                      onAction({ kind: "reset-user-password", user });
+                    }}
                   />
                 ) : null}
                 <ActionButton
                   label="编辑用户"
                   icon="edit"
-                  onClick={() => onAction({ kind: "edit-user", user })}
+                  onClick={() => {
+                    onAction({ kind: "edit-user", user });
+                  }}
                 />
                 <ActionButton
                   label="删除用户"
                   icon="trash"
                   danger
-                  onClick={() => onAction({ kind: "delete-user", user })}
+                  onClick={() => {
+                    onAction({ kind: "delete-user", user });
+                  }}
                 />
               </RowActions>
             </td>
@@ -618,13 +665,12 @@ function UsersTable({
   );
 }
 
-function GroupsTable({
-  groups,
-  onAction,
-}: {
+type GroupsTableProps = {
   groups: HarborUserGroup[];
   onAction: (action: AdministrationAction) => void;
-}) {
+};
+
+function GroupsTable({ groups, onAction }: GroupsTableProps) {
   const { t } = useLocale();
   const groupType = (value: number | undefined) =>
     ({ 1: "LDAP", 2: "HTTP", 3: "OIDC" })[value ?? 0] ?? t("未知");
@@ -652,30 +698,34 @@ function GroupsTable({
         {groups.map((group) => (
           <tr key={group.id}>
             <td>
-              <div className="cell-title">
-                <span className="cell-icon">
+              <div className={resolveClasses("cell-title")}>
+                <span className={resolveClasses("cell-icon")}>
                   <Icon name="users" />
                 </span>
                 <OverflowText as="strong">{group.group_name}</OverflowText>
               </div>
             </td>
             <td>{groupType(group.group_type)}</td>
-            <td className="truncate-cell mono">
+            <td className={resolveClasses("truncate-cell mono")}>
               {fallbackText(group.ldap_group_dn)}
             </td>
-            <td className="mono">#{group.id}</td>
+            <td className={resolveClasses("mono")}>#{group.id}</td>
             <td>
               <RowActions>
                 <ActionButton
                   label="编辑用户组"
                   icon="edit"
-                  onClick={() => onAction({ kind: "edit-group", group })}
+                  onClick={() => {
+                    onAction({ kind: "edit-group", group });
+                  }}
                 />
                 <ActionButton
                   label="删除用户组"
                   icon="trash"
                   danger
-                  onClick={() => onAction({ kind: "delete-group", group })}
+                  onClick={() => {
+                    onAction({ kind: "delete-group", group });
+                  }}
                 />
               </RowActions>
             </td>
@@ -686,13 +736,12 @@ function GroupsTable({
   );
 }
 
-function RobotsTable({
-  robots,
-  onAction,
-}: {
+type RobotsTableProps = {
   robots: SystemRobot[];
   onAction: (action: AdministrationAction) => void;
-}) {
+};
+
+function RobotsTable({ robots, onAction }: RobotsTableProps) {
   const { locale, t } = useLocale();
   if (!robots.length) {
     return (
@@ -710,8 +759,8 @@ function RobotsTable({
           <th>{t("机器人账号")}</th>
           <th>{t("权限范围")}</th>
           <th>{t("状态")}</th>
-          <th className="table-cell-time">{t("到期时间")}</th>
-          <th className="table-cell-time">{t("创建时间")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("到期时间")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("创建时间")}</th>
           <th />
         </tr>
       </thead>
@@ -727,21 +776,26 @@ function RobotsTable({
           const allProjects = projectPermissions.some(
             (permission) => permission.namespace === "*",
           );
-          const projectLabel = allProjects
-            ? t("全部项目")
-            : projectPermissions.length
-              ? locale === "en-US"
-                ? `${formatNumber(projectPermissions.length, locale)} projects`
-                : `${formatNumber(projectPermissions.length, locale)} 个项目`
-              : t("无项目权限");
+          const projectLabel = (() => {
+            if (allProjects) {
+              return t("全部项目");
+            }
+            if (projectPermissions.length) {
+              if (locale === "en-US") {
+                return `${formatNumber(projectPermissions.length, locale)} projects`;
+              }
+              return `${formatNumber(projectPermissions.length, locale)} 个项目`;
+            }
+            return t("无项目权限");
+          })();
           return (
             <tr key={robot.id}>
               <td>
-                <div className="cell-title">
-                  <span className="cell-icon">
+                <div className={resolveClasses("cell-title")}>
+                  <span className={resolveClasses("cell-icon")}>
                     <Icon name="terminal" />
                   </span>
-                  <span className="cell-stack">
+                  <span className={resolveClasses("cell-stack")}>
                     <OverflowText as="strong">{robot.name}</OverflowText>
                     <OverflowText as="small">
                       {fallbackText(
@@ -753,53 +807,69 @@ function RobotsTable({
                 </div>
               </td>
               <td>
-                <span className="badge badge-blue">
+                <span className={resolveClasses("badge badge-blue")}>
                   {t("系统")} {formatNumber(systemCount, locale)} {t("项")}
                 </span>{" "}
-                <span className={`badge${allProjects ? " badge-orange" : ""}`}>
+                <span
+                  className={resolveClasses(
+                    `badge${allProjects ? " badge-orange" : ""}`,
+                  )}
+                >
                   {projectLabel}
                 </span>
               </td>
               <td>
                 <span
-                  className={`badge ${robot.disable ? "badge-red" : "badge-green"}`}
+                  className={resolveClasses(
+                    `badge ${robot.disable ? "badge-red" : "badge-green"}`,
+                  )}
                 >
                   {t(robot.disable ? "已停用" : "已启用")}
                 </span>
               </td>
-              <td className="table-cell-time">
+              <td className={resolveClasses("table-cell-time")}>
                 {robot.expires_at === -1
                   ? t("永不过期")
                   : formatDate(
                       robot.expires_at
                         ? new Date(robot.expires_at * 1000).toISOString()
                         : undefined,
-                      locale,
-                      false,
+                      {
+                        locale: locale,
+                        timeZone: displayTimeZone(),
+                        includeTime: false,
+                      },
                     )}
               </td>
-              <td className="table-cell-time">
-                {formatDate(robot.creation_time, locale)}
+              <td className={resolveClasses("table-cell-time")}>
+                {formatDate(robot.creation_time, {
+                  locale: locale,
+                  timeZone: displayTimeZone(),
+                })}
               </td>
               <td>
                 <RowActions>
                   <ActionButton
                     label="重置密钥"
                     icon="refresh"
-                    onClick={() =>
-                      onAction({ kind: "reset-robot-secret", robot })
-                    }
+                    onClick={() => {
+                      onAction({ kind: "reset-robot-secret", robot });
+                    }}
                   />
                   <ActionButton
                     label="编辑系统机器人"
                     icon="edit"
-                    onClick={() => onAction({ kind: "edit-robot", robot })}
+                    onClick={() => {
+                      onAction({ kind: "edit-robot", robot });
+                    }}
                   />
                   <ActionButton
                     label="删除系统机器人"
                     icon="trash"
                     danger
-                    onClick={() => onAction({ kind: "delete-robot", robot })}
+                    onClick={() => {
+                      onAction({ kind: "delete-robot", robot });
+                    }}
                   />
                 </RowActions>
               </td>
@@ -815,13 +885,12 @@ function safeLabelColor(value: string | undefined): string {
   return /^#[0-9a-f]{6}$/i.test(value ?? "") ? String(value) : "#f48120";
 }
 
-function LabelsTable({
-  labels,
-  onAction,
-}: {
+type LabelsTableProps = {
   labels: ProjectLabel[];
   onAction: (action: AdministrationAction) => void;
-}) {
+};
+
+function LabelsTable({ labels, onAction }: LabelsTableProps) {
   const { locale, t } = useLocale();
   if (!labels.length) {
     return (
@@ -839,7 +908,7 @@ function LabelsTable({
           <th>{t("标签")}</th>
           <th>{t("描述")}</th>
           <th>{t("作用域")}</th>
-          <th className="table-cell-time">{t("最近更新")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("最近更新")}</th>
           <th />
         </tr>
       </thead>
@@ -847,10 +916,10 @@ function LabelsTable({
         {labels.map((label) => (
           <tr key={label.id}>
             <td>
-              <div className="cell-title">
-                <span
-                  className="label-swatch"
-                  style={{ backgroundColor: safeLabelColor(label.color) }}
+              <div className={resolveClasses("cell-title")}>
+                <ColorSwatch
+                  className={resolveClasses("label-swatch")}
+                  color={safeLabelColor(label.color)}
                 />
                 <OverflowText as="strong">{label.name}</OverflowText>
               </div>
@@ -859,23 +928,32 @@ function LabelsTable({
               <OverflowText>{fallbackText(label.description)}</OverflowText>
             </td>
             <td>
-              <span className="badge badge-blue">{t("所有项目")}</span>
+              <span className={resolveClasses("badge badge-blue")}>
+                {t("所有项目")}
+              </span>
             </td>
-            <td className="table-cell-time">
-              {formatDate(label.update_time ?? label.creation_time, locale)}
+            <td className={resolveClasses("table-cell-time")}>
+              {formatDate(label.update_time ?? label.creation_time, {
+                locale: locale,
+                timeZone: displayTimeZone(),
+              })}
             </td>
             <td>
               <RowActions>
                 <ActionButton
                   label="编辑全局标签"
                   icon="edit"
-                  onClick={() => onAction({ kind: "edit-label", label })}
+                  onClick={() => {
+                    onAction({ kind: "edit-label", label });
+                  }}
                 />
                 <ActionButton
                   label="删除全局标签"
                   icon="trash"
                   danger
-                  onClick={() => onAction({ kind: "delete-label", label })}
+                  onClick={() => {
+                    onAction({ kind: "delete-label", label });
+                  }}
                 />
               </RowActions>
             </td>
@@ -886,13 +964,12 @@ function LabelsTable({
   );
 }
 
-function QuotasTable({
-  quotas,
-  onAction,
-}: {
+type QuotasTableProps = {
   quotas: ProjectQuota[];
   onAction: (action: AdministrationAction) => void;
-}) {
+};
+
+function QuotasTable({ quotas, onAction }: QuotasTableProps) {
   const { locale, t } = useLocale();
   if (!quotas.length) {
     return (
@@ -911,7 +988,7 @@ function QuotasTable({
           <th>{t("已使用")}</th>
           <th>{t("配额上限")}</th>
           <th>{t("使用率")}</th>
-          <th className="table-cell-time">{t("最近更新")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("最近更新")}</th>
           <th />
         </tr>
       </thead>
@@ -925,11 +1002,11 @@ function QuotasTable({
           return (
             <tr key={quota.id}>
               <td>
-                <div className="cell-title">
-                  <span className="cell-icon">
+                <div className={resolveClasses("cell-title")}>
+                  <span className={resolveClasses("cell-icon")}>
                     <Icon name="folder" />
                   </span>
-                  <span className="cell-stack">
+                  <span className={resolveClasses("cell-stack")}>
                     <strong>
                       {fallbackText(quota.ref?.name, t("未命名项目"))}
                     </strong>
@@ -942,32 +1019,37 @@ function QuotasTable({
               <td>{formatBytes(used, locale)}</td>
               <td>{unlimited ? t("不限制") : formatBytes(hard, locale)}</td>
               <td>
-                <div className="quota-cell">
+                <div className={resolveClasses(styles.quotaCell)}>
                   <progress
-                    className="quota-track"
+                    className={resolveClasses(styles.quotaTrack)}
                     max={100}
-                    value={percent.toFixed(1)}
+                    value={formatDecimal(percent)}
                     aria-label={
                       unlimited
                         ? t("存储配额无限制")
-                        : `${t("存储配额已使用")} ${percent.toFixed(1)}%`
+                        : `${t("存储配额已使用")} ${formatDecimal(percent)}%`
                     }
                   >
-                    {percent.toFixed(1)}%
+                    {formatDecimal(percent)}%
                   </progress>
                   <small>
-                    {unlimited ? t("无限制") : `${percent.toFixed(1)}%`}
+                    {unlimited ? t("无限制") : `${formatDecimal(percent)}%`}
                   </small>
                 </div>
               </td>
-              <td className="table-cell-time">
-                {formatDate(quota.update_time ?? quota.creation_time, locale)}
+              <td className={resolveClasses("table-cell-time")}>
+                {formatDate(quota.update_time ?? quota.creation_time, {
+                  locale: locale,
+                  timeZone: displayTimeZone(),
+                })}
               </td>
               <td>
                 <ActionButton
                   label="修改配额"
                   icon="edit"
-                  onClick={() => onAction({ kind: "edit-quota", quota })}
+                  onClick={() => {
+                    onAction({ kind: "edit-quota", quota });
+                  }}
                 />
               </td>
             </tr>
@@ -989,68 +1071,89 @@ function authModeLabel(mode: string, t: (value: string) => string): string {
   );
 }
 
+type ResourceSectionProps = {
+  data: AdministrationResourceData;
+  filter: string;
+  authMode: string;
+  navigate: (path: string) => void;
+  onAction: (action: AdministrationAction) => void;
+};
+
 function ResourceSection({
   data,
   filter,
   authMode,
   navigate,
   onAction,
-}: {
-  data: AdministrationResourceData;
-  filter: string;
-  authMode: string;
-  navigate: (path: string) => void;
-  onAction: (action: AdministrationAction) => void;
-}) {
+}: ResourceSectionProps) {
   const { locale, t } = useLocale();
-  const pageChange = (page: number) =>
+  const pageChange = (page: number) => {
     navigate(routePath(data.section, page, filter));
-  const heading =
-    data.section === "users"
-      ? { title: "用户", zhUnit: "个", enUnit: "users" }
-      : data.section === "groups"
-        ? { title: "用户组", zhUnit: "个", enUnit: "groups" }
-        : data.section === "robots"
-          ? { title: "系统机器人", zhUnit: "个", enUnit: "robots" }
-          : data.section === "labels"
-            ? { title: "全局标签", zhUnit: "个", enUnit: "labels" }
-            : { title: "项目存储配额", zhUnit: "个", enUnit: "quotas" };
+  };
+  const heading = (() => {
+    if (data.section === "users") {
+      return { title: "用户", zhUnit: "个", enUnit: "users" };
+    }
+    if (data.section === "groups") {
+      return { title: "用户组", zhUnit: "个", enUnit: "groups" };
+    }
+    if (data.section === "robots") {
+      return { title: "系统机器人", zhUnit: "个", enUnit: "robots" };
+    }
+    if (data.section === "labels") {
+      return { title: "全局标签", zhUnit: "个", enUnit: "labels" };
+    }
+    return { title: "项目存储配额", zhUnit: "个", enUnit: "quotas" };
+  })();
 
   let toolbar: ReactNode;
   let table: ReactNode;
   if (data.section === "users") {
-    const action =
-      authMode === "db_auth" ? (
-        <button
-          className="button button-small button-primary"
-          type="button"
-          onClick={() => onAction({ kind: "create-user" })}
-        >
-          <Icon name="plus" />
-          <span>{t("新建本地用户")}</span>
-        </button>
-      ) : authMode === "ldap_auth" ? (
-        <button
-          className="button button-small button-primary"
-          type="button"
-          onClick={() => onAction({ kind: "import-ldap-users" })}
-        >
-          <Icon name="upload" />
-          <span>{t("导入 LDAP 用户")}</span>
-        </button>
-      ) : (
-        <span className="toolbar-note">
+    const action = (() => {
+      if (authMode === "db_auth") {
+        return (
+          <button
+            className={resolveClasses("button button-small button-primary")}
+            type="button"
+            onClick={() => {
+              onAction({ kind: "create-user" });
+            }}
+          >
+            <Icon name="plus" />
+            <span>{t("新建本地用户")}</span>
+          </button>
+        );
+      }
+      if (authMode === "ldap_auth") {
+        return (
+          <button
+            className={resolveClasses("button button-small button-primary")}
+            type="button"
+            onClick={() => {
+              onAction({ kind: "import-ldap-users" });
+            }}
+          >
+            <Icon name="upload" />
+            <span>{t("导入 LDAP 用户")}</span>
+          </button>
+        );
+      }
+      return (
+        <span className={resolveClasses(styles.toolbarNote)}>
           {locale === "en-US"
             ? `Users are managed by ${authModeLabel(authMode, t)}`
             : `用户由 ${authModeLabel(authMode, t)} 管理`}
         </span>
       );
+    })();
     toolbar = (
       <SearchToolbar
         filter={filter}
         placeholder="按用户名搜索"
         action={action}
-        onSearch={(value) => navigate(routePath("users", 1, value))}
+        onSearch={(value) => {
+          navigate(routePath("users", 1, value));
+        }}
       />
     );
     table = (
@@ -1067,15 +1170,19 @@ function ResourceSection({
         placeholder="按用户组名称搜索"
         action={
           <button
-            className="button button-small button-primary"
+            className={resolveClasses("button button-small button-primary")}
             type="button"
-            onClick={() => onAction({ kind: "create-group" })}
+            onClick={() => {
+              onAction({ kind: "create-group" });
+            }}
           >
             <Icon name="plus" />
             <span>{t("新建用户组")}</span>
           </button>
         }
-        onSearch={(value) => navigate(routePath("groups", 1, value))}
+        onSearch={(value) => {
+          navigate(routePath("groups", 1, value));
+        }}
       />
     );
     table = <GroupsTable groups={data.collection.items} onAction={onAction} />;
@@ -1086,15 +1193,19 @@ function ResourceSection({
         placeholder="按机器人名称搜索"
         action={
           <button
-            className="button button-small button-primary"
+            className={resolveClasses("button button-small button-primary")}
             type="button"
-            onClick={() => onAction({ kind: "create-robot" })}
+            onClick={() => {
+              onAction({ kind: "create-robot" });
+            }}
           >
             <Icon name="plus" />
             <span>{t("新建系统机器人")}</span>
           </button>
         }
-        onSearch={(value) => navigate(routePath("robots", 1, value))}
+        onSearch={(value) => {
+          navigate(routePath("robots", 1, value));
+        }}
       />
     );
     table = <RobotsTable robots={data.collection.items} onAction={onAction} />;
@@ -1105,15 +1216,19 @@ function ResourceSection({
         placeholder="按标签名称搜索"
         action={
           <button
-            className="button button-small button-primary"
+            className={resolveClasses("button button-small button-primary")}
             type="button"
-            onClick={() => onAction({ kind: "create-label" })}
+            onClick={() => {
+              onAction({ kind: "create-label" });
+            }}
           >
             <Icon name="plus" />
             <span>{t("新建全局标签")}</span>
           </button>
         }
-        onSearch={(value) => navigate(routePath("labels", 1, value))}
+        onSearch={(value) => {
+          navigate(routePath("labels", 1, value));
+        }}
       />
     );
     table = <LabelsTable labels={data.collection.items} onAction={onAction} />;
@@ -1129,9 +1244,9 @@ function ResourceSection({
         zhUnit={heading.zhUnit}
         enUnit={heading.enUnit}
       />
-      <section className="table-shell">
+      <section className={resolveClasses("table-shell")}>
         {toolbar}
-        <div className="table-scroll">{table}</div>
+        <div className={resolveClasses("table-scroll")}>{table}</div>
         <Pagination
           pagination={data.collection.pagination}
           onPageChange={pageChange}
@@ -1140,6 +1255,17 @@ function ResourceSection({
     </>
   );
 }
+
+type AdministrationPageProps = {
+  route: ConsoleRoute;
+  demo: boolean;
+  authMode: string | undefined;
+  hasRootCertificate: boolean;
+  refreshing: boolean;
+  navigate: (path: string) => void;
+  onRefresh: () => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
 
 export function AdministrationPage({
   route,
@@ -1150,16 +1276,7 @@ export function AdministrationPage({
   navigate,
   onRefresh,
   onNotice,
-}: {
-  route: ConsoleRoute;
-  demo: boolean;
-  authMode: string | undefined;
-  hasRootCertificate: boolean;
-  refreshing: boolean;
-  navigate: (path: string) => void;
-  onRefresh: () => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: AdministrationPageProps) {
   const { t } = useLocale();
   const section = parseSection(route);
   const page = Math.max(
@@ -1167,38 +1284,11 @@ export function AdministrationPage({
     Number.parseInt(route.query.get("page") ?? "1", 10) || 1,
   );
   const filter = route.query.get("q") ?? "";
-  const [data, setData] = useState<AdministrationData>();
   const [dialog, setDialog] = useState<AdministrationAction>();
-  const [error, setError] = useState("");
-  const [version, setVersion] = useState(0);
-  const requestVersion = useRef(0);
-  const reload = useCallback(() => setVersion((current) => current + 1), []);
-
-  useEffect(() => {
-    if (!implementedSections.has(section)) return;
-    const controller = new AbortController();
-    const current = requestVersion.current + 1;
-    requestVersion.current = current;
-    setData(undefined);
-    setError("");
-    void loadAdministrationData(section, page, filter, controller.signal)
-      .then((result) => {
-        if (requestVersion.current === current) setData(result);
-      })
-      .catch((loadError: unknown) => {
-        if (
-          loadError instanceof DOMException &&
-          loadError.name === "AbortError"
-        )
-          return;
-        if (requestVersion.current === current) {
-          setError(
-            loadError instanceof Error ? loadError.message : String(loadError),
-          );
-        }
-      });
-    return () => controller.abort();
-  }, [filter, page, section, version]);
+  const sectionQuery = useAdministrationData({ section, page, filter });
+  const data = sectionQuery.data;
+  const error = sectionQuery.error;
+  const reload = sectionQuery.reload;
 
   const robotContext =
     data?.section === "robots"
@@ -1226,61 +1316,84 @@ export function AdministrationPage({
       {demo ? <DemoBanner /> : null}
       <AdministrationTabs selected={section} />
       <ContentTransition mode={section}>
-        {error ? (
-          <ErrorView
-            title="系统管理数据载入失败"
-            message={error}
-            retry={reload}
-          />
-        ) : !implementedSections.has(section) || data?.section !== section ? (
-          <section className="table-shell">
-            <div
-              className="route-loading"
-              role="status"
-              aria-label={t("正在载入")}
-            >
-              <span className="spinner spinner-small" aria-hidden="true" />
-            </div>
-          </section>
-        ) : data.section === "maintenance" ? (
-          <AdministrationMaintenanceSection
-            data={data}
-            navigate={navigate}
-            onReload={reload}
-            onNotice={onNotice}
-          />
-        ) : data.section === "purge" ? (
-          <AdministrationPurgeSection
-            data={data}
-            navigate={navigate}
-            onReload={reload}
-            onNotice={onNotice}
-          />
-        ) : data.section === "jobs" ? (
-          <AdministrationJobServiceSection
-            data={data}
-            navigate={navigate}
-            onReload={reload}
-            onNotice={onNotice}
-          />
-        ) : data.section === "configuration" ? (
-          <AdministrationConfigurationSection
-            data={data}
-            route={route}
-            hasRootCertificate={hasRootCertificate}
-            navigate={navigate}
-            onReload={reload}
-            onNotice={onNotice}
-          />
-        ) : (
-          <ResourceSection
-            data={data}
-            filter={filter}
-            authMode={authMode ?? ""}
-            navigate={navigate}
-            onAction={setDialog}
-          />
-        )}
+        {(() => {
+          if (error) {
+            return (
+              <ErrorView
+                title="系统管理数据载入失败"
+                message={error}
+                retry={reload}
+              />
+            );
+          }
+          if (!implementedSections.has(section) || data?.section !== section) {
+            return (
+              <section className={resolveClasses("table-shell")}>
+                <div
+                  className={resolveClasses("route-loading")}
+                  role="status"
+                  aria-label={t("正在载入")}
+                >
+                  <span
+                    className={resolveClasses("spinner spinner-small")}
+                    aria-hidden="true"
+                  />
+                </div>
+              </section>
+            );
+          }
+          if (data.section === "maintenance") {
+            return (
+              <AdministrationMaintenanceSection
+                data={data}
+                navigate={navigate}
+                onReload={reload}
+                onNotice={onNotice}
+              />
+            );
+          }
+          if (data.section === "purge") {
+            return (
+              <AdministrationPurgeSection
+                data={data}
+                navigate={navigate}
+                onReload={reload}
+                onNotice={onNotice}
+              />
+            );
+          }
+          if (data.section === "jobs") {
+            return (
+              <AdministrationJobServiceSection
+                data={data}
+                navigate={navigate}
+                onReload={reload}
+                onNotice={onNotice}
+              />
+            );
+          }
+          if (data.section === "configuration") {
+            return (
+              <AdministrationConfigurationSection
+                data={data}
+                route={route}
+                hasRootCertificate={hasRootCertificate}
+                navigate={navigate}
+                onReload={reload}
+                onNotice={onNotice}
+              />
+            );
+          }
+          return (
+            <ResourceSection
+              data={data}
+              filter={filter}
+              authMode={authMode ?? ""}
+              navigate={navigate}
+              onAction={setDialog}
+            />
+          );
+        })()}
       </ContentTransition>
       {dialog ? (
         <AdministrationDialog
@@ -1288,7 +1401,9 @@ export function AdministrationPage({
           authMode={authMode ?? ""}
           permissionMetadata={robotContext.permissionMetadata}
           projects={robotContext.projects}
-          onClose={() => setDialog(undefined)}
+          onClose={() => {
+            setDialog(undefined);
+          }}
           onCompleted={(message) => {
             setDialog(undefined);
             onNotice(message);
@@ -1298,5 +1413,78 @@ export function AdministrationPage({
         />
       ) : null}
     </>
+  );
+}
+
+const resolveClasses = createClassNames({
+  "empty-state": uiStyles0.emptyState,
+  icon: uiStyles0.icon,
+  "overflow-text": uiStyles0.overflowText,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  "section-heading": uiStyles0.sectionHeading,
+  tag: uiStyles0.tag,
+  "table-toolbar": uiStyles0.tableToolbar,
+  "toolbar-spacer": uiStyles0.toolbarSpacer,
+  active: uiStyles0.active,
+  "resource-tabs": uiStyles0.resourceTabs,
+  "row-actions": uiStyles0.rowActions,
+  "icon-button": uiStyles0.iconButton,
+  "danger-icon": uiStyles0.dangerIcon,
+  button: uiStyles0.button,
+  "table-cell-time": uiStyles0.tableCellTime,
+  "cell-title": uiStyles0.cellTitle,
+  "user-avatar-small": uiStyles0.userAvatarSmall,
+  "cell-stack": uiStyles0.cellStack,
+  badge: uiStyles0.badge,
+  "badge-orange": uiStyles0.badgeOrange,
+  "badge-blue": uiStyles0.badgeBlue,
+  "cell-icon": uiStyles0.cellIcon,
+  "truncate-cell": uiStyles0.truncateCell,
+  mono: uiStyles0.mono,
+  "badge-red": uiStyles0.badgeRed,
+  "badge-green": uiStyles0.badgeGreen,
+  "label-swatch": uiStyles0.labelSwatch,
+  "button-small": uiStyles0.buttonSmall,
+  "button-primary": uiStyles0.buttonPrimary,
+  "table-shell": uiStyles0.tableShell,
+  "table-scroll": uiStyles0.tableScroll,
+  "route-loading": uiStyles0.routeLoading,
+  spinner: uiStyles0.spinner,
+  "spinner-small": uiStyles0.spinnerSmall,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});
+
+function useAdministrationData({
+  section,
+  page,
+  filter,
+}: {
+  section: AdministrationSection;
+  page: number;
+  filter: string;
+}) {
+  return useLoadedQuery(
+    administrationKeys.section(section, { page, filter }),
+    (signal) =>
+      loadAdministrationData({
+        section: section,
+        page: page,
+        filter: filter,
+        signal: signal,
+      }),
+    { enabled: implementedSections.has(section), keepPrevious: false },
   );
 }

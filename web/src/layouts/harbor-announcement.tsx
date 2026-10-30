@@ -1,11 +1,15 @@
 import { useState } from "react";
-
+import { parseBanner } from "../app/banner-schema";
 import { useLocale } from "../app/locale-context";
-import { Icon, type IconName } from "../components/icons";
+import { Icon } from "../components/icon";
+import { type IconName } from "../components/icons-support";
+import uiStyles0 from "../components/shared-ui.module.css";
 import {
   readStoredItem,
   writeStoredItem,
 } from "../lib/browser-storage/storage";
+import { createClassNames } from "../lib/css/class-names";
+import uiStyles1 from "./harbor-announcement.module.css";
 
 const dismissedStorageKey = "harbor-console-dismissed-announcement";
 
@@ -42,12 +46,11 @@ export function parseAnnouncement(
   now = new Date(),
 ): Announcement | null {
   if (!rawValue?.trim()) return null;
-  let value: Record<string, unknown>;
+  let value: ReturnType<typeof parseBanner>;
   try {
-    const parsed: unknown = JSON.parse(rawValue);
-    if (!parsed || typeof parsed !== "object") return null;
-    value = parsed as Record<string, unknown>;
+    value = parseBanner(rawValue);
   } catch {
+    // A malformed optional banner must not prevent access to the console.
     return null;
   }
   const message = typeof value.message === "string" ? value.message.trim() : "";
@@ -55,16 +58,14 @@ export function parseAnnouncement(
   const from = parseDate(value.fromDate, false);
   const to = parseDate(value.toDate, true);
   if ((from && now < from) || (to && now > to)) return null;
-  const type = ["success", "info", "warning", "danger"].includes(
-    String(value.type),
-  )
-    ? (value.type as AnnouncementType)
-    : "warning";
-  return { message, type, closable: value.closable === true };
+  const type = value.type;
+  return { message, type, closable: value.closable };
 }
 
 /** Instance-wide announcement configured in Harbor's system settings. */
-export function HarborAnnouncement({ rawValue }: { rawValue?: string }) {
+type HarborAnnouncementProps = { rawValue?: string };
+
+export function HarborAnnouncement({ rawValue }: HarborAnnouncementProps) {
   const { t } = useLocale();
   const [dismissed, setDismissed] = useState(
     () => readStoredItem("sessionStorage", dismissedStorageKey) ?? "",
@@ -73,16 +74,18 @@ export function HarborAnnouncement({ rawValue }: { rawValue?: string }) {
   if (!announcement || !rawValue || dismissed === rawValue) return null;
   return (
     <div
-      className={`harbor-banner harbor-banner-${announcement.type}`}
+      className={resolveClasses(
+        `harbor-banner harbor-banner-${announcement.type}`,
+      )}
       role={announcement.type === "danger" ? "alert" : "status"}
     >
-      <span className="harbor-banner-icon" aria-hidden="true">
+      <span className={resolveClasses("harbor-banner-icon")} aria-hidden="true">
         <Icon name={announcementIcons[announcement.type]} />
       </span>
       <span>{announcement.message}</span>
       {announcement.closable ? (
         <button
-          className="icon-button"
+          className={resolveClasses("icon-button")}
           type="button"
           title={t("关闭公告")}
           aria-label={t("关闭公告")}
@@ -97,3 +100,24 @@ export function HarborAnnouncement({ rawValue }: { rawValue?: string }) {
     </div>
   );
 }
+
+const resolveClasses = createClassNames({
+  icon: uiStyles0.icon,
+  "icon-button": uiStyles0.iconButton,
+  button: uiStyles0.button,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+  "harbor-banner": uiStyles1.harborBanner,
+  "harbor-banner-icon": uiStyles1.harborBannerIcon,
+});

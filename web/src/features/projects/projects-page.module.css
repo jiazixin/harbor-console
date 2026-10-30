@@ -1,0 +1,28 @@
+@layer ui-collections {
+  .projectBatchToolbar,
+  :global(.hc_32cb3c2a_repositoryBatchToolbar) {
+    min-height: 44px;
+  }
+}
+
+@layer ui-collections {
+  @media (max-width: 480px) {
+    .projectBatchToolbar,
+    :global(.hc_32cb3c2a_repositoryBatchToolbar) {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+}
+
+@layer ui-collections {
+  @media (max-width: 480px) {
+    .projectBatchToolbar > div,
+    :global(.hc_32cb3c2a_repositoryBatchToolbar) > div {
+      width: 100%;
+    }
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.projectBatchToolbar {
+}

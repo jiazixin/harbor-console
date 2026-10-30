@@ -24,16 +24,15 @@ Harbor v2.15.x
 
 | 目录 | 职责 |
 | --- | --- |
-| `cmd/harbor-console` | 进程启动 |
+| `cmd/harbor-console` | 进程启动：参数、配置选择、日志、信号与构建版本 |
 | `internal/app` | 路由、会话、固定 API 网关、校验、demo 与操作编排 |
 | `internal/config` | YAML 与环境变量配置 |
 | `internal/observability` | 应用与访问日志 |
-| `internal/buildinfo` | 运行版本、提交与构建时间（`cmd/harbor-console` 启动时填入） |
 | `web/src/app` | 类型、API 客户端、路由、语言、偏好与应用装配 |
 | `web/src/layouts` | 侧栏、顶栏和全局浮层 |
 | `web/src/components` | 共享控件、表格、弹窗和状态 |
 | `web/src/features` | 各业务领域页面、专用组件、样式、就近测试及写操作 |
-| `web/src/styles` | 全局主题、布局基础与跨业务域共享样式 |
+| `web/src/styles` | 全局设计变量、元素基础规则与关键帧 |
 | `web/embed.go` | Go 资源嵌入入口，包名 webui |
 | `web/dist` | Vite 生成资源；不可手工编辑 |
 
@@ -54,7 +53,7 @@ React、翻译、图标和样式都嵌入二进制，生产运行不需要 npm�
 - 凭据只保存在 Go 进程内存；浏览器不持久化 Harbor 密码、CLI Secret、Token 或 Cookie。
 - 控制台会话有效期 12 小时；最多 1000 个会话，每会话最多 20 个连接。进程重启使会话失效。
 - 切换实例同时切换身份、HTTP Client、URL、TLS 设置和 demo 状态；数据、缓存和未完成请求不得跨实例混用。
-- Cookie 使用 `HttpOnly`、`SameSite=Strict`；HTTPS 使用 `Secure`。写请求要求有效会话与同源 Origin。
+- Cookie 使用 `HttpOnly`、`SameSite=Strict`；HTTPS 使用 `Secure`。写请求要求有效会话，并由 Go 的 `http.CrossOriginProtection` 校验 `Sec-Fetch-Site` / `Origin`。
 - 请求体 1 MiB、上游响应 8 MiB、查询字符串 8 KiB；TLS 最低 1.2；最多三次同协议同主机重定向。
 - Harbor 地址仅接受 HTTP(S) 根地址，不接受 userinfo、路径前缀、查询或 fragment。Skip TLS 按连接隔离，并在 UI 明示。
 - 匿名公开目录调用固定只读接口，不创建登录会话。目标地址仍属于部署侧网络访问边界，由网络策略限制可达目标。
@@ -67,3 +66,7 @@ React 组件持有状态，类型化 API helper 承担请求；不引入字符�
 页面刷新保持已有数据和内容容器，避免空白闪烁。排序、筛选、分页不改变页面组件 identity。跨项目聚合采用有上限的 worker pool，单项完成即可补位，处理部分失败和权限限制。
 
 Demo 用于确定性 UI 与生命周期验证；其通过不证明真实 Harbor 的权限、字段、写入、外部复制或部署行为通过。发布范围见 [验收文档](ACCEPTANCE.md)。
+
+## 规范对齐决定
+
+查询、路由、运行期 JSON 校验、凭据与样式边界见 [2026-10-31 技术决定](decisions/2026-10-31-console-boundaries.md)。自有接口不保留旧路径或别名。

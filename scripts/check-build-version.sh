@@ -1,6 +1,6 @@
 #!/bin/sh
-# Starts a built harbor-console binary and checks the version and commit it
-# reports in its server_started log line.
+# Starts a built harbor-console binary and checks the version and revision it
+# reports in its service_starting log line.
 #
 # Usage: scripts/check-build-version.sh <binary> <expected-version> <expected-commit>
 set -eu
@@ -26,12 +26,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-(cd "$work_dir" && exec env -u CONFIG_FILE LISTEN=127.0.0.1 PORT="${PORT:-18081}" LOG_FORMAT=json \
+(cd "$work_dir" && exec env -u CONFIG_FILE HARBOR_CONSOLE_SERVER__LISTEN=127.0.0.1 HARBOR_CONSOLE_SERVER__PORT="${PORT:-18081}" HARBOR_CONSOLE_LOGGING__FORMAT=json \
   "$binary" >"$log_file" 2>&1) &
 server_pid=$!
 
 attempt=0
-until grep -q '"msg":"server_started"' "$log_file"; do
+until grep -q '"msg":"service_listening"' "$log_file"; do
   attempt=$((attempt + 1))
   if [ "$attempt" -gt 50 ] || ! kill -0 "$server_pid" 2>/dev/null; then
     echo "server did not start:" >&2
@@ -41,8 +41,8 @@ until grep -q '"msg":"server_started"' "$log_file"; do
   sleep 0.2
 done
 
-started=$(grep '"msg":"server_started"' "$log_file")
-for expected in "\"version\":\"$want_version\"" "\"commit\":\"$want_commit\""; do
+started=$(grep '"msg":"service_starting"' "$log_file")
+for expected in "\"version\":\"$want_version\"" "\"revision\":\"$want_commit\""; do
   case "$started" in
     *"$expected"*) ;;
     *)

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"net/http"
 	"sync"
@@ -8,14 +10,17 @@ import (
 )
 
 const (
-	sessionCookie = "harbor_console_sid"
-	sessionTTL    = 12 * time.Hour
-	maxBodyBytes  = 1 << 20
-	maxReplyBytes = 8 << 20
-	maxSessions   = 1000
-	maxInstances  = 20
-	maxQueryBytes = 8 << 10
+	sessionCookie       = "harbor_console_sid"
+	sessionTTL          = 12 * time.Hour
+	maxBodyBytes        = 1 << 20
+	maxReplyBytes       = 8 << 20
+	maxSessions         = 1000
+	maxRateLimitEntries = 2048
+	maxInstances        = 20
+	maxQueryBytes       = 8 << 10
 
+	maxCollectionPages         = 100
+	maxCollectionBytes         = 32 << 20
 	projectAssetPageSize       = 100
 	dashboardProjectPageSize   = 100
 	maxConcurrentProjectAssets = 8
@@ -49,33 +54,41 @@ type harborConnection struct {
 	DemoData      *demoState
 }
 
+// sessionStore.mu guards sessions and all stored session/connection fields.
+// Stored IDs are SHA-256 token digests; raw tokens only reach the cookie writer.
 type sessionStore struct {
 	mu       sync.RWMutex
 	sessions map[string]*session
+	now      func() time.Time
 }
 
+// rateLimiter.mu guards the bounded sliding-window entries.
 type rateLimiter struct {
 	mu      sync.Mutex
 	entries map[string][]time.Time
 	limit   int
 	window  time.Duration
+	now     func() time.Time
 }
 
 func newRateLimiter(limit int, window time.Duration) *rateLimiter {
-	return &rateLimiter{entries: make(map[string][]time.Time), limit: limit, window: window}
+	return &rateLimiter{entries: make(map[string][]time.Time), limit: limit, window: window, now: time.Now}
 }
 
 func (l *rateLimiter) allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	now := time.Now()
+	now := l.now()
 	cutoff := now.Add(-l.window)
-	if len(l.entries) > 2048 {
+	if len(l.entries) >= maxRateLimitEntries {
 		for entryKey, entryValues := range l.entries {
 			if len(entryValues) == 0 || entryValues[len(entryValues)-1].Before(cutoff) {
 				delete(l.entries, entryKey)
 			}
 		}
+	}
+	if _, exists := l.entries[key]; !exists && len(l.entries) >= maxRateLimitEntries {
+		return false
 	}
 	values := l.entries[key]
 	kept := values[:0]
@@ -93,19 +106,16 @@ func (l *rateLimiter) allow(key string) bool {
 }
 
 func newSessionStore() *sessionStore {
-	return &sessionStore{sessions: make(map[string]*session)}
+	return &sessionStore{sessions: make(map[string]*session), now: time.Now}
 }
 
-func (s *sessionStore) create(value *session) error {
-	id, err := randomID()
-	if err != nil {
-		return err
+func (s *sessionStore) create(value *session) {
+	id := value.ID
+	if id == "" {
+		id = rand.Text()
 	}
-	connectionID, err := randomID()
-	if err != nil {
-		return err
-	}
-	now := time.Now()
+	connectionID := rand.Text()
+	now := s.now()
 	value.ID = id
 	value.CreatedAt = now
 	value.LastAccessedAt = now
@@ -114,7 +124,7 @@ func (s *sessionStore) create(value *session) error {
 	value.Instances = map[string]*harborConnection{connectionID: connectionFromSession(connectionID, value, now)}
 	s.mu.Lock()
 	for key, existing := range s.sessions {
-		if now.After(existing.ExpiresAt) {
+		if !now.Before(existing.ExpiresAt) {
 			closeSessionClient(existing)
 			delete(s.sessions, key)
 		}
@@ -131,21 +141,22 @@ func (s *sessionStore) create(value *session) error {
 		closeSessionClient(s.sessions[oldestID])
 		delete(s.sessions, oldestID)
 	}
-	s.sessions[id] = value
+	stored := cloneSession(value)
+	stored.ID = sessionDigest(id)
+	s.sessions[stored.ID] = stored
 	s.mu.Unlock()
-	return nil
 }
 
 func (s *sessionStore) get(id string) (*session, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	value, ok := s.sessions[id]
-	if !ok || time.Now().After(value.ExpiresAt) {
+	if !ok || subtle.ConstantTimeCompare([]byte(value.ID), []byte(id)) != 1 || !s.now().Before(value.ExpiresAt) {
 		closeSessionClient(value)
 		delete(s.sessions, id)
 		return nil, false
 	}
-	value.LastAccessedAt = time.Now()
+	value.LastAccessedAt = s.now()
 	return cloneSession(value), true
 }
 
@@ -160,7 +171,7 @@ func (s *sessionStore) updateInstancePassword(sessionID, connectionID, password 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current, ok := s.sessions[sessionID]
-	if !ok || time.Now().After(current.ExpiresAt) {
+	if !ok || s.now().After(current.ExpiresAt) {
 		return errSessionNotFound
 	}
 	connection, ok := current.Instances[connectionID]
@@ -171,7 +182,7 @@ func (s *sessionStore) updateInstancePassword(sessionID, connectionID, password 
 	if current.ActiveInstance == connectionID {
 		current.Password = password
 	}
-	current.LastAccessedAt = time.Now()
+	current.LastAccessedAt = s.now()
 	return nil
 }
 
@@ -184,14 +195,11 @@ var (
 )
 
 func (s *sessionStore) addInstance(sessionID string, candidate *session) (*session, error) {
-	connectionID, err := randomID()
-	if err != nil {
-		return nil, err
-	}
+	connectionID := rand.Text()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current, ok := s.sessions[sessionID]
-	if !ok || time.Now().After(current.ExpiresAt) {
+	if !ok || s.now().After(current.ExpiresAt) {
 		return nil, errSessionNotFound
 	}
 	if len(current.Instances) >= maxInstances {
@@ -202,11 +210,11 @@ func (s *sessionStore) addInstance(sessionID string, candidate *session) (*sessi
 			return nil, errInstanceExists
 		}
 	}
-	connection := connectionFromSession(connectionID, candidate, time.Now())
+	connection := connectionFromSession(connectionID, candidate, s.now())
 	current.Instances[connectionID] = connection
 	current.ActiveInstance = connectionID
 	applyConnection(current, connection)
-	current.LastAccessedAt = time.Now()
+	current.LastAccessedAt = s.now()
 	return cloneSession(current), nil
 }
 
@@ -214,7 +222,7 @@ func (s *sessionStore) switchInstance(sessionID, connectionID string) (*session,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current, ok := s.sessions[sessionID]
-	if !ok || time.Now().After(current.ExpiresAt) {
+	if !ok || s.now().After(current.ExpiresAt) {
 		return nil, errSessionNotFound
 	}
 	connection, ok := current.Instances[connectionID]
@@ -223,7 +231,7 @@ func (s *sessionStore) switchInstance(sessionID, connectionID string) (*session,
 	}
 	current.ActiveInstance = connectionID
 	applyConnection(current, connection)
-	current.LastAccessedAt = time.Now()
+	current.LastAccessedAt = s.now()
 	return cloneSession(current), nil
 }
 
@@ -231,7 +239,7 @@ func (s *sessionStore) removeInstance(sessionID, connectionID string) (*session,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current, ok := s.sessions[sessionID]
-	if !ok || time.Now().After(current.ExpiresAt) {
+	if !ok || s.now().After(current.ExpiresAt) {
 		return nil, errSessionNotFound
 	}
 	connection, ok := current.Instances[connectionID]
@@ -255,18 +263,18 @@ func (s *sessionStore) removeInstance(sessionID, connectionID string) (*session,
 		current.ActiveInstance = next.ID
 		applyConnection(current, next)
 	}
-	current.LastAccessedAt = time.Now()
+	current.LastAccessedAt = s.now()
 	return cloneSession(current), nil
 }
 
 func cloneSession(current *session) *session {
-	copy := *current
-	copy.Instances = make(map[string]*harborConnection, len(current.Instances))
+	cloned := *current
+	cloned.Instances = make(map[string]*harborConnection, len(current.Instances))
 	for id, connection := range current.Instances {
 		connectionCopy := *connection
-		copy.Instances[id] = &connectionCopy
+		cloned.Instances[id] = &connectionCopy
 	}
-	return &copy
+	return &cloned
 }
 
 func connectionFromSession(id string, current *session, addedAt time.Time) *harborConnection {

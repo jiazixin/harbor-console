@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-
+import { useState } from "react";
+import { UserInputError } from "../../app/errors";
 import { useLocale } from "../../app/locale-context";
 import type {
   ProjectLabel,
@@ -8,17 +8,16 @@ import type {
   ReplicationFilter,
   ReplicationPolicy,
 } from "../../app/models";
-
 import {
-  policyDirection,
-  filterMap,
-  filterString,
   filterDecoration,
   filterLabels,
+  filterMap,
+  filterString,
   formString,
+  policyDirection,
+  type FilterDecoration,
   type ReplicationDirection,
   type TriggerType,
-  type FilterDecoration,
 } from "./replication-policy-form";
 import { useReplicationCapabilities } from "./use-replication-capabilities";
 export function useReplicationPolicyForm({
@@ -33,10 +32,7 @@ export function useReplicationPolicyForm({
   localInfo?: ReplicationAdapterInfo;
 }) {
   const { locale, t } = useLocale();
-  const existingFilters = useMemo(
-    () => filterMap(policy?.filters),
-    [policy?.filters],
-  );
+  const existingFilters = (() => filterMap(policy?.filters))();
   const initialDirection = policy ? policyDirection(policy) : "push";
   const initialRegistry =
     initialDirection === "push"
@@ -55,8 +51,11 @@ export function useReplicationPolicyForm({
   const [enabled, setEnabled] = useState(
     policy ? policy.enabled === true : true,
   );
-  const [trigger, setTrigger] = useState<TriggerType>(
-    (policy?.trigger?.type as TriggerType | undefined) ?? "manual",
+  const [triggerDraft, setTrigger] = useState<TriggerType>(
+    policy?.trigger?.type === "scheduled" ||
+      policy?.trigger?.type === "event_based"
+      ? policy.trigger.type
+      : "manual",
   );
   const [namespace, setNamespace] = useState(policy?.dest_namespace ?? "");
   const [replaceCount, setReplaceCount] = useState(
@@ -89,7 +88,7 @@ export function useReplicationPolicyForm({
   const [override, setOverride] = useState(
     policy ? Boolean(policy.override) : true,
   );
-  const [copyByChunk, setCopyByChunk] = useState(
+  const [copyByChunkDraft, setCopyByChunk] = useState(
     Boolean(policy?.copy_by_chunk),
   );
   const { capability, remoteInfo, capabilityError, capabilityReady } =
@@ -98,10 +97,22 @@ export function useReplicationPolicyForm({
       initialDirection,
       localInfo,
       registryId,
-      setTrigger,
-      setCopyByChunk,
     });
 
+  const supportedTriggers = (capability.supported_triggers ?? []).filter(
+    (value): value is TriggerType =>
+      value === "manual" || value === "scheduled" || value === "event_based",
+  );
+  const isOriginalRegistry =
+    direction === initialDirection && Number(registryId) === initialRegistry;
+  const trigger =
+    isOriginalRegistry ||
+    !capabilityReady ||
+    supportedTriggers.includes(triggerDraft)
+      ? triggerDraft
+      : (supportedTriggers[0] ?? "manual");
+  const copyByChunk =
+    copyByChunkDraft && Boolean(remoteInfo.supported_copy_by_chunk);
   const filterStyles = (capability.supported_resource_filters ?? []).filter(
     (style) => ["label", "name", "resource", "tag"].includes(style.type ?? ""),
   );
@@ -110,10 +121,12 @@ export function useReplicationPolicyForm({
       ["event_based", "manual", "scheduled"].includes(value),
     )
     .concat(!capability.supported_triggers?.includes(trigger) ? [trigger] : []);
-  const uniqueTriggerOptions = [
-    ...new Set(triggerOptions.length ? triggerOptions : ["manual"]),
-  ] as TriggerType[];
-  const labelCandidates = useMemo(() => {
+  const uniqueTriggerOptions: TriggerType[] = [
+    ...new Set<TriggerType>(
+      triggerOptions.length ? triggerOptions : ["manual"],
+    ),
+  ];
+  const labelCandidates = (() => {
     const candidates = new Map<string, { color: string; name: string }>();
     labels.forEach((label) =>
       candidates.set(label.name, {
@@ -129,7 +142,7 @@ export function useReplicationPolicyForm({
         candidates.set(name, { color: "#7b7b82", name });
     });
     return [...candidates.values()];
-  }, [capability.supported_resource_filters, labels, selectedLabels]);
+  })();
 
   function buildFilters(): ReplicationFilter[] {
     const filters: ReplicationFilter[] = [];
@@ -155,10 +168,11 @@ export function useReplicationPolicyForm({
   function createPayload(formData: FormData) {
     const speedValue = Number(formData.get("speed"));
     if (!Number.isInteger(speedValue) || speedValue === 0 || speedValue < -1)
-      throw new Error(t("带宽必须是 -1 或正整数"));
+      throw new UserInputError(t("带宽必须是 -1 或正整数"));
     const speed =
       speedUnit === "Mbps" && speedValue > 0 ? speedValue * 1024 : speedValue;
-    if (speed > 2147483647) throw new Error(t("带宽超出 Harbor 支持范围"));
+    if (speed > 2147483647)
+      throw new UserInputError(t("带宽超出 Harbor 支持范围"));
     const registry = { id: Number(registryId) };
     const payload: Record<string, unknown> = {
       name: formString(formData, "name"),

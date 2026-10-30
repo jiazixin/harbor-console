@@ -32,8 +32,8 @@ func TestControlProjectsUsesOfficialPaginationHeaders(t *testing.T) {
 			Request: request,
 		}, nil
 	})}
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodGet, "/api/control/projects?page=2&page_size=20", nil)
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := httptest.NewRequest(http.MethodGet, "/api/operations/projects?offset=20&limit=20", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -41,17 +41,15 @@ func TestControlProjectsUsesOfficialPaginationHeaders(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 	var payload struct {
-		Items      []map[string]any `json:"items"`
-		Pagination struct {
-			Page     int `json:"page"`
-			PageSize int `json:"page_size"`
-			Total    int `json:"total"`
-		} `json:"pagination"`
+		Items  []map[string]any `json:"items"`
+		Total  int              `json:"total"`
+		Offset int              `json:"offset"`
+		Limit  int              `json:"limit"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if len(payload.Items) != 1 || payload.Pagination.Page != 2 || payload.Pagination.PageSize != 20 || payload.Pagination.Total != 47 {
+	if len(payload.Items) != 1 || payload.Offset != 20 || payload.Limit != 20 || payload.Total != 47 {
 		t.Fatalf("unexpected envelope: %#v", payload)
 	}
 }
@@ -65,25 +63,25 @@ func TestControlListParityFiltersUseOfficialAPIs(t *testing.T) {
 	}{
 		{
 			name:       "project visibility owner sort and pagination",
-			consoleURL: "/api/control/projects?page=3&page_size=50&sort=-repo_count&name=platform&owner=admin&public=true&with_detail=true",
+			consoleURL: "/api/operations/projects?offset=100&limit=50&sort=-repo_count&name=platform&owner=admin&public=true&with_detail=true",
 			wantPath:   "/api/v2.0/projects",
 			wantQuery:  url.Values{"page": {"3"}, "page_size": {"50"}, "sort": {"-repo_count"}, "name": {"platform"}, "owner": {"admin"}, "public": {"true"}, "with_detail": {"true"}},
 		},
 		{
 			name:       "repository filter sort and pagination",
-			consoleURL: "/api/control/repositories?project=platform&page=2&page_size=20&sort=-pull_count&q=name%3D~api",
+			consoleURL: "/api/operations/repositories?project=platform&offset=20&limit=20&sort=-pull_count&q=name%3D~api",
 			wantPath:   "/api/v2.0/projects/platform/repositories",
 			wantQuery:  url.Values{"page": {"2"}, "page_size": {"20"}, "sort": {"-pull_count"}, "q": {"name=~api"}},
 		},
 		{
 			name:       "replication policy name and pagination",
-			consoleURL: "/api/control/replication-policies?page=2&page_size=50&sort=name&name=release",
+			consoleURL: "/api/operations/replication-policies?offset=50&limit=50&sort=name&name=release",
 			wantPath:   "/api/v2.0/replication/policies",
 			wantQuery:  url.Values{"page": {"2"}, "page_size": {"50"}, "sort": {"name"}, "name": {"release"}},
 		},
 		{
 			name:       "replication execution filters and pagination",
-			consoleURL: "/api/control/replication-executions?page=4&page_size=20&sort=-start_time&policy_id=7&status=Failed&trigger=manual",
+			consoleURL: "/api/operations/replication-executions?offset=60&limit=20&sort=-start_time&policy_id=7&status=Failed&trigger=manual",
 			wantPath:   "/api/v2.0/replication/executions",
 			wantQuery:  url.Values{"page": {"4"}, "page_size": {"20"}, "sort": {"-start_time"}, "policy_id": {"7"}, "status": {"Failed"}, "trigger": {"manual"}},
 		},
@@ -104,7 +102,7 @@ func TestControlListParityFiltersUseOfficialAPIs(t *testing.T) {
 				}
 				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}, "X-Total-Count": {"0"}}, Body: io.NopCloser(strings.NewReader(`[]`)), Request: request}, nil
 			})}
-			current := createTestSession(t, application, client, false)
+			current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
 			request := httptest.NewRequest(http.MethodGet, test.consoleURL, nil)
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			recorder := httptest.NewRecorder()
@@ -135,8 +133,8 @@ func TestControlProjectCreateWithQuotaAndProxyUsesOfficialAPI(t *testing.T) {
 		}
 		return http.StatusCreated, `{}`
 	})
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodPost, "/api/control/projects", strings.NewReader(body))
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := jsonRequest(http.MethodPost, "/api/operations/projects", strings.NewReader(body))
 	request.Host = "console.test"
 	request.Header.Set("Origin", "http://console.test")
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
@@ -173,8 +171,8 @@ func TestControlAuditLogsUsesOfficialExtendedEndpoint(t *testing.T) {
 			Request: request,
 		}, nil
 	})}
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodGet, "/api/control/audit-logs?page=2&page_size=50&sort=-op_time&q=username%3D~release%2Cop_result%3Dtrue", nil)
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := httptest.NewRequest(http.MethodGet, "/api/operations/audit-logs?offset=50&limit=50&sort=-op_time&q=username%3D~release%2Cop_result%3Dtrue", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -182,17 +180,15 @@ func TestControlAuditLogsUsesOfficialExtendedEndpoint(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 	var payload struct {
-		Items      []map[string]any `json:"items"`
-		Pagination struct {
-			Page     int `json:"page"`
-			PageSize int `json:"page_size"`
-			Total    int `json:"total"`
-		} `json:"pagination"`
+		Items  []map[string]any `json:"items"`
+		Total  int              `json:"total"`
+		Offset int              `json:"offset"`
+		Limit  int              `json:"limit"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if len(payload.Items) != 1 || payload.Pagination.Page != 2 || payload.Pagination.PageSize != 50 || payload.Pagination.Total != 73 {
+	if len(payload.Items) != 1 || payload.Offset != 50 || payload.Limit != 50 || payload.Total != 73 {
 		t.Fatalf("unexpected audit envelope: %#v", payload)
 	}
 	if payload.Items[0]["operation_description"] != "push artifact" || payload.Items[0]["operation_result"] != true {
@@ -217,7 +213,7 @@ func TestAuditResourcesNeverUseDeprecatedEndpoint(t *testing.T) {
 		}
 		return http.StatusOK, `[{"id":1,"operation_result":true}]`
 	})
-	current := createTestSession(t, application, client, false)
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
 	request := httptest.NewRequest(http.MethodGet, "/api/resources/audit-logs?page=1&page_size=50&q=resource%3D~platform&username=ignored", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
@@ -232,8 +228,8 @@ func TestDemoAuditLogsSupportOfficialFiltersAndPagination(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current := createTestSession(t, application, nil, true)
-	request := httptest.NewRequest(http.MethodGet, "/api/control/audit-logs?page=1&page_size=20&sort=-op_time&q=username%3D~ci-bot%2Cop_result%3Dfalse", nil)
+	current := createTestSession(t, testSessionOptions{application: application, client: nil, demo: true})
+	request := httptest.NewRequest(http.MethodGet, "/api/operations/audit-logs?offset=0&limit=20&sort=-op_time&q=username%3D~ci-bot%2Cop_result%3Dfalse", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -241,15 +237,13 @@ func TestDemoAuditLogsSupportOfficialFiltersAndPagination(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 	var payload struct {
-		Items      []map[string]any `json:"items"`
-		Pagination struct {
-			Total int `json:"total"`
-		} `json:"pagination"`
+		Items []map[string]any `json:"items"`
+		Total int              `json:"total"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Pagination.Total != 1 || len(payload.Items) != 1 {
+	if payload.Total != 1 || len(payload.Items) != 1 {
 		t.Fatalf("unexpected filtered audit result: %#v", payload)
 	}
 	if payload.Items[0]["username"] != "ci-bot" || payload.Items[0]["operation_result"] != false {
@@ -262,8 +256,8 @@ func TestDemoAuditLogsSupportTimeRangeFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current := createTestSession(t, application, nil, true)
-	request := httptest.NewRequest(http.MethodGet, "/api/control/audit-logs?page=1&page_size=20&sort=-op_time&q=op_time%3D%5B2026-07-28T06%3A20%3A00Z~2026-07-28T06%3A40%3A00Z%5D", nil)
+	current := createTestSession(t, testSessionOptions{application: application, client: nil, demo: true})
+	request := httptest.NewRequest(http.MethodGet, "/api/operations/audit-logs?offset=0&limit=20&sort=-op_time&q=op_time%3D%5B2026-07-28T06%3A20%3A00Z~2026-07-28T06%3A40%3A00Z%5D", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -271,15 +265,13 @@ func TestDemoAuditLogsSupportTimeRangeFilter(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 	var payload struct {
-		Items      []map[string]any `json:"items"`
-		Pagination struct {
-			Total int `json:"total"`
-		} `json:"pagination"`
+		Items []map[string]any `json:"items"`
+		Total int              `json:"total"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Pagination.Total != 2 || len(payload.Items) != 2 {
+	if payload.Total != 2 || len(payload.Items) != 2 {
 		t.Fatalf("unexpected time-range audit result: %#v", payload)
 	}
 	if payload.Items[0]["id"] != float64(48319) || payload.Items[1]["id"] != float64(48318) {

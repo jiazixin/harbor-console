@@ -20,11 +20,16 @@ Options:
 
 Environment:
   CONFIG_FILE          Configuration file, used when --config is not given
+  HARBOR_CONSOLE_*     Field overrides; nested fields join with "__", e.g.
+                       HARBOR_CONSOLE_SERVER__PORT=9090; README lists every
+                       variable
 
-Settings resolve as environment variables > YAML > built-in defaults; without
-a configuration file the built-in defaults apply. Relative paths resolve
-against the working directory.
+Settings resolve as environment variables > YAML > built-in defaults; when
+the default file is missing the built-in defaults apply. Relative paths
+resolve against the working directory.
 `
+
+const defaultConfigFile = "configs/config.local.yaml"
 
 type options struct {
 	configFile string // empty: CONFIG_FILE or the default file
@@ -42,7 +47,7 @@ func parseArgs(args []string) (options, error) {
 			return errors.New("configuration path must not be empty")
 		}
 		if o.configFile != "" && o.configFile != v {
-			return errors.New("-c and --config name different files")
+			return fmt.Errorf("different files given for -c/--config: %q and %q", o.configFile, v)
 		}
 		o.configFile = v
 		return nil
@@ -59,4 +64,19 @@ func parseArgs(args []string) (options, error) {
 		return options{}, fmt.Errorf("unexpected argument %q", flags.Arg(0))
 	}
 	return o, nil
+}
+
+// configPath returns --config, then CONFIG_FILE, then the default file.
+// explicit reports whether the user chose the file.
+func (o options) configPath(lookupEnv func(string) (string, bool)) (path string, explicit bool, err error) {
+	if o.configFile != "" {
+		return o.configFile, true, nil
+	}
+	if path, ok := lookupEnv("CONFIG_FILE"); ok {
+		if strings.TrimSpace(path) == "" {
+			return "", false, errors.New("CONFIG_FILE is set but empty")
+		}
+		return path, true, nil
+	}
+	return defaultConfigFile, false, nil
 }

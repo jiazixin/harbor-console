@@ -1,16 +1,22 @@
-import { CopyArtifactDialog } from "../artifacts/artifact-dialogs";
-import {
-  AddArtifactTagDialog,
-  ArtifactScanDialog,
-  ArtifactScanLogDialog,
-  AttachArtifactLabelDialog,
-  DeleteAccessoryArtifactDialog,
-  DeleteArtifactDialog,
-  DeleteArtifactTagDialog,
-  RemoveArtifactLabelDialog,
-  StopArtifactScanDialog,
-} from "../artifacts/artifact-detail-dialogs";
+import { AddArtifactTagDialog } from "./add-artifact-tag-dialog";
 import type { ArtifactDetailAction } from "./artifact-detail-data";
+import { ArtifactScanDialog } from "./artifact-scan-dialog";
+import { ArtifactScanLogDialog } from "./artifact-scan-log-dialog";
+import { AttachArtifactLabelDialog } from "./attach-artifact-label-dialog";
+import { CopyArtifactDialog } from "./copy-artifact-dialog";
+import { DeleteAccessoryArtifactDialog } from "./delete-accessory-artifact-dialog";
+import { DeleteArtifactDialog } from "./delete-artifact-dialog";
+import { DeleteArtifactTagDialog } from "./delete-artifact-tag-dialog";
+import { RemoveArtifactLabelDialog } from "./remove-artifact-label-dialog";
+import { StopArtifactScanDialog } from "./stop-artifact-scan-dialog";
+
+type ArtifactDetailDialogHostProps = {
+  action: ArtifactDetailAction;
+  onClose: () => void;
+  onChanged: (message: string) => void;
+  onNavigate: (path: string, message: string) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
 
 export function ArtifactDetailDialogHost({
   action,
@@ -18,13 +24,7 @@ export function ArtifactDetailDialogHost({
   onChanged,
   onNavigate,
   onNotice,
-}: {
-  action: ArtifactDetailAction;
-  onClose: () => void;
-  onChanged: (message: string) => void;
-  onNavigate: (path: string, message: string) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: ArtifactDetailDialogHostProps) {
   const context = {
     project: action.project,
     repository: action.repository,
@@ -36,13 +36,13 @@ export function ArtifactDetailDialogHost({
         <ArtifactScanDialog
           {...context}
           onClose={onClose}
-          onSubmitted={(scanType) =>
+          onSubmitted={(scanType) => {
             onChanged(
               scanType === "sbom"
                 ? "SBOM 生成任务已提交"
                 : "漏洞扫描任务已提交",
-            )
-          }
+            );
+          }}
         />
       );
     case "stop-scan":
@@ -51,11 +51,11 @@ export function ArtifactDetailDialogHost({
           {...context}
           scanType={action.scanType}
           onClose={onClose}
-          onStopped={() =>
+          onStopped={() => {
             onChanged(
               action.scanType === "sbom" ? "SBOM 生成已停止" : "漏洞扫描已停止",
-            )
-          }
+            );
+          }}
         />
       );
     case "scan-log":
@@ -72,12 +72,12 @@ export function ArtifactDetailDialogHost({
         <AddArtifactTagDialog
           {...context}
           onClose={onClose}
-          onCreated={(name) =>
+          onCreated={(name) => {
             onNavigate(
               `projects/${encodeURIComponent(action.project)}/repositories/${encodeURIComponent(action.repository)}/artifacts/${encodeURIComponent(action.artifact.digest)}?tab=tags`,
               `Tag ${name} 已创建`,
-            )
-          }
+            );
+          }}
         />
       );
     case "delete-tag":
@@ -86,7 +86,9 @@ export function ArtifactDetailDialogHost({
           {...context}
           tag={action.tag}
           onClose={onClose}
-          onDeleted={() => onChanged(`Tag ${action.tag.name} 已删除`)}
+          onDeleted={() => {
+            onChanged(`Tag ${action.tag.name} 已删除`);
+          }}
         />
       );
     case "attach-label":
@@ -95,7 +97,9 @@ export function ArtifactDetailDialogHost({
           {...context}
           labels={action.labels}
           onClose={onClose}
-          onAttached={(label) => onChanged(`标签 ${label.name} 已绑定`)}
+          onAttached={(label) => {
+            onChanged(`标签 ${label.name} 已绑定`);
+          }}
         />
       );
     case "remove-label":
@@ -104,7 +108,9 @@ export function ArtifactDetailDialogHost({
           {...context}
           label={action.label}
           onClose={onClose}
-          onRemoved={() => onChanged(`标签 ${action.label.name} 已移除`)}
+          onRemoved={() => {
+            onChanged(`标签 ${action.label.name} 已移除`);
+          }}
         />
       );
     case "copy":
@@ -112,12 +118,12 @@ export function ArtifactDetailDialogHost({
         <CopyArtifactDialog
           {...context}
           onClose={onClose}
-          onCopied={(project, repository) =>
+          onCopied={(project, repository) => {
             onNavigate(
               `projects/${encodeURIComponent(project)}/repositories/${encodeURIComponent(repository)}/artifacts`,
               "制品复制已完成",
-            )
-          }
+            );
+          }}
         />
       );
     case "delete":
@@ -125,12 +131,12 @@ export function ArtifactDetailDialogHost({
         <DeleteArtifactDialog
           {...context}
           onClose={onClose}
-          onDeleted={() =>
+          onDeleted={() => {
             onNavigate(
               `projects/${encodeURIComponent(action.project)}/repositories/${encodeURIComponent(action.repository)}/artifacts`,
               "制品已删除",
-            )
-          }
+            );
+          }}
         />
       );
     case "delete-accessory":
@@ -139,7 +145,9 @@ export function ArtifactDetailDialogHost({
           {...context}
           accessory={action.accessory}
           onClose={onClose}
-          onDeleted={() => onChanged("关联制品已删除")}
+          onDeleted={() => {
+            onChanged("关联制品已删除");
+          }}
         />
       );
   }

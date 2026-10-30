@@ -1,25 +1,17 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
 import type {
   PreheatExecution,
   PreheatPolicy,
   PreheatTask,
 } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import {
-  PreheatPolicyDialog,
-  RunPreheatPolicyDialog,
-} from "./project-preheat-dialogs";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { PreheatPolicyDialog } from "./preheat-policy-dialog";
 import { PreheatExecutionsDialog } from "./project-preheat-executions";
+import { RunPreheatPolicyDialog } from "./run-preheat-policy-dialog";
 
 const policy: PreheatPolicy = {
   id: 81,
@@ -47,10 +39,10 @@ const policy: PreheatPolicy = {
 
 function renderDialog(content: React.ReactNode) {
   return render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       {content}
-    </LocaleProvider>,
+    </TestProviders>,
   );
 }
 
@@ -62,6 +54,7 @@ afterEach(() => {
 
 describe("project preheat dialogs", () => {
   it("creates a normalized Harbor preheat policy payload", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -78,17 +71,21 @@ describe("project preheat dialogs", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "策略名称" }), {
-      target: { value: "parity-policy" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "创建策略" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "策略名称" }),
+      "parity-policy",
+    );
+    await user.click(screen.getByRole("button", { name: "创建策略" }));
 
-    await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "preheat-policies",
-      { project: "platform" },
-      "POST",
-      {
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "preheat-policies",
+      parameters: { project: "platform" },
+      method: "POST",
+      payload: {
         name: "parity-policy",
         description: "",
         project_id: 1,
@@ -104,10 +101,13 @@ describe("project preheat dialogs", () => {
         enabled: true,
         extra_attrs: JSON.stringify({ scope: "single_seed_peer" }),
       },
-    );
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
+    });
   });
 
   it("runs the current policy without leaking response fields or dropping future Harbor fields", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -122,14 +122,16 @@ describe("project preheat dialogs", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "开始预热" }));
+    await user.click(screen.getByRole("button", { name: "开始预热" }));
 
-    await waitFor(() => expect(onStarted).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "preheat-policy",
-      { project: "platform", name: "release-images" },
-      "POST",
-      {
+    await waitFor(() => {
+      expect(onStarted).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "preheat-policy",
+      parameters: { project: "platform", name: "release-images" },
+      method: "POST",
+      payload: {
         id: 81,
         name: "release-images",
         description: "Release images",
@@ -140,10 +142,13 @@ describe("project preheat dialogs", () => {
         enabled: true,
         extra_attrs: JSON.stringify(policy.extra_attrs),
       },
-    );
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
+    });
   });
 
   it("loads execution details, paginated tasks, structured logs, and stops a running execution", async () => {
+    const user = setupUser();
     const execution: PreheatExecution = {
       id: 8101,
       status: "Running",
@@ -216,24 +221,26 @@ describe("project preheat dialogs", () => {
         page_size: 100,
         sort: "-start_time",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
-    await waitFor(() =>
+    await user.click(screen.getByRole("button", { name: "下一页" }));
+    await waitFor(() => {
       expect(list).toHaveBeenCalledWith(
         "preheat-executions",
-        expect.objectContaining({ page: 2 }),
-        expect.any(AbortSignal),
-      ),
-    );
+        expect.objectContaining({ page: 2 }) as unknown,
+        expect.any(AbortSignal) as unknown,
+      );
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "查看预热执行任务" }));
+    await user.click(
+      await screen.findByRole("button", { name: "查看预热执行任务" }),
+    );
     expect(await screen.findByText("platform/gateway:v1")).toBeVisible();
     expect(data).toHaveBeenCalledWith(
       "preheat-execution",
       { project: "platform", name: "release-images", id: 8101 },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(list).toHaveBeenCalledWith(
       "preheat-tasks",
@@ -245,19 +252,21 @@ describe("project preheat dialogs", () => {
         page_size: 100,
         sort: "-creation_time",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
-    await waitFor(() =>
+    await user.click(screen.getByRole("button", { name: "下一页" }));
+    await waitFor(() => {
       expect(list).toHaveBeenCalledWith(
         "preheat-tasks",
-        expect.objectContaining({ page: 2 }),
-        expect.any(AbortSignal),
-      ),
-    );
+        expect.objectContaining({ page: 2 }) as unknown,
+        expect.any(AbortSignal) as unknown,
+      );
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "查看预热任务日志" }));
+    await user.click(
+      await screen.findByRole("button", { name: "查看预热任务日志" }),
+    );
     expect(await screen.findByText("preheat submitted")).toBeVisible();
     expect(screen.getByText("retry queued")).toBeVisible();
     expect(data).toHaveBeenCalledWith(
@@ -268,19 +277,23 @@ describe("project preheat dialogs", () => {
         id: 8101,
         task: 9101,
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "停止执行" }));
+    await user.click(screen.getByRole("button", { name: "停止执行" }));
     expect(screen.getByText(/已经完成的预热任务不会回滚/)).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "停止执行" }));
+    await user.click(screen.getByRole("button", { name: "停止执行" }));
 
-    await waitFor(() => expect(onChanged).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "preheat-execution",
-      { project: "platform", name: "release-images", id: 8101 },
-      "PATCH",
-      { status: "Stopped" },
-    );
+    await waitFor(() => {
+      expect(onChanged).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "preheat-execution",
+      parameters: { project: "platform", name: "release-images", id: 8101 },
+      method: "PATCH",
+      payload: { status: "Stopped" },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 });

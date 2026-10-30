@@ -14,7 +14,7 @@ import (
 func (a *app) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	current, ok := a.currentSession(r)
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "会话已失效", "请重新连接 Harbor")
+		writeError(w, r, errSessionRequired)
 		return
 	}
 	if current.Demo {
@@ -38,17 +38,17 @@ func (a *app) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := map[string]any{"mode": "live", "instance": sessionInfo(current)}
-	warnings := make([]string, 0)
+	warnings := make([]dashboardWarning, 0)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for _, item := range targets {
 		wg.Go(func() {
 			var payload any
-			err := a.harborGetJSON(ctx, current, item.path, item.query, &payload)
+			err := a.harborGetJSON(ctx, harborJSONRequest{current: current, path: item.path, query: item.query, out: &payload})
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				warnings = append(warnings, item.key+": "+friendlyUpstreamError(err))
+				warnings = append(warnings, newDashboardWarning(item.key, upstreamFailure(err)))
 				return
 			}
 			result[item.key] = payload
@@ -59,7 +59,7 @@ func (a *app) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
 		if err != nil {
-			warnings = append(warnings, "projects: "+friendlyUpstreamError(err))
+			warnings = append(warnings, newDashboardWarning("projects", upstreamFailure(err)))
 			return
 		}
 		result["projects"] = projects
@@ -67,7 +67,7 @@ func (a *app) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	wg.Wait()
 	if projects, ok := result["projects"].([]any); ok {
 		if a.enrichProjectAssets(ctx, current, projects) {
-			warnings = append(warnings, "部分项目资产明细读取失败，排序数据可能不完整")
+			warnings = append(warnings, newDashboardWarning("projects", failure(http.StatusServiceUnavailable, "asset_details_incomplete", "some project asset details could not be read; sorting may be incomplete")))
 		}
 		result["statistics"] = visibleProjectStatistics(projects)
 	} else {
@@ -79,27 +79,32 @@ func (a *app) handleDashboard(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) listAllProjects(ctx context.Context, current *session) ([]any, error) {
 	projects := make([]any, 0)
-	for page := 1; ; page++ {
+	responseBytes := 0
+	for page := 1; page <= maxCollectionPages; page++ {
 		query := url.Values{
 			"page":      {strconv.Itoa(page)},
 			"page_size": {strconv.Itoa(dashboardProjectPageSize)},
 			"sort":      {"-creation_time"},
 		}
-		response, err := a.harborRequest(ctx, current, http.MethodGet, "/api/v2.0/projects", query, nil, nil)
+		response, err := a.harborRequest(ctx, harborRequestOptions{current: current, method: http.MethodGet, path: "/api/v2.0/projects", query: query, body: nil, headers: nil})
 		if err != nil {
 			return nil, err
 		}
 		var pageItems []any
 		if err := json.Unmarshal(response.Body, &pageItems); err != nil {
-			return nil, fmt.Errorf("Harbor returned invalid project JSON: %w", err)
+			return nil, fmt.Errorf("decode Harbor projects: %w", err)
+		}
+		responseBytes += len(response.Body)
+		if len(pageItems) > dashboardProjectPageSize || responseBytes > maxCollectionBytes {
+			return nil, failure(http.StatusServiceUnavailable, "collection_too_large", "Harbor project collection exceeds its bounded budget")
 		}
 		projects = append(projects, pageItems...)
 		total, totalErr := strconv.Atoi(response.Header.Get("X-Total-Count"))
 		if len(pageItems) == 0 || (totalErr == nil && total >= 0 && len(projects) >= total) || (totalErr != nil && len(pageItems) < dashboardProjectPageSize) {
-			break
+			return projects, nil
 		}
 	}
-	return projects, nil
+	return nil, failure(http.StatusServiceUnavailable, "collection_too_large", "Harbor projects exceed the pagination limit")
 }
 
 func (a *app) enrichProjectAssets(ctx context.Context, current *session, projects []any) bool {
@@ -129,7 +134,7 @@ projectLoop:
 			defer func() { <-semaphore }()
 			headers := http.Header{"X-Is-Resource-Name": {"true"}}
 			encodedName := url.PathEscape(name)
-			summaryResponse, summaryErr := a.harborRequest(ctx, current, http.MethodGet, "/api/v2.0/projects/"+encodedName+"/summary", nil, nil, headers)
+			summaryResponse, summaryErr := a.harborRequest(ctx, harborRequestOptions{current: current, method: http.MethodGet, path: "/api/v2.0/projects/" + encodedName + "/summary", query: nil, body: nil, headers: headers})
 			if summaryErr == nil {
 				var summary map[string]any
 				if err := json.Unmarshal(summaryResponse.Body, &summary); err == nil {
@@ -164,15 +169,18 @@ type projectAssetCountsResult struct {
 func (a *app) projectAssetCounts(ctx context.Context, current *session, encodedProjectName string, headers http.Header) (projectAssetCountsResult, error) {
 	counts := projectAssetCountsResult{}
 	path := "/api/v2.0/projects/" + encodedProjectName + "/repositories"
-	for page := 1; ; page++ {
+	for page := 1; page <= maxCollectionPages; page++ {
 		query := url.Values{"page": {strconv.Itoa(page)}, "page_size": {strconv.Itoa(projectAssetPageSize)}}
-		response, err := a.harborRequest(ctx, current, http.MethodGet, path, query, nil, headers)
+		response, err := a.harborRequest(ctx, harborRequestOptions{current: current, method: http.MethodGet, path: path, query: query, body: nil, headers: headers})
 		if err != nil {
 			return counts, err
 		}
 		var repositories []map[string]any
 		if err := json.Unmarshal(response.Body, &repositories); err != nil {
-			return counts, fmt.Errorf("Harbor returned invalid repository JSON: %w", err)
+			return counts, fmt.Errorf("decode Harbor repositories: %w", err)
+		}
+		if len(repositories) > projectAssetPageSize {
+			return counts, errInvalidHarborJSON
 		}
 		counts.repositoryCount += int64(len(repositories))
 		for _, repository := range repositories {
@@ -180,10 +188,10 @@ func (a *app) projectAssetCounts(ctx context.Context, current *session, encodedP
 		}
 		total, totalErr := strconv.Atoi(response.Header.Get("X-Total-Count"))
 		if len(repositories) == 0 || (totalErr == nil && total >= 0 && page*projectAssetPageSize >= total) || (totalErr != nil && len(repositories) < projectAssetPageSize) {
-			break
+			return counts, nil
 		}
 	}
-	return counts, nil
+	return counts, failure(http.StatusServiceUnavailable, "collection_too_large", "Harbor repositories exceed the pagination limit")
 }
 
 // visibleProjectStatistics intentionally derives totals from the project and
@@ -223,4 +231,17 @@ func visibleProjectStatistics(projects []any) map[string]any {
 		}
 	}
 	return statistics
+}
+
+// dashboardWarning reports a dashboard section that could not be loaded, with
+// the same code and details as an error response.
+type dashboardWarning struct {
+	Source  string         `json:"source"`
+	Code    string         `json:"code"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details,omitzero"`
+}
+
+func newDashboardWarning(source string, cause *apiFailure) dashboardWarning {
+	return dashboardWarning{Source: source, Code: cause.code, Message: cause.message, Details: cause.details}
 }

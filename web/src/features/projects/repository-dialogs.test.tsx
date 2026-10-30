@@ -1,14 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
 import type { RepositorySummary, Session } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import {
-  DeleteRepositoriesDialog,
-  PushCommandDialog,
-} from "./repository-dialogs";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { DeleteRepositoriesDialog } from "./delete-repositories-dialog";
+import { PushCommandDialog } from "./push-command-dialog";
 
 const repositories: RepositorySummary[] = [
   { id: 1, name: "platform/api" },
@@ -28,12 +26,13 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("repository dialogs", () => {
   it("requires exact confirmation before deleting every selected repository", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
     const onDeleted = vi.fn();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <DeleteRepositoriesDialog
           project="platform"
@@ -41,27 +40,34 @@ describe("repository dialogs", () => {
           onClose={vi.fn()}
           onDeleted={onDeleted}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "确认文本" }), {
-      target: { value: "DELETE" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "确认文本" }),
+      "DELETE",
+    );
+    await user.click(screen.getByRole("button", { name: "永久删除" }));
     expect(await screen.findByText("请输入 DELETE 2 确认")).toBeVisible();
     expect(mutation).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "确认文本" }), {
-      target: { value: "DELETE 2" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
-    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(0));
-    expect(mutation).toHaveBeenNthCalledWith(
-      1,
-      "repository",
-      { project: "platform", repository: "platform/api" },
-      "DELETE",
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "确认文本" }),
+      "DELETE 2",
     );
+    await user.click(screen.getByRole("button", { name: "永久删除" }));
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalledWith(0);
+    });
+    expect(mutation).toHaveBeenNthCalledWith(1, {
+      operation: "repository",
+      parameters: { project: "platform", repository: "platform/api" },
+      method: "DELETE",
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 
   it("generates the same push command sequence from current preferences", () => {
@@ -70,7 +76,7 @@ describe("repository dialogs", () => {
       JSON.stringify({ runtime: "podman" }),
     );
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <PushCommandDialog
           project="platform"
@@ -79,7 +85,7 @@ describe("repository dialogs", () => {
           onClose={vi.fn()}
           onCopied={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(screen.getByText("podman login harbor.demo.local")).toBeVisible();

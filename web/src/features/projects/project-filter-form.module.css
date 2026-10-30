@@ -1,0 +1,37 @@
+@layer ui-collections {
+  .projectFilterToolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
+
+@layer ui-collections {
+  .projectOwnerSearch {
+    width: min(190px, 100%);
+  }
+}
+
+@layer ui-collections {
+  .projectFilterToolbar
+    > :is(
+      :global(.hc_8b938f52_toolbarSearch),
+      :global(.hc_8b938f52_toolbarField)
+    ) {
+    align-self: center;
+  }
+}
+
+@layer ui-collections {
+  .projectFilterToolbar :global(.hc_8b938f52_toolbarSearch),
+  .projectFilterToolbar :global(.hc_8b938f52_toolbarField),
+  .projectFilterToolbar :global(.hc_8b938f52_toolbarSelect) {
+    height: var(--control-height-compact);
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.projectFilterToolbar {
+}
+.projectOwnerSearch {
+}

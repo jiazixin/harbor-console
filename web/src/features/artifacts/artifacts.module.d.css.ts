@@ -1,0 +1,37 @@
+// Generated from the adjacent CSS Module by node scripts/generate-css-types.mjs.
+declare const styles: {
+  readonly additionCommand: string;
+  readonly additionSummary: string;
+  readonly architectureBadge: string;
+  readonly architectureCell: string;
+  readonly artifactAdditionCode: string;
+  readonly artifactAdditionPanel: string;
+  readonly artifactAnnotationSummary: string;
+  readonly artifactAnnotationsList: string;
+  readonly artifactAnnotationsPanel: string;
+  readonly artifactDetailActions: string;
+  readonly artifactFileList: string;
+  readonly artifactFilterToolbar: string;
+  readonly artifactIdentity: string;
+  readonly artifactIdentityLabels: string;
+  readonly artifactInlineWarning: string;
+  readonly artifactLabelChip: string;
+  readonly artifactLabelList: string;
+  readonly artifactLabelOptions: string;
+  readonly artifactLabelRow: string;
+  readonly artifactLabelSwatch: string;
+  readonly artifactPlatformList: string;
+  readonly artifactPlatformPanel: string;
+  readonly artifactPlatformRow: string;
+  readonly artifactRowLabels: string;
+  readonly artifactSelectTable: string;
+  readonly artifactTabs: string;
+  readonly commandPanel: string;
+  readonly detailColumns: string;
+  readonly digestFull: string;
+  readonly platformActionPlaceholder: string;
+  readonly platformIdentity: string;
+  readonly scanTypeOption: string;
+  readonly scanTypeOptions: string;
+};
+export default styles;

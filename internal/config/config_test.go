@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,22 +10,22 @@ import (
 )
 
 func TestDefaultRuntimeConfig(t *testing.T) {
-	config := Default()
-	if got := config.Address(); got != "127.0.0.1:8080" {
+	cfg := Default()
+	if got := cfg.Address(); got != "127.0.0.1:8080" {
 		t.Fatalf("default address = %q, want 127.0.0.1:8080", got)
 	}
-	if config.Health.URI != "/health" {
-		t.Fatalf("default health URI = %q, want /health", config.Health.URI)
+	if cfg.Logging.Format != "json" || cfg.Logging.Level != "info" || !cfg.Logging.AccessLog || cfg.Logging.LogHealthChecks {
+		t.Fatalf("unexpected default logging config: %#v", cfg.Logging)
 	}
-	if config.Logging.Format != "json" || config.Logging.Level != "info" || !config.Logging.AccessLog || config.Logging.LogHealthChecks {
-		t.Fatalf("unexpected default logging config: %#v", config.Logging)
+	if time.Duration(cfg.Server.ShutdownTimeout) != 10*time.Second {
+		t.Fatalf("default shutdown timeout = %s", time.Duration(cfg.Server.ShutdownTimeout))
 	}
-	if time.Duration(config.Server.ShutdownTimeout) != 10*time.Second {
-		t.Fatalf("default shutdown timeout = %s", time.Duration(config.Server.ShutdownTimeout))
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("default config is invalid: %v", err)
 	}
 }
 
-func TestLoadRuntimeConfigYAMLAndEnvironment(t *testing.T) {
+func TestLoadYAMLAndEnvironment(t *testing.T) {
 	path := writeRuntimeConfig(t, `
 server:
   listen: 0.0.0.0
@@ -34,8 +35,6 @@ server:
   write_timeout: 25s
   idle_timeout: 75s
   shutdown_timeout: 8s
-health:
-  uri: /healthy
 logging:
   level: debug
   format: logfmt
@@ -43,84 +42,161 @@ logging:
   log_health_checks: true
 `)
 	environment := map[string]string{
-		"LISTEN":     "::1",
-		"PORT":       "9010",
-		"HEALTH_URI": "/status/health",
-		"LOG_LEVEL":  "warn",
-		"LOG_FORMAT": "json",
+		"HARBOR_CONSOLE_SERVER__LISTEN":       "::1",
+		"HARBOR_CONSOLE_SERVER__PORT":         "9010",
+		"HARBOR_CONSOLE_LOGGING__LEVEL":       "warn",
+		"HARBOR_CONSOLE_LOGGING__FORMAT":      "json",
+		"HARBOR_CONSOLE_SERVER__IDLE_TIMEOUT": "70s",
 	}
-	config, err := loadRuntimeConfig(path, true, mapEnvironment(environment))
+	cfg, err := Load(Source{Path: path, Explicit: true, LookupEnv: mapEnvironment(environment)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := config.Address(); got != "[::1]:9010" {
+	if got := cfg.Address(); got != "[::1]:9010" {
 		t.Fatalf("overridden address = %q, want [::1]:9010", got)
 	}
-	if config.Health.URI != "/status/health" || config.Logging.Level != "warn" || config.Logging.Format != "json" {
-		t.Fatalf("environment overrides were not applied: %#v", config)
+	if cfg.Logging.Level != "warn" || cfg.Logging.Format != "json" || time.Duration(cfg.Server.IdleTimeout) != 70*time.Second {
+		t.Fatalf("environment overrides were not applied: %#v", cfg)
 	}
-	if config.Logging.AccessLog || !config.Logging.LogHealthChecks {
-		t.Fatalf("YAML boolean values were not retained: %#v", config.Logging)
+	if cfg.Logging.AccessLog || !cfg.Logging.LogHealthChecks {
+		t.Fatalf("YAML boolean values were not retained: %#v", cfg.Logging)
 	}
-	if time.Duration(config.Server.ReadHeaderTimeout) != 4*time.Second || time.Duration(config.Server.ShutdownTimeout) != 8*time.Second {
-		t.Fatalf("YAML durations were not parsed: %#v", config.Server)
+	if time.Duration(cfg.Server.ReadHeaderTimeout) != 4*time.Second || time.Duration(cfg.Server.ShutdownTimeout) != 8*time.Second {
+		t.Fatalf("YAML durations were not parsed: %#v", cfg.Server)
 	}
 }
 
-func TestLoadRuntimeConfigMissingFileBehavior(t *testing.T) {
+func TestLoadNormalizesBeforeValidating(t *testing.T) {
+	path := writeRuntimeConfig(t, "server:\n  listen: \" 127.0.0.1 \"\nlogging:\n  level: \" DEBUG \"\n  format: LogFmt\n")
+	cfg, err := Load(Source{Path: path, Explicit: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.Listen != "127.0.0.1" || cfg.Logging.Level != "debug" || cfg.Logging.Format != "logfmt" {
+		t.Fatalf("got %#v", cfg)
+	}
+}
+
+func TestValidateDoesNotModify(t *testing.T) {
+	cfg := Default()
+	cfg.Logging.Level = " INFO "
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("unnormalized level should be rejected by Validate")
+	}
+	if cfg.Logging.Level != " INFO " {
+		t.Fatalf("Validate modified the config: %q", cfg.Logging.Level)
+	}
+}
+
+func TestLoadMissingFile(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing.yaml")
-	config, err := loadRuntimeConfig(missing, false, mapEnvironment(nil))
+	cfg, err := Load(Source{Path: missing})
 	if err != nil {
 		t.Fatalf("implicit missing config should use defaults: %v", err)
 	}
-	if config.Address() != "127.0.0.1:8080" {
-		t.Fatalf("missing implicit config did not use defaults: %#v", config)
+	if cfg.Address() != "127.0.0.1:8080" {
+		t.Fatalf("missing implicit config did not use defaults: %#v", cfg)
 	}
-	if _, err := loadRuntimeConfig(missing, true, mapEnvironment(nil)); err == nil {
-		t.Fatal("explicit missing config should fail")
+	_, err = Load(Source{Path: missing, Explicit: true})
+	if err == nil || !strings.HasPrefix(err.Error(), "read config file: ") || !strings.Contains(err.Error(), missing) {
+		t.Fatalf("got %v, want a read error naming %q", err, missing)
 	}
-	if _, err := loadRuntimeConfig("", true, mapEnvironment(nil)); err == nil {
-		t.Fatal("explicit empty config path should fail")
+	for _, path := range []string{"", "   "} {
+		if _, err := Load(Source{Path: path, Explicit: true}); err == nil || err.Error() != "config file path must not be empty" {
+			t.Fatalf("Load(%q) error = %v", path, err)
+		}
 	}
 }
 
-func TestLoadRuntimeConfigRejectsInvalidValues(t *testing.T) {
+func TestLoadResolvesRelativePathAgainstWorkDir(t *testing.T) {
+	workDir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(workDir, "configs"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "configs", "config.local.yaml"), []byte("server:\n  port: 8088\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The process working directory holds no configuration, so only WorkDir can supply it.
+	t.Chdir(t.TempDir())
+	for _, explicit := range []bool{false, true} {
+		cfg, err := Load(Source{Path: "configs/config.local.yaml", Explicit: explicit, WorkDir: workDir})
+		if err != nil || cfg.Server.Port != 8088 {
+			t.Fatalf("explicit=%v: got %#v, %v", explicit, cfg.Server, err)
+		}
+	}
+}
+
+func TestLoadRejectsInvalidValues(t *testing.T) {
 	tests := []struct {
 		name    string
 		content string
 		want    string
 	}{
 		{name: "unknown field", content: "server:\n  porrt: 8080\n", want: "field porrt not found"},
-		{name: "invalid port", content: "server:\n  port: 70000\n", want: "port"},
-		{name: "listener includes port", content: "server:\n  listen: 127.0.0.1:8080\n", want: "listen"},
-		{name: "invalid health URI", content: "health:\n  uri: api/health\n", want: "health.uri"},
-		{name: "API conflict", content: "health:\n  uri: /api/health\n", want: "health.uri"},
-		{name: "invalid duration", content: "server:\n  read_timeout: 0s\n", want: "read_timeout"},
-		{name: "invalid log level", content: "logging:\n  level: trace\n", want: "logging.level"},
-		{name: "invalid log format", content: "logging:\n  format: plain\n", want: "logging.format"},
+		{name: "second document", content: "server:\n  port: 8080\n---\nserver:\n  port: 9090\n", want: "only one YAML document is allowed"},
+		{name: "invalid port", content: "server:\n  port: 70000\n", want: "server.port: must be between 1 and 65535"},
+		{name: "listener includes port", content: "server:\n  listen: 127.0.0.1:8080\n", want: "server.listen: must be a host name or an IP address without a port"},
+		{name: "removed health section", content: "health:\n  uri: /health\n", want: "field health not found"},
+		{name: "invalid duration", content: "server:\n  read_timeout: 0s\n", want: "server.read_timeout: must be greater than 0"},
+		{name: "unparsable duration", content: "server:\n  read_timeout: soon\n", want: `parse duration "soon"`},
+		{name: "invalid log level", content: "logging:\n  level: trace\n", want: "logging.level: must be debug, info, warn or error"},
+		{name: "invalid log format", content: "logging:\n  format: plain\n", want: "logging.format: must be json or logfmt"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			path := writeRuntimeConfig(t, test.content)
-			_, err := loadRuntimeConfig(path, true, mapEnvironment(nil))
+			_, err := Load(Source{Path: path, Explicit: true})
 			if err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("loadRuntimeConfig() error = %v, want containing %q", err, test.want)
+				t.Fatalf("got %v, want containing %q", err, test.want)
 			}
 		})
 	}
 }
 
-func TestLoadRuntimeConfigRejectsInvalidEnvironment(t *testing.T) {
-	tests := []map[string]string{
-		{"PORT": "zero"},
-		{"HEALTH_URI": "/"},
-		{"LOG_LEVEL": "verbose"},
-		{"LOG_FORMAT": "console"},
+func TestValidateReportsFieldError(t *testing.T) {
+	cfg := Default()
+	cfg.Server.Port = 0
+	fieldErr, ok := errors.AsType[*FieldError](cfg.Validate())
+	if !ok || fieldErr.Field != "server.port" || fieldErr.Error() != "server.port: must be between 1 and 65535" {
+		t.Fatalf("got %#v", fieldErr)
 	}
-	for _, environment := range tests {
-		if _, err := loadRuntimeConfig("", false, mapEnvironment(environment)); err == nil {
-			t.Fatalf("invalid environment should fail: %#v", environment)
+}
+
+func TestLoadRejectsInvalidEnvironment(t *testing.T) {
+	for _, tc := range []struct {
+		environment map[string]string
+		want        string
+	}{
+		{map[string]string{"HARBOR_CONSOLE_SERVER__PORT": "zero"}, "parse environment variable HARBOR_CONSOLE_SERVER__PORT: "},
+		{map[string]string{"HARBOR_CONSOLE_LOGGING__ACCESS_LOG": "maybe"}, "parse environment variable HARBOR_CONSOLE_LOGGING__ACCESS_LOG: "},
+		{map[string]string{"HARBOR_CONSOLE_SERVER__READ_TIMEOUT": "soon"}, "parse environment variable HARBOR_CONSOLE_SERVER__READ_TIMEOUT: "},
+		{map[string]string{"HARBOR_CONSOLE_LOGGING__LEVEL": "verbose"}, "logging.level: "},
+		{map[string]string{"HARBOR_CONSOLE_LOGGING__FORMAT": "console"}, "logging.format: "},
+	} {
+		_, err := Load(Source{LookupEnv: mapEnvironment(tc.environment)})
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("%v: got %v, want containing %q", tc.environment, err, tc.want)
 		}
+	}
+}
+
+func TestLoadIgnoresProcessEnvironment(t *testing.T) {
+	// Load reads only src.LookupEnv; CONFIG_FILE and field variables in the
+	// process environment have no effect.
+	t.Chdir(t.TempDir())
+	t.Setenv("CONFIG_FILE", "missing.yaml")
+	t.Setenv("HARBOR_CONSOLE_SERVER__PORT", "9010")
+	cfg, err := Load(Source{Path: "configs/config.local.yaml", WorkDir: t.TempDir()})
+	if err != nil || cfg.Server.Port != 8080 {
+		t.Fatalf("got %#v, %v", cfg.Server, err)
+	}
+}
+
+func TestLoadAppliesEnvironmentOverExplicitFile(t *testing.T) {
+	path := writeRuntimeConfig(t, "server:\n  port: 8088\n  listen: 0.0.0.0\n")
+	cfg, err := Load(Source{Path: path, Explicit: true, LookupEnv: mapEnvironment(map[string]string{"HARBOR_CONSOLE_SERVER__PORT": "9010", "PORT": "1"})})
+	if err != nil || cfg.Server.Listen != "0.0.0.0" || cfg.Server.Port != 9010 {
+		t.Fatalf("got %#v, %v", cfg, err)
 	}
 }
 
@@ -133,88 +209,9 @@ func writeRuntimeConfig(t *testing.T, content string) string {
 	return path
 }
 
-func mapEnvironment(values map[string]string) environmentLookup {
+func mapEnvironment(values map[string]string) func(string) (string, bool) {
 	return func(key string) (string, bool) {
 		value, ok := values[key]
 		return value, ok
-	}
-}
-
-func TestLoadConfigurationPaths(t *testing.T) {
-	// Exercise public loading from an isolated working directory, never user config.
-	t.Chdir(t.TempDir())
-	t.Setenv("CONFIG_FILE", "")
-	if err := os.Unsetenv("CONFIG_FILE"); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PORT", "9010")
-	if _, err := Load(); err != nil {
-		t.Fatalf("missing implicit config should use defaults: %v", err)
-	}
-	if err := os.WriteFile("config.yaml", []byte("health:\n  uri: /legacy-health\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := Load()
-	if err != nil || cfg.Health.URI != Default().Health.URI {
-		t.Fatalf("root config must not be auto-loaded: %#v, %v", cfg, err)
-	}
-	if err := os.Mkdir("configs", 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile("configs/config.local.yaml", []byte("server:\n  port: 8088\nhealth:\n  uri: /local-health\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err = Load()
-	if err != nil || cfg.Health.URI != "/local-health" || cfg.Server.Port != 9010 {
-		t.Fatalf("default configs path and environment precedence: %#v, %v", cfg, err)
-	}
-	absolute, err := filepath.Abs("configs/config.local.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, path := range []string{"configs/config.local.yaml", absolute} {
-		t.Setenv("CONFIG_FILE", path)
-		cfg, err := Load()
-		if err != nil || cfg.Health.URI != "/local-health" || cfg.Server.Port != 9010 {
-			t.Fatalf("explicit config %q and environment precedence: %#v, %v", path, cfg, err)
-		}
-	}
-	t.Setenv("CONFIG_FILE", "configs/missing.yaml")
-	if _, err := Load(); err == nil {
-		t.Fatal("explicit missing config should fail")
-	}
-	t.Setenv("CONFIG_FILE", "")
-	if _, err := Load(); err == nil {
-		t.Fatal("explicit empty config should fail")
-	}
-}
-
-func TestLoadFileOverridesSelectionButRetainsEnvironmentFields(t *testing.T) {
-	t.Chdir(t.TempDir())
-	t.Setenv("PORT", "9010")
-	t.Setenv("HEALTH_URI", "")
-	if err := os.Unsetenv("HEALTH_URI"); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile("custom.yaml", []byte("server:\n  port: 8088\nhealth:\n  uri: /custom-health\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	absolute, err := filepath.Abs("custom.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, environmentPath := range []string{"", "missing.yaml"} {
-		t.Setenv("CONFIG_FILE", environmentPath)
-		for _, path := range []string{"custom.yaml", absolute} {
-			cfg, err := LoadFile(path)
-			if err != nil || cfg.Health.URI != "/custom-health" || cfg.Server.Port != 9010 {
-				t.Fatalf("LoadFile(%q) = %#v, %v", path, cfg, err)
-			}
-		}
-	}
-	for _, path := range []string{"", "   ", "missing.yaml"} {
-		if _, err := LoadFile(path); err == nil {
-			t.Fatalf("LoadFile(%q) should fail", path)
-		}
 	}
 }

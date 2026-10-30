@@ -11,11 +11,11 @@ import (
 	"time"
 )
 
-func (state *demoState) writeList(w http.ResponseWriter, items []map[string]any, query url.Values) {
-	state.writeListAny(w, mapsToAny(items), query)
+func (ds *demoState) writeList(w http.ResponseWriter, items []map[string]any, query url.Values) {
+	ds.writeListAny(w, mapsToAny(items), query)
 }
 
-func (state *demoState) writeListAny(w http.ResponseWriter, items []any, query url.Values) {
+func (ds *demoState) writeListAny(w http.ResponseWriter, items []any, query url.Values) {
 	items = append([]any(nil), items...)
 	if sortField := strings.TrimSpace(strings.Split(query.Get("sort"), ",")[0]); sortField != "" {
 		descending := strings.HasPrefix(sortField, "-")
@@ -48,7 +48,7 @@ func (state *demoState) writeListAny(w http.ResponseWriter, items []any, query u
 	for _, item := range items[start:end] {
 		pageItems = append(pageItems, cloneDemoValue(item))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": pageItems, "pagination": map[string]any{"page": page, "page_size": pageSize, "total": total}, "link": ""})
+	writeJSON(w, http.StatusOK, controlList{Items: pageItems, Total: total, Offset: (page - 1) * pageSize, Limit: pageSize})
 }
 
 func compareDemoValues(left, right any) int {

@@ -1,8 +1,8 @@
 import { Component, Suspense, type ReactNode } from "react";
-
 import { useLocale } from "../app/locale-context";
 import { ControlDialog } from "./control-dialog";
-import { ErrorView, LoadingView } from "./feedback";
+import { ErrorView } from "./error-view";
+import { LoadingView } from "./loading-view";
 
 type AsyncContentProps = {
   children: ReactNode;
@@ -10,15 +10,19 @@ type AsyncContentProps = {
   onClose?: () => void;
 };
 
+type AsyncContentStateProps = {
+  failed?: boolean;
+  onClose?: () => void;
+};
+
 function AsyncContentState({
   failed = false,
   onClose,
-}: {
-  failed?: boolean;
-  onClose?: () => void;
-}) {
+}: AsyncContentStateProps) {
   const { t } = useLocale();
-  const reload = () => window.location.reload();
+  const reload = () => {
+    window.location.reload();
+  };
   if (onClose) {
     // Dialog modules load on demand; the placeholder keeps the overlay open
     // and closable while the module downloads.
@@ -56,19 +60,19 @@ class ContentErrorBoundary extends Component<
   AsyncContentProps,
   { failed: boolean }
 > {
-  state = { failed: false };
+  override state = { failed: false };
 
   static getDerivedStateFromError() {
     return { failed: true };
   }
 
-  componentDidUpdate(previous: AsyncContentProps) {
+  override componentDidUpdate(previous: AsyncContentProps) {
     if (this.state.failed && previous.resetKey !== this.props.resetKey) {
       this.setState({ failed: false });
     }
   }
 
-  render() {
+  override render() {
     return this.state.failed ? (
       <AsyncContentState failed onClose={this.props.onClose} />
     ) : (

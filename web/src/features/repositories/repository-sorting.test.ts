@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import type { RepositorySummary } from "../../app/models";
 import { sortRepositories } from "./repository-sorting";
 

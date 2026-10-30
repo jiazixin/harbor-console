@@ -1,0 +1,42 @@
+@layer ui-collections {
+  .repositoryAssetCardGrid :global(.hc_8b938f52_repositoryCard) header {
+    grid-template-columns: minmax(0, 1fr) 34px;
+  }
+}
+
+@layer ui-collections {
+  .repositoryAssetCardGrid :global(.hc_8b938f52_repositoryCard) dl {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 0;
+  }
+}
+
+@layer ui-collections {
+  .repositoryAssetCardGrid :global(.hc_8b938f52_repositoryCard) dl > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+}
+
+@layer ui-collections {
+  .repositoryAssetCardGrid
+    :global(.hc_8b938f52_repositoryCard)
+    dl
+    > div:first-child {
+    border-top: 0;
+  }
+}
+
+@layer ui-collections {
+  .repositoryAssetCardGrid :global(.hc_8b938f52_repositoryCard) dd {
+    flex: 0 0 auto;
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.repositoryAssetCardGrid {
+}

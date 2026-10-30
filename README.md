@@ -83,7 +83,7 @@ CGO_ENABLED=0 go build -trimpath -o bin/harbor-console ./cmd/harbor-console
 
 ## 配置
 
-配置文件选择顺序为 `-c` / `--config` > `CONFIG_FILE` > 工作目录下可选的 `configs/config.local.yaml`。文件内的字段仍按环境变量 > YAML 文件 > 内置默认值覆盖。显式指定空路径或不存在的文件会报错；多次指定不一致的配置路径也会报错。相对路径以进程工作目录为基准，部署时建议使用绝对路径。
+配置文件选择顺序为 `-c` / `--config` > `CONFIG_FILE` > 工作目录下可选的 `configs/config.local.yaml`。文件内的字段仍按环境变量 > YAML 文件 > 内置默认值覆盖。显式指定空路径或不存在的文件会报错（`CONFIG_FILE` 已设置但为空或全空白时报 `CONFIG_FILE is set but empty`）；多次指定不一致的配置路径也会报错。相对路径以进程工作目录为基准，部署时建议使用绝对路径。
 
 ```sh
 cp configs/config.example.yaml configs/config.local.yaml
@@ -97,23 +97,34 @@ CONFIG_FILE="$PWD/configs/config.local.yaml" ./bin/harbor-console
 ./bin/harbor-console --version   # 显示版本与提交，如 harbor-console v1.2.0 (revision=0123456789ab)
 ```
 
-帮助（英文）和版本信息输出到 stdout，不读取配置、不启动服务。无参数启动仍使用上述配置选择顺序，默认文件缺失时使用内置默认值。参数错误退出码为 2，配置或启动失败为 1，帮助和版本正常输出为 0。日志器就绪前的错误以 `harbor-console: <错误>` 纯文本写入 stderr，参数错误另附 `Run 'harbor-console --help' for usage.`。
+帮助（英文）和版本信息输出到 stdout，不读取环境变量和配置、不启动服务；同时给出时 `--help` 优先。无参数启动仍使用上述配置选择顺序，默认文件缺失时使用内置默认值。
+
+| 情况 | 输出 | 退出码 |
+| --- | --- | --- |
+| `-h` / `--help`、`--version` | stdout | 0 |
+| 参数错误 | stderr：`harbor-console: <错误>`，下一行 `Run 'harbor-console --help' for usage.` | 2 |
+| 日志器就绪前的失败（选择、加载、校验配置） | stderr 一行：`harbor-console: config: <错误>`，如 `harbor-console: config: server.port: must be between 1 and 65535` | 1 |
+| 日志器就绪后的失败（如端口被占用） | 只记录 `service_failed` 日志，不另写 stderr | 1 |
+| 收到 SIGINT / SIGTERM 后正常关闭 | 日志 | 0 |
+
+错误信息均为英文。服务日志依次记录 `service_starting`（含 `version`、`revision`）、`service_listening`（含 `listen`）、`service_stopping` 与 `service_stopped`。第一次信号开始在 `server.shutdown_timeout` 内优雅关闭，第二次信号立即终止进程。
 
 | 环境变量 | 作用 | 默认值 |
 | --- | --- | --- |
 | `CONFIG_FILE` | YAML 配置文件路径 | 存在时读取 `configs/config.local.yaml` |
-| `LISTEN` | 监听地址 | `127.0.0.1` |
-| `PORT` | 监听端口 | `8080` |
-| `HEALTH_URI` | 健康检查路径 | `/health` |
-| `LOG_LEVEL` | `debug`、`info`、`warn` 或 `error` | `info` |
-| `LOG_FORMAT` | `json` 或 `logfmt` | `json` |
-| `ACCESS_LOG` | 是否记录访问日志 | `true` |
-| `LOG_HEALTH_CHECKS` | 是否记录健康检查请求 | `false` |
-| `READ_HEADER_TIMEOUT` | 请求头读取超时 | `5s` |
-| `READ_TIMEOUT` | 请求读取超时 | `20s` |
-| `WRITE_TIMEOUT` | 响应写入超时 | `30s` |
-| `IDLE_TIMEOUT` | Keep-Alive 空闲超时 | `90s` |
-| `SHUTDOWN_TIMEOUT` | 优雅退出期限 | `10s` |
+| `HARBOR_CONSOLE_SERVER__LISTEN` | 监听地址 | `127.0.0.1` |
+| `HARBOR_CONSOLE_SERVER__PORT` | 监听端口 | `8080` |
+| `HARBOR_CONSOLE_LOGGING__LEVEL` | `debug`、`info`、`warn` 或 `error` | `info` |
+| `HARBOR_CONSOLE_LOGGING__FORMAT` | `json` 或 `logfmt` | `json` |
+| `HARBOR_CONSOLE_LOGGING__ACCESS_LOG` | 是否记录访问日志 | `true` |
+| `HARBOR_CONSOLE_LOGGING__LOG_HEALTH_CHECKS` | 是否记录健康检查请求 | `false` |
+| `HARBOR_CONSOLE_SERVER__READ_HEADER_TIMEOUT` | 请求头读取超时 | `5s` |
+| `HARBOR_CONSOLE_SERVER__READ_TIMEOUT` | 请求读取超时 | `20s` |
+| `HARBOR_CONSOLE_SERVER__WRITE_TIMEOUT` | 响应写入超时 | `30s` |
+| `HARBOR_CONSOLE_SERVER__IDLE_TIMEOUT` | Keep-Alive 空闲超时 | `90s` |
+| `HARBOR_CONSOLE_SERVER__SHUTDOWN_TIMEOUT` | 优雅退出期限 | `10s` |
+
+健康检查固定为无需登录的 `GET /healthz`，返回 `{"status":"ok"}`；`GET /api/info` 返回版本与能力列表。
 
 完整示例见 [configs/config.example.yaml](configs/config.example.yaml)。
 
@@ -167,12 +178,14 @@ docker run --rm -p 127.0.0.1:8080:8080 \
 
 ```sh
 npm --prefix web run dev      # Vite 开发服务器，代理到 Go 后端
-npm --prefix web run check    # Prettier、ESLint、TypeScript
+npm --prefix web run format:check   # Prettier
+npm --prefix web run lint     # ESLint、Stylelint
+npm --prefix web run typecheck  # TypeScript
 npm --prefix web run build    # 生成 web/dist；任何 Go 命令之前必须执行
 npm --prefix web test         # 合同与组件测试
-go vet ./cmd/... ./internal/... ./web
-go test -race ./cmd/... ./internal/... ./web -count=1
-npm --prefix web run test:browser   # Playwright 路由矩阵
+go vet ./...
+CGO_ENABLED=1 go test -race -count=1 ./...
+npm --prefix web run test:e2e   # Playwright 路由矩阵
 ```
 
 浏览器引擎安装、覆盖率、漏洞审计和“改哪里”见 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)。推送到 `main` 和提交 Pull Request 时，[CI](.github/workflows/ci.yml) 会运行 Web 与 Go 检查和测试、依赖漏洞审计、Chromium / Firefox / WebKit 路由矩阵、容器构建与 smoke test，以及覆盖全部发布目标的 GoReleaser 快照构建。依赖由维护者手动升级；Actions 与 Docker 基础镜像分别固定到提交 SHA 和 digest，由 `scripts/check-deployment-pins.mjs` 检查。
@@ -181,7 +194,7 @@ npm --prefix web run test:browser   # Playwright 路由矩阵
 
 - 发布 tag 采用 `v主版本.次版本.修订版本`，预发布如 `v1.2.0-rc.1` 会自动标为 Pre-release。
 - 推送 tag 触发 [Release 工作流](.github/workflows/release.yml)：先测试该提交，核对构建出的二进制恰好报告该版本和提交，再由 GoReleaser 发布 linux / darwin / windows 的 amd64 与 arm64 包及 `checksums.txt`。
-- 版本、提交和构建时间取自 Go 根据 git 嵌入的 tag / 伪版本、提交和提交时间，启动时写入 `internal/buildinfo`，显示在 `--version`、`server_started` 日志和“关于”页面中；GoReleaser 不再注入任何值。没有 `.git` 的构建（如 Docker）只能通过 `-ldflags "-X main.version=..."`（Docker 为 `--build-arg VERSION=...`）指定版本；都没有时显示 `dev`。
+- 版本、提交和构建时间取自 Go 根据 git 嵌入的 tag / 伪版本、提交和提交时间，由 `cmd/harbor-console` 以参数传给应用装配，显示在 `--version`、`service_starting` 日志（`version`、`revision` 字段）和“关于”页面中；GoReleaser 不再注入任何值。没有 `.git` 的构建（如 Docker）只能通过 `-ldflags "-X main.version=..."`（Docker 为 `--build-arg VERSION=...`）指定版本；都没有时显示 `dev`。
 
 本地预演（不发布，输出在忽略的 `bin/release/`）：
 
@@ -208,7 +221,6 @@ cmd/harbor-console/      可执行程序入口
 internal/app/            HTTP 应用、会话、网关和演示
 internal/config/         YAML 与环境变量配置
 internal/observability/  结构化日志与访问日志
-internal/buildinfo/      构建版本元数据
 web/                     唯一的 npm / Vite 边界：React 源码、测试、E2E、embed.go
 configs/                 配置示例；本地实例被忽略
 scripts/                 CI 使用的仓库检查脚本

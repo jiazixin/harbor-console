@@ -1,7 +1,7 @@
-import type { ConsoleRoute } from "../../app/hash-router";
+import type { ConsoleRoute } from "../../app/console-route";
 import type { HarborPermission } from "../../app/models";
-import { createSortValues } from "../../components/data-table";
-import { type IconName } from "../../components/icons";
+import { createSortValues } from "../../components/data-table-support";
+import { type IconName } from "../../components/icons-support";
 
 const defaultPageSize = 50;
 const defaultRepositorySort = "-update_time";
@@ -182,11 +182,15 @@ export function projectSectionPath(
     ...updates,
     sort:
       updates.sort ??
-      (updates.section && updates.section !== state.section
-        ? nextSection === "audit"
-          ? defaultAuditSort
-          : defaultRepositorySort
-        : state.sort),
+      (() => {
+        if (updates.section && updates.section !== state.section) {
+          if (nextSection === "audit") {
+            return defaultAuditSort;
+          }
+          return defaultRepositorySort;
+        }
+        return state.sort;
+      })(),
   };
   const query = new URLSearchParams();
   if (next.page > 1) query.set("page", String(next.page));

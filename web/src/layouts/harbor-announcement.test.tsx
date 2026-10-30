@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-
-import { LocaleProvider } from "../app/locale-context";
+import { TestProviders } from "../test/test-providers";
+import { setupUser } from "../test/user";
 import { HarborAnnouncement, parseAnnouncement } from "./harbor-announcement";
 
 afterEach(() => {
@@ -30,19 +30,20 @@ describe("Harbor announcement", () => {
     expect(parseAnnouncement(JSON.stringify({ message: " " }), now)).toBe(null);
   });
 
-  it("renders a closable announcement and remembers the dismissal", () => {
+  it("renders a closable announcement and remembers the dismissal", async () => {
+    const user = setupUser();
     const raw = JSON.stringify({
       message: "今晚 22:00 维护",
       type: "danger",
       closable: true,
     });
     render(
-      <LocaleProvider>
+      <TestProviders>
         <HarborAnnouncement rawValue={raw} />
-      </LocaleProvider>,
+      </TestProviders>,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("今晚 22:00 维护");
-    fireEvent.click(screen.getByRole("button", { name: "关闭公告" }));
+    await user.click(screen.getByRole("button", { name: "关闭公告" }));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(
       window.sessionStorage.getItem("harbor-console-dismissed-announcement"),

@@ -35,7 +35,15 @@ func TestServeHTTPWaitsForActiveRequest(t *testing.T) {
 	go func() { served <- serveHTTP(ctx, server, listener, time.Second) }()
 	responseDone := make(chan error, 1)
 	go func() {
-		response, err := http.Get("http://" + listener.Addr().String())
+		requestCtx, stop := context.WithTimeout(t.Context(), 3*time.Second)
+		defer stop()
+		request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, "http://"+listener.Addr().String(), nil)
+		if err != nil {
+			responseDone <- err
+			return
+		}
+		client := &http.Client{Timeout: 3 * time.Second}
+		response, err := client.Do(request)
 		if err == nil {
 			defer response.Body.Close()
 			var content []byte
@@ -82,7 +90,15 @@ func TestServeHTTPClosesRequestsAfterShutdownDeadline(t *testing.T) {
 	go func() { served <- serveHTTP(ctx, server, listener, 20*time.Millisecond) }()
 	responseDone := make(chan error, 1)
 	go func() {
-		response, err := http.Get("http://" + listener.Addr().String())
+		requestCtx, stop := context.WithTimeout(t.Context(), 3*time.Second)
+		defer stop()
+		request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, "http://"+listener.Addr().String(), nil)
+		if err != nil {
+			responseDone <- err
+			return
+		}
+		client := &http.Client{Timeout: 3 * time.Second}
+		response, err := client.Do(request)
 		if response != nil {
 			_ = response.Body.Close()
 		}

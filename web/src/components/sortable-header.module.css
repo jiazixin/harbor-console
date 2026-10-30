@@ -1,0 +1,74 @@
+@layer ui-collections {
+  .tableSortButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: inherit;
+    cursor: pointer;
+  }
+}
+
+@layer ui-collections {
+  .tableSortButton:hover,
+  .tableSortButton.isActive {
+    color: var(--ink);
+  }
+}
+
+@layer ui-collections {
+  .tableSortButton:focus-visible {
+    outline: 2px solid var(--orange-strong);
+    outline-offset: 3px;
+  }
+}
+
+@layer ui-collections {
+  .tableSortIndicator {
+    width: 10px;
+    flex: 0 0 10px;
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0;
+    color: var(--ink-faint);
+  }
+}
+
+@layer ui-collections {
+  .tableSortChevron {
+    width: 10px;
+    height: 10px;
+    transform: rotate(-90deg);
+  }
+}
+
+@layer ui-collections {
+  .tableSortChevronDesc {
+    margin-top: -5px;
+    transform: rotate(90deg);
+  }
+}
+
+@layer ui-collections {
+  .tableSortChevron.isCurrent {
+    color: var(--orange-strong);
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.tableSortButton {
+}
+.isActive {
+}
+.tableSortIndicator {
+}
+.tableSortChevron {
+}
+.tableSortChevronDesc {
+}
+.isCurrent {
+}

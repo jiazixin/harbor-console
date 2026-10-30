@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-
-import { parseHarborLogLine } from "./structured-log";
+import { parseHarborLogLine } from "./structured-log-support";
 
 describe("parseHarborLogLine", () => {
   it("normalizes WARNING without leaving prefix text", () => {

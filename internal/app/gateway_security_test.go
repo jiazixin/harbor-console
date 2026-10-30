@@ -23,15 +23,15 @@ func TestControlSecurityOperationsUseOfficialAPI(t *testing.T) {
 		export     bool
 		raw        bool
 	}{
-		{name: "security summary", method: http.MethodGet, consoleURL: "/api/control/security-summary?with_dangerous_cve=true&with_dangerous_artifact=true", wantPath: "/api/v2.0/security/summary", upstream: `{}`, status: http.StatusOK},
-		{name: "security vulnerabilities", method: http.MethodGet, consoleURL: "/api/control/security-vulnerabilities?page=2&page_size=50&q=severity%3DCritical&tune_count=true&with_tag=true", wantPath: "/api/v2.0/security/vul", upstream: `[]`, status: http.StatusOK},
-		{name: "stop artifact scan", method: http.MethodPost, consoleURL: "/api/control/artifact-scan-stop?project=platform&repository=platform%2Fteam%2Fgateway&reference=sha256%3Aabc", wantPath: "/api/v2.0/projects/platform/repositories/team%252Fgateway/artifacts/sha256:abc/scan/stop", body: `{"scan_type":"vulnerability"}`, upstream: `{}`, status: http.StatusAccepted},
-		{name: "artifact scan log", method: http.MethodGet, consoleURL: "/api/control/artifact-scan-log?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc&report=report-1", wantPath: "/api/v2.0/projects/platform/repositories/gateway/artifacts/sha256:abc/scan/report-1/log", upstream: `scan completed`, status: http.StatusOK},
-		{name: "get system allowlist", method: http.MethodGet, consoleURL: "/api/control/system-cve-allowlist", wantPath: "/api/v2.0/system/CVEAllowlist", upstream: allowlistBody, status: http.StatusOK},
-		{name: "create cve export", method: http.MethodPost, consoleURL: "/api/control/cve-export", wantPath: "/api/v2.0/export/cve", body: exportBody, upstream: `{"id":9}`, status: http.StatusOK, export: true},
-		{name: "list cve exports", method: http.MethodGet, consoleURL: "/api/control/cve-export-executions", wantPath: "/api/v2.0/export/cve/executions", upstream: `{"items":[]}`, status: http.StatusOK},
-		{name: "get cve export", method: http.MethodGet, consoleURL: "/api/control/cve-export-execution?id=9", wantPath: "/api/v2.0/export/cve/execution/9", upstream: `{"id":9}`, status: http.StatusOK},
-		{name: "download cve export", method: http.MethodGet, consoleURL: "/api/control/cve-export-download?id=9&format=CSV", wantPath: "/api/v2.0/export/cve/download/9", upstream: "cve_id,severity\nCVE-2026-1842,Critical\n", status: http.StatusOK, raw: true},
+		{name: "security summary", method: http.MethodGet, consoleURL: "/api/operations/security-summary?with_dangerous_cve=true&with_dangerous_artifact=true", wantPath: "/api/v2.0/security/summary", upstream: `{}`, status: http.StatusOK},
+		{name: "security vulnerabilities", method: http.MethodGet, consoleURL: "/api/operations/security-vulnerabilities?offset=50&limit=50&q=severity%3DCritical&tune_count=true&with_tag=true", wantPath: "/api/v2.0/security/vul", upstream: `[]`, status: http.StatusOK},
+		{name: "stop artifact scan", method: http.MethodPost, consoleURL: "/api/operations/artifact-scan-stop?project=platform&repository=platform%2Fteam%2Fgateway&reference=sha256%3Aabc", wantPath: "/api/v2.0/projects/platform/repositories/team%252Fgateway/artifacts/sha256:abc/scan/stop", body: `{"scan_type":"vulnerability"}`, upstream: `{}`, status: http.StatusAccepted},
+		{name: "artifact scan log", method: http.MethodGet, consoleURL: "/api/operations/artifact-scan-log?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc&report=report-1", wantPath: "/api/v2.0/projects/platform/repositories/gateway/artifacts/sha256:abc/scan/report-1/log", upstream: `scan completed`, status: http.StatusOK},
+		{name: "get system allowlist", method: http.MethodGet, consoleURL: "/api/operations/system-cve-allowlist", wantPath: "/api/v2.0/system/CVEAllowlist", upstream: allowlistBody, status: http.StatusOK},
+		{name: "create cve export", method: http.MethodPost, consoleURL: "/api/operations/cve-export", wantPath: "/api/v2.0/export/cve", body: exportBody, upstream: `{"id":9}`, status: http.StatusOK, export: true},
+		{name: "list cve exports", method: http.MethodGet, consoleURL: "/api/operations/cve-export-executions", wantPath: "/api/v2.0/export/cve/executions", upstream: `{"items":[]}`, status: http.StatusOK},
+		{name: "get cve export", method: http.MethodGet, consoleURL: "/api/operations/cve-export-execution?id=9", wantPath: "/api/v2.0/export/cve/execution/9", upstream: `{"id":9}`, status: http.StatusOK},
+		{name: "download cve export", method: http.MethodGet, consoleURL: "/api/operations/cve-export-download?id=9&format=CSV", wantPath: "/api/v2.0/export/cve/download/9", upstream: "cve_id,severity\nCVE-2026-1842,Critical\n", status: http.StatusOK, raw: true},
 	}
 
 	for _, test := range tests {
@@ -61,8 +61,8 @@ func TestControlSecurityOperationsUseOfficialAPI(t *testing.T) {
 				}
 				return test.status, test.upstream
 			})
-			current := createTestSession(t, application, client, false)
-			request := httptest.NewRequest(test.method, test.consoleURL, strings.NewReader(test.body))
+			current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+			request := jsonRequest(test.method, test.consoleURL, strings.NewReader(test.body))
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			if test.method != http.MethodGet {
 				request.Host = "console.test"
@@ -123,8 +123,8 @@ func TestSystemCVEAllowlistUpdateUsesAuthoritativeIdentityAndVerifiesPersistence
 			return http.StatusInternalServerError, `{}`
 		}
 	})
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodPut, "/api/control/system-cve-allowlist", strings.NewReader(`{"expires_at":null,"items":[]}`))
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := jsonRequest(http.MethodPut, "/api/operations/system-cve-allowlist", strings.NewReader(`{"expires_at":null,"items":[]}`))
 	request.Host = "console.test"
 	request.Header.Set("Origin", "http://console.test")
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
@@ -160,8 +160,8 @@ func TestSystemCVEAllowlistUpdateRejectsFalseSuccessAfterVerification(t *testing
 			return http.StatusInternalServerError, `{}`
 		}
 	})
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodPut, "/api/control/system-cve-allowlist", strings.NewReader(`{"expires_at":null,"items":[]}`))
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := jsonRequest(http.MethodPut, "/api/operations/system-cve-allowlist", strings.NewReader(`{"expires_at":null,"items":[]}`))
 	request.Host = "console.test"
 	request.Header.Set("Origin", "http://console.test")
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
@@ -170,7 +170,7 @@ func TestSystemCVEAllowlistUpdateRejectsFalseSuccessAfterVerification(t *testing
 	if recorder.Code == http.StatusOK {
 		t.Fatalf("false success reported after persistence mismatch: %s", recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), "Harbor 已接受写入") || !strings.Contains(recorder.Body.String(), "回读的 CVE Allowlist 与请求不一致") {
+	if !strings.Contains(recorder.Body.String(), `"code":"harbor_write_unconfirmed"`) || !strings.Contains(recorder.Body.String(), `"reason":"harbor_readback_mismatch"`) {
 		t.Fatalf("mismatch detail missing: %s", recorder.Body.String())
 	}
 }
@@ -200,11 +200,11 @@ func TestControlRejectsInvalidSecurityBodies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			current := createTestSession(t, application, mockClient(func(*http.Request) (int, string) {
+			current := createTestSession(t, testSessionOptions{application: application, client: mockClient(func(*http.Request) (int, string) {
 				t.Fatal("invalid security request reached Harbor")
 				return http.StatusInternalServerError, `{}`
-			}), false)
-			request := httptest.NewRequest(test.method, "/api/control/"+test.operation, strings.NewReader(test.body))
+			}), demo: false})
+			request := jsonRequest(test.method, "/api/operations/"+test.operation, strings.NewReader(test.body))
 			request.Host = "console.test"
 			request.Header.Set("Origin", "http://console.test")
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
@@ -230,25 +230,25 @@ func TestControlP2PPreheatOperationsUseOfficialAPI(t *testing.T) {
 		status     int
 		project    bool
 	}{
-		{name: "list provider types", method: http.MethodGet, consoleURL: "/api/control/preheat-providers", wantPath: "/api/v2.0/p2p/preheat/providers", upstream: `[{"id":"dragonfly"}]`, status: http.StatusOK},
-		{name: "list instances", method: http.MethodGet, consoleURL: "/api/control/preheat-instances?page=1&page_size=20&sort=name&q=name%3D~prod", wantPath: "/api/v2.0/p2p/preheat/instances", upstream: `[]`, status: http.StatusOK},
-		{name: "create instance", method: http.MethodPost, consoleURL: "/api/control/preheat-instances", wantPath: "/api/v2.0/p2p/preheat/instances", body: instanceBody, upstream: `{}`, status: http.StatusCreated},
-		{name: "get instance", method: http.MethodGet, consoleURL: "/api/control/preheat-instance?name=dragonfly-prod", wantPath: "/api/v2.0/p2p/preheat/instances/dragonfly-prod", upstream: instanceBody, status: http.StatusOK},
-		{name: "update instance", method: http.MethodPut, consoleURL: "/api/control/preheat-instance?name=dragonfly-prod", wantPath: "/api/v2.0/p2p/preheat/instances/dragonfly-prod", body: instanceBody, upstream: `{}`, status: http.StatusOK},
-		{name: "delete instance", method: http.MethodDelete, consoleURL: "/api/control/preheat-instance?name=dragonfly-prod", wantPath: "/api/v2.0/p2p/preheat/instances/dragonfly-prod", upstream: `{}`, status: http.StatusOK},
-		{name: "ping saved instance", method: http.MethodPost, consoleURL: "/api/control/preheat-instance-ping", wantPath: "/api/v2.0/p2p/preheat/instances/ping", body: `{"id":4}`, upstream: `{}`, status: http.StatusOK},
-		{name: "list project providers", method: http.MethodGet, consoleURL: "/api/control/project-preheat-providers?project=platform", wantPath: "/api/v2.0/projects/platform/preheat/providers", upstream: `[{"id":4,"provider":"dragonfly"}]`, status: http.StatusOK, project: true},
-		{name: "list policies", method: http.MethodGet, consoleURL: "/api/control/preheat-policies?project=platform&page=1&page_size=20&sort=-update_time", wantPath: "/api/v2.0/projects/platform/preheat/policies", upstream: `[]`, status: http.StatusOK, project: true},
-		{name: "create policy", method: http.MethodPost, consoleURL: "/api/control/preheat-policies?project=platform", wantPath: "/api/v2.0/projects/platform/preheat/policies", body: policyBody, upstream: `{}`, status: http.StatusCreated, project: true},
-		{name: "get policy", method: http.MethodGet, consoleURL: "/api/control/preheat-policy?project=platform&name=release", wantPath: "/api/v2.0/projects/platform/preheat/policies/release", upstream: policyBody, status: http.StatusOK, project: true},
-		{name: "update policy", method: http.MethodPut, consoleURL: "/api/control/preheat-policy?project=platform&name=release", wantPath: "/api/v2.0/projects/platform/preheat/policies/release", body: policyBody, upstream: `{}`, status: http.StatusOK, project: true},
-		{name: "manual preheat", method: http.MethodPost, consoleURL: "/api/control/preheat-policy?project=platform&name=release", wantPath: "/api/v2.0/projects/platform/preheat/policies/release", body: policyBody, upstream: `{}`, status: http.StatusCreated, project: true},
-		{name: "delete policy", method: http.MethodDelete, consoleURL: "/api/control/preheat-policy?project=platform&name=release", wantPath: "/api/v2.0/projects/platform/preheat/policies/release", upstream: `{}`, status: http.StatusOK, project: true},
-		{name: "list executions", method: http.MethodGet, consoleURL: "/api/control/preheat-executions?project=platform&name=release&page=1&page_size=20", wantPath: "/api/v2.0/projects/platform/preheat/policies/release/executions", upstream: `[]`, status: http.StatusOK, project: true},
-		{name: "get execution", method: http.MethodGet, consoleURL: "/api/control/preheat-execution?project=platform&name=release&id=9", wantPath: "/api/v2.0/projects/platform/preheat/policies/release/executions/9", upstream: `{"id":9}`, status: http.StatusOK, project: true},
-		{name: "stop execution", method: http.MethodPatch, consoleURL: "/api/control/preheat-execution?project=platform&name=release&id=9", wantPath: "/api/v2.0/projects/platform/preheat/policies/release/executions/9", body: `{"status":"Stopped"}`, upstream: `{}`, status: http.StatusOK, project: true},
-		{name: "list tasks", method: http.MethodGet, consoleURL: "/api/control/preheat-tasks?project=platform&name=release&id=9&page=1&page_size=20", wantPath: "/api/v2.0/projects/platform/preheat/policies/release/executions/9/tasks", upstream: `[]`, status: http.StatusOK, project: true},
-		{name: "get task log", method: http.MethodGet, consoleURL: "/api/control/preheat-task-log?project=platform&name=release&id=9&task=10", wantPath: "/api/v2.0/projects/platform/preheat/policies/release/executions/9/tasks/10/logs", upstream: "done", status: http.StatusOK, project: true},
+		{name: "list provider types", method: http.MethodGet, consoleURL: "/api/operations/preheat-providers", wantPath: "/api/v2.0/p2p/preheat/providers", upstream: `[{"id":"dragonfly"}]`, status: http.StatusOK},
+		{name: "list instances", method: http.MethodGet, consoleURL: "/api/operations/preheat-instances?offset=0&limit=20&sort=name&q=name%3D~prod", wantPath: "/api/v2.0/p2p/preheat/instances", upstream: `[]`, status: http.StatusOK},
+		{name: "create instance", method: http.MethodPost, consoleURL: "/api/operations/preheat-instances", wantPath: "/api/v2.0/p2p/preheat/instances", body: instanceBody, upstream: `{}`, status: http.StatusCreated},
+		{name: "get instance", method: http.MethodGet, consoleURL: "/api/operations/preheat-instance?name=dragonfly-prod", wantPath: "/api/v2.0/p2p/preheat/instances/dragonfly-prod", upstream: instanceBody, status: http.StatusOK},
+		{name: "update instance", method: http.MethodPut, consoleURL: "/api/operations/preheat-instance?name=dragonfly-prod", wantPath: "/api/v2.0/p2p/preheat/instances/dragonfly-prod", body: instanceBody, upstream: `{}`, status: http.StatusOK},
+		{name: "delete instance", method: http.MethodDelete, consoleURL: "/api/operations/preheat-instance?name=dragonfly-prod", wantPath: "/api/v2.0/p2p/preheat/instances/dragonfly-prod", upstream: `{}`, status: http.StatusOK},
+		{name: "ping saved instance", method: http.MethodPost, consoleURL: "/api/operations/preheat-instance-ping", wantPath: "/api/v2.0/p2p/preheat/instances/ping", body: `{"id":4}`, upstream: `{}`, status: http.StatusOK},
+		{name: "list project providers", method: http.MethodGet, consoleURL: "/api/operations/project-preheat-providers?project=platform", wantPath: "/api/v2.0/projects/platform/preheat/providers", upstream: `[{"id":4,"provider":"dragonfly"}]`, status: http.StatusOK, project: true},
+		{name: "list policies", method: http.MethodGet, consoleURL: "/api/operations/preheat-policies?project=platform&offset=0&limit=20&sort=-update_time", wantPath: "/api/v2.0/projects/platform/preheat/policies", upstream: `[]`, status: http.StatusOK, project: true},
+		{name: "create policy", method: http.MethodPost, consoleURL: "/api/operations/preheat-policies?project=platform", wantPath: "/api/v2.0/projects/platform/preheat/policies", body: policyBody, upstream: `{}`, status: http.StatusCreated, project: true},
+		{name: "get policy", method: http.MethodGet, consoleURL: "/api/operations/preheat-policy?project=platform&name=release", wantPath: "/api/v2.0/projects/platform/preheat/policies/release", upstream: policyBody, status: http.StatusOK, project: true},
+		{name: "update policy", method: http.MethodPut, consoleURL: "/api/operations/preheat-policy?project=platform&name=release", wantPath: "/api/v2.0/projects/platform/preheat/policies/release", body: policyBody, upstream: `{}`, status: http.StatusOK, project: true},
+		{name: "manual preheat", method: http.MethodPost, consoleURL: "/api/operations/preheat-policy?project=platform&name=release", wantPath: "/api/v2.0/projects/platform/preheat/policies/release", body: policyBody, upstream: `{}`, status: http.StatusCreated, project: true},
+		{name: "delete policy", method: http.MethodDelete, consoleURL: "/api/operations/preheat-policy?project=platform&name=release", wantPath: "/api/v2.0/projects/platform/preheat/policies/release", upstream: `{}`, status: http.StatusOK, project: true},
+		{name: "list executions", method: http.MethodGet, consoleURL: "/api/operations/preheat-executions?project=platform&name=release&offset=0&limit=20", wantPath: "/api/v2.0/projects/platform/preheat/policies/release/executions", upstream: `[]`, status: http.StatusOK, project: true},
+		{name: "get execution", method: http.MethodGet, consoleURL: "/api/operations/preheat-execution?project=platform&name=release&id=9", wantPath: "/api/v2.0/projects/platform/preheat/policies/release/executions/9", upstream: `{"id":9}`, status: http.StatusOK, project: true},
+		{name: "stop execution", method: http.MethodPatch, consoleURL: "/api/operations/preheat-execution?project=platform&name=release&id=9", wantPath: "/api/v2.0/projects/platform/preheat/policies/release/executions/9", body: `{"status":"Stopped"}`, upstream: `{}`, status: http.StatusOK, project: true},
+		{name: "list tasks", method: http.MethodGet, consoleURL: "/api/operations/preheat-tasks?project=platform&name=release&id=9&offset=0&limit=20", wantPath: "/api/v2.0/projects/platform/preheat/policies/release/executions/9/tasks", upstream: `[]`, status: http.StatusOK, project: true},
+		{name: "get task log", method: http.MethodGet, consoleURL: "/api/operations/preheat-task-log?project=platform&name=release&id=9&task=10", wantPath: "/api/v2.0/projects/platform/preheat/policies/release/executions/9/tasks/10/logs", upstream: "done", status: http.StatusOK, project: true},
 	}
 
 	for _, test := range tests {
@@ -275,8 +275,8 @@ func TestControlP2PPreheatOperationsUseOfficialAPI(t *testing.T) {
 				}
 				return test.status, test.upstream
 			})
-			current := createTestSession(t, application, client, false)
-			request := httptest.NewRequest(test.method, test.consoleURL, strings.NewReader(test.body))
+			current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+			request := jsonRequest(test.method, test.consoleURL, strings.NewReader(test.body))
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			if test.method != http.MethodGet {
 				request.Host = "console.test"
@@ -300,7 +300,7 @@ func TestControlP2PPreheatRejectsInvalidOfficialPayloads(t *testing.T) {
 		t.Fatalf("invalid P2P request reached Harbor: %s", request.URL.Path)
 		return http.StatusInternalServerError, `{}`
 	})
-	current := createTestSession(t, application, client, false)
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
 	tests := []struct{ name, operation, body string }{
 		{name: "invalid instance name", operation: "preheat-instances", body: `{"name":"bad name","vendor":"dragonfly","endpoint":"https://dragonfly.test"}`},
 		{name: "unsafe endpoint", operation: "preheat-instances", body: `{"name":"dragonfly","vendor":"dragonfly","endpoint":"file:///etc/passwd"}`},
@@ -309,7 +309,7 @@ func TestControlP2PPreheatRejectsInvalidOfficialPayloads(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, "/api/control/"+test.operation, strings.NewReader(test.body))
+			request := jsonRequest(http.MethodPost, "/api/operations/"+test.operation, strings.NewReader(test.body))
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			request.Host = "console.test"
 			request.Header.Set("Origin", "http://console.test")

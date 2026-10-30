@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-
 import { controlApi, loadAllControlItems } from "../../app/api-client";
-import type { ConsoleRoute } from "../../app/hash-router";
+import type { ConsoleRoute } from "../../app/console-route";
 import type { ControlList, ProjectSummary } from "../../app/models";
-import { createSortValues } from "../../components/data-table";
+import { useLoadedQuery } from "../../app/use-loaded-query";
+import { createSortValues } from "../../components/data-table-support";
+import { projectKeys } from "./project-keys";
 
 const defaultPageSize = 50;
 export const pageSizeOptions = [20, 50, 100];
@@ -95,18 +95,30 @@ function filterParameters({
   return {
     name: query,
     owner,
-    public:
-      visibility === "public" ? true : visibility === "private" ? false : "",
+    public: (() => {
+      if (visibility === "public") {
+        return true;
+      }
+      if (visibility === "private") {
+        return false;
+      }
+      return "";
+    })(),
     with_detail: true,
   };
 }
 
-function compareProjects(
-  left: ProjectSummary,
-  right: ProjectSummary,
-  sort: string,
-  locale: string,
-): number {
+function compareProjects({
+  left,
+  right,
+  sort,
+  locale,
+}: {
+  left: ProjectSummary;
+  right: ProjectSummary;
+  sort: string;
+  locale: string;
+}): number {
   const descending = sort.startsWith("-");
   const field = sort.replace(/^-/, "");
   const comparison =
@@ -116,14 +128,6 @@ function compareProjects(
         Number(metadataEnabled(right, field as "public"));
   if (comparison) return descending ? -comparison : comparison;
   return left.name.localeCompare(right.name, locale);
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError";
 }
 
 type ProjectListData = {
@@ -146,30 +150,12 @@ export function useProjectList(
   route: ProjectRouteState,
   locale: string,
 ): ProjectListData {
-  const [page, setPage] = useState<ControlList<ProjectSummary>>();
-  const [pageLoading, setPageLoading] = useState(true);
-  const [tableError, setTableError] = useState("");
-  const [visibleProjects, setVisibleProjects] = useState<ProjectSummary[]>();
-  const [overviewError, setOverviewError] = useState("");
-  const [reloadToken, setReloadToken] = useState(0);
-  const reload = useCallback(
-    () => setReloadToken((current) => current + 1),
-    [],
-  );
   const localSort = isLocalSort(route.sort);
   const { query, owner, visibility } = route;
-
-  useEffect(() => {
-    if (localSort) {
-      setPageLoading(false);
-      setTableError("");
-      return;
-    }
-    const controller = new AbortController();
-    setPageLoading(true);
-    setTableError("");
-    void controlApi
-      .list<ProjectSummary>(
+  const pageQuery = useLoadedQuery(
+    projectKeys.list({ route }),
+    (signal) =>
+      controlApi.list<ProjectSummary>(
         "projects",
         {
           page: route.page,
@@ -177,47 +163,45 @@ export function useProjectList(
           sort: route.sort,
           ...filterParameters(route),
         },
-        controller.signal,
-      )
-      .then(setPage)
-      .catch((error: unknown) => {
-        if (!isAbortError(error)) setTableError(errorText(error));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setPageLoading(false);
-      });
-    return () => controller.abort();
-  }, [localSort, reloadToken, route]);
-
-  // The overview depends only on the filters, not on paging or sorting.
-  useEffect(() => {
-    const controller = new AbortController();
-    setVisibleProjects(undefined);
-    setOverviewError("");
-    void loadAllControlItems<ProjectSummary>(
-      "projects",
-      {
-        sort: defaultSort,
-        ...filterParameters({ query, owner, visibility }),
-      },
-      controller.signal,
-    )
-      .then(setVisibleProjects)
-      .catch((error: unknown) => {
-        if (!isAbortError(error)) setOverviewError(errorText(error));
-      });
-    return () => controller.abort();
-  }, [owner, query, reloadToken, visibility]);
-
-  const locallySorted = useMemo(
-    () =>
-      localSort && visibleProjects
-        ? [...visibleProjects].sort((left, right) =>
-            compareProjects(left, right, route.sort, locale),
-          )
-        : undefined,
-    [locale, localSort, route.sort, visibleProjects],
+        signal,
+      ),
+    { enabled: !localSort },
   );
+  // The overview depends only on the filters, not on paging or sorting.
+  const overviewQuery = useLoadedQuery(
+    projectKeys.list({ overview: { query, owner, visibility } }),
+    (signal) =>
+      loadAllControlItems<ProjectSummary>(
+        "projects",
+        {
+          sort: defaultSort,
+          ...filterParameters({ query, owner, visibility }),
+        },
+        signal,
+      ),
+    { keepPrevious: false },
+  );
+  const page = pageQuery.data;
+  const pageLoading = !localSort && pageQuery.loading;
+  const tableError = localSort ? "" : pageQuery.error;
+  const visibleProjects = overviewQuery.data;
+  const overviewError = overviewQuery.error;
+  const reload = () => {
+    if (!localSort) pageQuery.reload();
+    overviewQuery.reload();
+  };
+
+  const locallySorted = (() =>
+    localSort && visibleProjects
+      ? [...visibleProjects].sort((left, right) =>
+          compareProjects({
+            left: left,
+            right: right,
+            sort: route.sort,
+            locale: locale,
+          }),
+        )
+      : undefined)();
 
   if (!localSort) {
     return {

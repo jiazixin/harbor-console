@@ -1,0 +1,589 @@
+/* Administration center styles. */
+:global(.hc_8b938f52_directorySelectionRow) .globalLabelColorField {
+  min-width: 0;
+}
+
+.globalLabelPalette {
+  display: grid;
+  grid-template-columns: repeat(12, 30px);
+  gap: 7px;
+}
+
+.globalLabelColorSwatch {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--surface);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--surface) 35%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--palette-000000) 18%, transparent);
+}
+
+.globalLabelPresetFill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.globalLabelPresetCheck {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+}
+
+.globalLabelColorSwatch:hover {
+  transform: translateY(-1px);
+}
+
+.globalLabelColorSwatch[aria-pressed="true"] {
+  border-color: var(--surface-raised);
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.globalLabelColorSwatch:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.globalLabelColorSwatch :global(.hc_8b938f52_icon) {
+  width: 15px;
+  height: 15px;
+  stroke-width: 3;
+  filter: drop-shadow(0 1px 1px var(--palette-rgba-0-0-0-0_45));
+}
+
+.globalLabelCustomColor {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+.globalLabelCustomColor input[type="color"] {
+  width: 54px;
+  min-height: 32px;
+  padding: 3px;
+}
+
+.globalLabelCustomColor code {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.toolbarNote {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.quotaCell {
+  min-width: 128px;
+  display: grid;
+  grid-template-columns: minmax(76px, 1fr) 42px;
+  align-items: center;
+  gap: 8px;
+}
+
+.quotaTrack {
+  width: 100%;
+  height: 6px;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--surface-subtle);
+  appearance: none;
+}
+
+.quotaTrack::-webkit-progress-bar {
+  border-radius: inherit;
+  background: var(--surface-subtle);
+}
+
+.quotaTrack::-webkit-progress-value {
+  border-radius: inherit;
+  background: var(--orange);
+}
+
+.quotaTrack::-moz-progress-bar {
+  border-radius: inherit;
+  background: var(--orange);
+}
+
+.quotaCell small {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: right;
+}
+
+.maintenanceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+/* Cards share a row height; actions stay on the bottom edge of each card. */
+.maintenanceCard {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.maintenanceCardHead {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--line);
+}
+
+.maintenanceCardHead h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.maintenanceCardHead p {
+  margin: 3px 0 0;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.maintenanceFacts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 16px 0;
+}
+
+.maintenanceFactsCompact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.maintenanceFacts > div {
+  min-width: 0;
+  padding: 0 12px;
+  border-left: 1px solid var(--line);
+}
+
+.maintenanceFacts > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.maintenanceFacts dt {
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.maintenanceFacts dd {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.maintenanceActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  gap: var(--space-control);
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.maintenanceHistory {
+  grid-column: 1 / -1;
+}
+
+.purgeAdminLayout > .maintenanceCard {
+  grid-column: 1 / -1;
+}
+
+.jobserviceLayout {
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.jobserviceStats {
+  margin-bottom: 0;
+}
+
+.jobserviceLayout :global(.hc_8b938f52_tableShell) {
+  min-width: 0;
+}
+
+.purgeEventSelector {
+  max-height: 310px;
+  overflow-y: auto;
+}
+
+.administrationConfig {
+  padding-bottom: 24px;
+}
+
+.adminConfigFields {
+  margin-top: 22px;
+}
+
+.configSubtabs {
+  display: flex;
+  gap: 24px;
+  margin: -6px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.configSubtabs a {
+  position: relative;
+  padding: 11px 2px 12px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.configSubtabs a:hover,
+.configSubtabs a:global(.hc_8b938f52_active) {
+  color: var(--ink);
+}
+
+.configSubtabs a:global(.hc_8b938f52_active)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--orange);
+}
+
+.configurationForm {
+  padding-bottom: 8px;
+}
+
+.configurationActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-control);
+}
+
+.configurationGroup {
+  padding: 20px 0 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.configurationGroup:last-child {
+  border-bottom: 0;
+}
+
+.configurationGroupHead {
+  margin-bottom: 16px;
+}
+
+.configurationGroupHead h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.configurationGroupHead p {
+  margin: 2px 0 0;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.configurationGroup :global(.hc_8b938f52_settingsGrid) {
+  margin-bottom: 8px;
+}
+
+.configurationGroup [data-auth-common] :global(.hc_8b938f52_toggleSetting) {
+  min-height: 64px;
+}
+
+.systemCertificateRow {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.systemCertificateRow > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.systemCertificateRow strong {
+  font-size: 12px;
+}
+
+.systemCertificateRow small {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.auditEventConfig {
+  min-width: 0;
+  margin: 20px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.auditEventConfig legend {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.auditEventConfig :global(.hc_8b938f52_checkGrid) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.auditEventConfig :global(.hc_8b938f52_checkRow) {
+  min-height: 56px;
+  margin: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.robotProjectScope {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.scopeSelect {
+  min-width: 190px;
+}
+
+.systemProjectList {
+  min-width: 0;
+  max-height: 460px;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+}
+
+.systemProjectPermission + .systemProjectPermission {
+  border-top: 1px solid var(--line);
+}
+
+.systemProjectEditor {
+  min-height: 310px;
+  display: grid;
+  grid-template-columns: minmax(210px, 0.7fr) minmax(0, 1.6fr);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+}
+
+.systemProjectPermission {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: center;
+  padding-right: 9px;
+  background: var(--surface);
+}
+
+.systemProjectPermission:global(.hc_8b938f52_active) {
+  background: var(--orange-soft);
+  box-shadow: inset 3px 0 0 var(--orange);
+}
+
+.systemProjectChoice {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.systemProjectChoice input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--orange);
+}
+
+.systemProjectChoice > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.systemProjectChoice strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.systemProjectChoice small {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.systemProjectDetails {
+  min-width: 0;
+  max-height: 460px;
+  overflow-y: auto;
+  padding: 14px;
+  background: var(--surface-raised);
+}
+
+.systemProjectDetails :global(.hc_b5a1cef6_permissionMatrix) {
+  margin-top: 0;
+}
+
+.systemProjectEmpty {
+  min-height: 280px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  color: var(--ink-faint);
+  text-align: center;
+}
+
+.systemProjectEmpty :global(.hc_8b938f52_icon) {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 3px;
+}
+
+.systemProjectEmpty strong {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.systemProjectEmpty span {
+  max-width: 260px;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .maintenanceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .maintenanceHistory {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .auditEventConfig :global(.hc_8b938f52_checkGrid) {
+    grid-template-columns: 1fr;
+  }
+
+  .configurationActions {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .configurationActions :global(.hc_8b938f52_button) {
+    flex: 1 1 150px;
+  }
+
+  .systemCertificateRow {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .systemCertificateRow :global(.hc_8b938f52_button) {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .globalLabelPalette {
+    grid-template-columns: repeat(6, 30px);
+  }
+
+  .scopeSelect {
+    width: 100%;
+  }
+
+  .systemProjectEditor {
+    min-height: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .systemProjectList {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .systemProjectDetails {
+    max-height: none;
+    padding: 10px;
+  }
+
+  .systemProjectEmpty {
+    min-height: 150px;
+  }
+
+  .maintenanceFacts {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .maintenanceFacts > div,
+  .maintenanceFacts > div:first-child {
+    padding: 0;
+    border-left: 0;
+  }
+
+  .maintenanceActions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .administrationTabs {
+    gap: 20px;
+  }
+}
+
+/* Interaction motion has one owner. Only progress indicators use linear timing. */
+.configSubtabs a,
+.administrationTabs a,
+.administrationTabs button {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}

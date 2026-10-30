@@ -1,8 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../../app/locale-context";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
 import { AboutPage, harborSwaggerURL } from "./about-page";
 
 const session = {
@@ -27,7 +26,7 @@ describe("about page", () => {
     expect(harborSwaggerURL({ ...session, demo: true })).toBe("");
   });
 
-  it("renders version and license data from /api/about", async () => {
+  it("renders version and license data from /api/info", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -36,7 +35,7 @@ describe("about page", () => {
             console: {
               version: "v1.0.0",
               commit: "abc123",
-              build_date: "2026-08-03",
+              build_date: "2026-08-03T00:00:00.000Z",
               deployment: "single-binary",
               offline: true,
             },
@@ -51,7 +50,7 @@ describe("about page", () => {
       ),
     );
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <AboutPage
           session={session}
@@ -59,7 +58,7 @@ describe("about page", () => {
           refreshing={false}
           onRefresh={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("私有镜像仓库控制端")).toBeVisible();

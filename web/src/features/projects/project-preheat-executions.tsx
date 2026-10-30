@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
-
+import { useState } from "react";
 import { controlApi } from "../../app/api-client";
-import { formatDate, formatDuration, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type {
   ControlPagination,
@@ -9,18 +7,33 @@ import type {
   PreheatPolicy,
   PreheatTask,
 } from "../../app/models";
+import { displayTimeZone } from "../../app/preferences";
+import { useControlMutation } from "../../app/use-control-mutation";
+import { useLoadedQuery } from "../../app/use-loaded-query";
 import { ControlDialog } from "../../components/control-dialog";
+import { DialogLoading } from "../../components/dialog-loading";
 import { EmptyState } from "../../components/empty-state";
-import {
-  DialogLoading,
-  ExecutionSection,
-  ExecutionSummary,
-} from "../../components/execution-summary";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
+import { ErrorView } from "../../components/error-view";
+import { ExecutionSection } from "../../components/execution-section";
+import { ExecutionSummary } from "../../components/execution-summary";
+import { Icon } from "../../components/icon";
+import uiStyles0 from "../../components/shared-ui.module.css";
 import { StatusBadge } from "../../components/status-badge";
-import { TaskLogPanel, useTaskLog } from "../../components/task-log-panel";
+import { TaskLogPanel } from "../../components/task-log-panel";
+import { useTaskLog } from "../../components/use-task-log";
+import { createClassNames } from "../../lib/css/class-names";
+import {
+  formatDate,
+  formatDuration,
+  formatNumber,
+} from "../../lib/format/formatters";
+import { artifactKeys } from "../artifacts/public";
+import { repositoryKeys } from "../repositories/public";
 import { DialogPagination } from "./dialog-pagination";
+import { projectKeys } from "./project-keys";
+
+// Queries that a write in this module can change.
+const affectedQueries = [projectKeys.all, repositoryKeys.all, artifactKeys.all];
 
 /** Harbor's largest page; execution history pages in steps of this size. */
 const historyPageSize = 100;
@@ -86,39 +99,20 @@ function executionStatusLabel(status: string | undefined): string {
   return status ?? "未知";
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError";
-}
-
 /**
  * Loads the policy's executions, or the tasks of the selected execution.
  * Selecting an execution also refreshes its details from Harbor.
  */
 function usePreheatExecutionHistory(project: string, policyName: string) {
   const [executionPage, setExecutionPage] = useState(1);
-  const [executions, setExecutions] = useState<PreheatExecution[]>([]);
-  const [executionPagination, setExecutionPagination] =
-    useState(emptyPagination);
   const [selectedExecution, setSelectedExecution] =
     useState<PreheatExecution>();
   const [taskPage, setTaskPage] = useState(1);
-  const [tasks, setTasks] = useState<PreheatTask[]>([]);
-  const [taskPagination, setTaskPagination] = useState(emptyPagination);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const selectedExecutionId = selectedExecution?.id;
-
-  useEffect(() => {
-    if (selectedExecutionId !== undefined) return;
-    const controller = new AbortController();
-    setLoading(true);
-    setError("");
-    void controlApi
-      .list<PreheatExecution>(
+  const executionsQuery = useLoadedQuery(
+    projectKeys.preheatExecutions({ project, policyName, executionPage }),
+    (signal) =>
+      controlApi.list<PreheatExecution>(
         "preheat-executions",
         {
           project,
@@ -127,100 +121,99 @@ function usePreheatExecutionHistory(project: string, policyName: string) {
           page_size: historyPageSize,
           sort: "-start_time",
         },
-        controller.signal,
-      )
-      .then((result) => {
-        setExecutions(result.items);
-        setExecutionPagination(result.pagination);
-      })
-      .catch((loadError: unknown) => {
-        if (!isAbortError(loadError)) setError(errorText(loadError));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [executionPage, policyName, project, selectedExecutionId]);
-
-  useEffect(() => {
-    if (selectedExecutionId === undefined) return;
-    const controller = new AbortController();
-    const execution = { project, name: policyName, id: selectedExecutionId };
-    setLoading(true);
-    setError("");
-    void Promise.all([
-      controlApi.data<PreheatExecution>(
-        "preheat-execution",
-        execution,
-        controller.signal,
+        signal,
       ),
-      controlApi.list<PreheatTask>(
-        "preheat-tasks",
-        {
-          ...execution,
-          page: taskPage,
-          page_size: historyPageSize,
-          sort: "-creation_time",
-        },
-        controller.signal,
-      ),
-    ])
-      .then(([details, collection]) => {
-        if (details) setSelectedExecution(details);
-        setTasks(collection.items);
-        setTaskPagination(collection.pagination);
-      })
-      .catch((loadError: unknown) => {
-        if (!isAbortError(loadError)) setError(errorText(loadError));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [policyName, project, selectedExecutionId, taskPage]);
+    { enabled: selectedExecutionId === undefined },
+  );
+  // Enabled only with a selection, so the fallback id is never sent.
+  const execution = {
+    project,
+    name: policyName,
+    id: selectedExecutionId ?? 0,
+  };
+  const tasksQuery = useLoadedQuery(
+    projectKeys.preheatExecutions({ ...execution, taskPage }),
+    async (signal) => {
+      const [details, collection] = await Promise.all([
+        controlApi.data<PreheatExecution>(
+          "preheat-execution",
+          execution,
+          signal,
+        ),
+        controlApi.list<PreheatTask>(
+          "preheat-tasks",
+          {
+            ...execution,
+            page: taskPage,
+            page_size: historyPageSize,
+            sort: "-creation_time",
+          },
+          signal,
+        ),
+      ]);
+      return { details, collection };
+    },
+    { enabled: selectedExecutionId !== undefined },
+  );
+  const activeQuery =
+    selectedExecutionId === undefined ? executionsQuery : tasksQuery;
+  // Placeholder data may still belong to the previous selection.
+  const details = tasksQuery.data?.details;
 
   return {
-    executions,
-    executionPagination,
+    executions: executionsQuery.data?.items ?? [],
+    executionPagination: executionsQuery.data?.pagination ?? emptyPagination(),
     setExecutionPage,
-    selectedExecution,
-    selectExecution: (execution: PreheatExecution | undefined) => {
+    selectedExecution:
+      details && details.id === selectedExecutionId
+        ? details
+        : selectedExecution,
+    selectExecution: (next: PreheatExecution | undefined) => {
       setTaskPage(1);
-      setSelectedExecution(execution);
+      setSelectedExecution(next);
     },
-    tasks,
-    taskPagination,
+    tasks: tasksQuery.data?.collection.items ?? [],
+    taskPagination: tasksQuery.data?.collection.pagination ?? emptyPagination(),
     setTaskPage,
-    loading,
-    error,
+    loading: activeQuery.loading,
+    error: activeQuery.error,
   };
 }
+
+type PreheatExecutionSummaryProps = {
+  execution: PreheatExecution;
+  taskTotal: number;
+  onBack: () => void;
+  onStop: () => void;
+};
 
 function PreheatExecutionSummary({
   execution,
   taskTotal,
   onBack,
   onStop,
-}: {
-  execution: PreheatExecution;
-  taskTotal: number;
-  onBack: () => void;
-  onStop: () => void;
-}) {
+}: PreheatExecutionSummaryProps) {
   const { locale, t } = useLocale();
   const metrics = execution.metrics;
   return (
     <ExecutionSummary
       status={execution.status}
       leading={
-        <button className="button button-small" type="button" onClick={onBack}>
+        <button
+          className={resolveClasses("button button-small")}
+          type="button"
+          onClick={onBack}
+        >
           <Icon name="chevron-left" />
           <span>{t("执行历史")}</span>
         </button>
       }
       details={[
         t(triggerLabel(execution.trigger)),
-        formatDate(execution.start_time, locale),
+        formatDate(execution.start_time, {
+          locale: locale,
+          timeZone: displayTimeZone(),
+        }),
       ]}
       stats={[
         { label: "总任务", value: metrics?.task_count ?? taskTotal },
@@ -235,7 +228,7 @@ function PreheatExecutionSummary({
       action={
         canStopExecution(execution.status) ? (
           <button
-            className="button button-small button-danger"
+            className={resolveClasses("button button-small button-danger")}
             type="button"
             onClick={onStop}
           >
@@ -248,13 +241,12 @@ function PreheatExecutionSummary({
   );
 }
 
-function PreheatTaskTable({
-  tasks,
-  onShowLog,
-}: {
+type PreheatTaskTableProps = {
   tasks: PreheatTask[];
   onShowLog: (task: PreheatTask) => void;
-}) {
+};
+
+function PreheatTaskTable({ tasks, onShowLog }: PreheatTaskTableProps) {
   const { locale, t } = useLocale();
   if (!tasks.length) {
     return (
@@ -269,23 +261,23 @@ function PreheatTaskTable({
     <table>
       <thead>
         <tr>
-          <th className="id-column">{t("任务")}</th>
+          <th className={resolveClasses("id-column")}>{t("任务")}</th>
           <th>{t("制品")}</th>
           <th>{t("摘要")}</th>
           <th>{t("类型")}</th>
           <th>{t("状态")}</th>
           <th>{locale === "en-US" ? "Retries" : "重试"}</th>
-          <th className="table-cell-time">{t("开始时间")}</th>
-          <th className="table-cell-time">{t("结束时间")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("开始时间")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("结束时间")}</th>
           <th>{t("日志")}</th>
         </tr>
       </thead>
       <tbody>
         {tasks.map((task) => (
           <tr key={task.id}>
-            <td className="id-cell">#{task.id}</td>
+            <td className={resolveClasses("id-cell")}>#{task.id}</td>
             <td
-              className="replication-resource"
+              className={resolveClasses("replication-resource")}
               title={task.extra_attrs?.artifact}
             >
               {task.extra_attrs?.artifact ?? "-"}
@@ -300,19 +292,27 @@ function PreheatTaskTable({
               <StatusBadge status={task.status} />
             </td>
             <td>{formatNumber(task.run_count, locale)}</td>
-            <td className="table-cell-time">
-              {formatDate(task.start_time, locale)}
+            <td className={resolveClasses("table-cell-time")}>
+              {formatDate(task.start_time, {
+                locale: locale,
+                timeZone: displayTimeZone(),
+              })}
             </td>
-            <td className="table-cell-time">
-              {formatDate(task.end_time, locale)}
+            <td className={resolveClasses("table-cell-time")}>
+              {formatDate(task.end_time, {
+                locale: locale,
+                timeZone: displayTimeZone(),
+              })}
             </td>
             <td>
               <button
-                className="icon-button"
+                className={resolveClasses("icon-button")}
                 type="button"
                 title={t("查看日志")}
                 aria-label={t("查看预热任务日志")}
-                onClick={() => onShowLog(task)}
+                onClick={() => {
+                  onShowLog(task);
+                }}
               >
                 <Icon name="history" />
               </button>
@@ -324,13 +324,15 @@ function PreheatTaskTable({
   );
 }
 
+type PreheatExecutionTableProps = {
+  executions: PreheatExecution[];
+  onSelect: (execution: PreheatExecution) => void;
+};
+
 function PreheatExecutionTable({
   executions,
   onSelect,
-}: {
-  executions: PreheatExecution[];
-  onSelect: (execution: PreheatExecution) => void;
-}) {
+}: PreheatExecutionTableProps) {
   const { locale, t } = useLocale();
   if (!executions.length) {
     return (
@@ -345,44 +347,49 @@ function PreheatExecutionTable({
     <table>
       <thead>
         <tr>
-          <th className="id-column">{t("执行")}</th>
+          <th className={resolveClasses("id-column")}>{t("执行")}</th>
           <th>{t("触发方式")}</th>
           <th>{t("状态")}</th>
           <th>{t("任务")}</th>
           <th>{t("成功")}</th>
           <th>{t("失败")}</th>
-          <th className="table-cell-time">{t("开始时间")}</th>
-          <th className="table-cell-time">{t("耗时")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("开始时间")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("耗时")}</th>
           <th />
         </tr>
       </thead>
       <tbody>
         {executions.map((execution) => (
           <tr key={execution.id}>
-            <td className="id-cell">#{execution.id}</td>
+            <td className={resolveClasses("id-cell")}>#{execution.id}</td>
             <td>{t(triggerLabel(execution.trigger))}</td>
             <td>
               <StatusBadge status={execution.status} />
             </td>
             <td>{formatNumber(execution.metrics?.task_count, locale)}</td>
-            <td className="success-text">
+            <td className={resolveClasses("success-text")}>
               {formatNumber(execution.metrics?.success_task_count, locale)}
             </td>
-            <td className="danger-text">
+            <td className={resolveClasses("danger-text")}>
               {formatNumber(execution.metrics?.error_task_count, locale)}
             </td>
-            <td className="table-cell-time">
-              {formatDate(execution.start_time, locale)}
+            <td className={resolveClasses("table-cell-time")}>
+              {formatDate(execution.start_time, {
+                locale: locale,
+                timeZone: displayTimeZone(),
+              })}
             </td>
-            <td className="table-cell-time">
+            <td className={resolveClasses("table-cell-time")}>
               {formatDuration(execution.start_time, execution.end_time, locale)}
             </td>
             <td>
               <button
-                className="button button-small"
+                className={resolveClasses("button button-small")}
                 type="button"
                 aria-label={t("查看预热执行任务")}
-                onClick={() => onSelect(execution)}
+                onClick={() => {
+                  onSelect(execution);
+                }}
               >
                 <Icon name="history" />
                 <span>{t("查看任务")}</span>
@@ -395,36 +402,34 @@ function PreheatExecutionTable({
   );
 }
 
+type PreheatExecutionsDialogProps = {
+  project: string;
+  policy: PreheatPolicy;
+  onClose: () => void;
+  onChanged: (message: string) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
+
 export function PreheatExecutionsDialog({
   project,
   policy,
   onClose,
   onChanged,
   onNotice,
-}: {
-  project: string;
-  policy: PreheatPolicy;
-  onClose: () => void;
-  onChanged: (message: string) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: PreheatExecutionsDialogProps) {
   const { locale, t } = useLocale();
   const history = usePreheatExecutionHistory(project, policy.name);
   const [stopExecution, setStopExecution] = useState<PreheatExecution>();
   const selected = history.selectedExecution;
-  const taskLog = useTaskLog<PreheatTask>((task, signal) =>
-    controlApi.data<string>(
-      "preheat-task-log",
-      { project, name: policy.name, id: selected?.id, task: task.id },
-      signal,
-    ),
+  const taskLog = useTaskLog<PreheatTask>(
+    (task, signal) =>
+      controlApi.data<string>(
+        "preheat-task-log",
+        { project, name: policy.name, id: selected?.id, task: task.id },
+        signal,
+      ),
+    projectKeys.taskLog("preheat-log", [project, policy.name, selected?.id]),
   );
-  const { close: closeTaskLog } = taskLog;
-
-  // A log belongs to one execution; selecting another execution closes it.
-  useEffect(() => {
-    closeTaskLog();
-  }, [closeTaskLog, selected?.id]);
 
   if (stopExecution) {
     return (
@@ -432,8 +437,12 @@ export function PreheatExecutionsDialog({
         project={project}
         policy={policy}
         execution={stopExecution}
-        onClose={() => setStopExecution(undefined)}
-        onStopped={() => onChanged("P2P 预热执行已停止")}
+        onClose={() => {
+          setStopExecution(undefined);
+        }}
+        onStopped={() => {
+          onChanged("P2P 预热执行已停止");
+        }}
       />
     );
   }
@@ -443,18 +452,27 @@ export function PreheatExecutionsDialog({
     history.executionPagination.total,
     locale,
   );
-  const title = selected
-    ? locale === "en-US"
-      ? `Preheat execution #${String(selected.id)}`
-      : `预热执行 #${String(selected.id)}`
-    : locale === "en-US"
-      ? `Preheat policy ${policy.name}`
-      : `预热策略 ${policy.name}`;
-  const subtitle = selected
-    ? `${t(executionStatusLabel(selected.status))} · ${locale === "en-US" ? `${taskTotal} tasks` : `${taskTotal} 个任务`}`
-    : locale === "en-US"
-      ? `${executionTotal} executions`
-      : `${executionTotal} 次执行`;
+  const title = (() => {
+    if (selected) {
+      if (locale === "en-US") {
+        return `Preheat execution #${String(selected.id)}`;
+      }
+      return `预热执行 #${String(selected.id)}`;
+    }
+    if (locale === "en-US") {
+      return `Preheat policy ${policy.name}`;
+    }
+    return `预热策略 ${policy.name}`;
+  })();
+  const subtitle = (() => {
+    if (selected) {
+      return `${t(executionStatusLabel(selected.status))} · ${locale === "en-US" ? `${taskTotal} tasks` : `${taskTotal} 个任务`}`;
+    }
+    if (locale === "en-US") {
+      return `${executionTotal} executions`;
+    }
+    return `${executionTotal} 次执行`;
+  })();
 
   function renderContent() {
     if (history.loading) {
@@ -482,7 +500,7 @@ export function PreheatExecutionsDialog({
               : `共 ${executionTotal} 次执行`
           }
         >
-          <div className="table-scroll">
+          <div className={resolveClasses("table-scroll")}>
             <PreheatExecutionTable
               executions={history.executions}
               onSelect={history.selectExecution}
@@ -503,8 +521,12 @@ export function PreheatExecutionsDialog({
         <PreheatExecutionSummary
           execution={selected}
           taskTotal={history.taskPagination.total}
-          onBack={() => history.selectExecution(undefined)}
-          onStop={() => setStopExecution(selected)}
+          onBack={() => {
+            history.selectExecution(undefined);
+          }}
+          onStop={() => {
+            setStopExecution(selected);
+          }}
         />
         <ExecutionSection
           title="预热任务"
@@ -512,7 +534,9 @@ export function PreheatExecutionsDialog({
             locale === "en-US" ? `${taskTotal} items` : `共 ${taskTotal} 项`
           }
         >
-          <div className="table-scroll replication-task-table">
+          <div
+            className={resolveClasses("table-scroll replication-task-table")}
+          >
             <PreheatTaskTable
               tasks={history.tasks}
               onShowLog={(task) => void taskLog.open(task)}
@@ -552,7 +576,7 @@ export function PreheatExecutionsDialog({
       submitLabel="关闭"
       submitIcon="x"
       showCancel={false}
-      dialogClass="control-dialog-wide"
+      dialogClass={resolveClasses("control-dialog-wide")}
       initialFocusSelector={null}
       onClose={onClose}
       onSubmit={() => {
@@ -565,19 +589,22 @@ export function PreheatExecutionsDialog({
   );
 }
 
+type StopPreheatExecutionDialogProps = {
+  project: string;
+  policy: PreheatPolicy;
+  execution: PreheatExecution;
+  onClose: () => void;
+  onStopped: () => void;
+};
+
 function StopPreheatExecutionDialog({
   project,
   policy,
   execution,
   onClose,
   onStopped,
-}: {
-  project: string;
-  policy: PreheatPolicy;
-  execution: PreheatExecution;
-  onClose: () => void;
-  onStopped: () => void;
-}) {
+}: StopPreheatExecutionDialogProps) {
+  const mutate = useControlMutation(affectedQueries);
   const { locale, t } = useLocale();
   return (
     <ControlDialog
@@ -592,16 +619,16 @@ function StopPreheatExecutionDialog({
       destructive
       onClose={onClose}
       onSubmit={async () => {
-        await controlApi.mutate(
-          "preheat-execution",
-          { project, name: policy.name, id: execution.id },
-          "PATCH",
-          { status: "Stopped" },
-        );
+        await mutate({
+          operation: "preheat-execution",
+          parameters: { project, name: policy.name, id: execution.id },
+          method: "PATCH",
+          payload: { status: "Stopped" },
+        });
         onStopped();
       }}
     >
-      <div className="notice notice-danger">
+      <div className={resolveClasses("notice notice-danger")}>
         <Icon name="alert" />
         <span>
           {t("已经完成的预热任务不会回滚，运行中的任务将由 Harbor 请求停止。")}
@@ -610,3 +637,40 @@ function StopPreheatExecutionDialog({
     </ControlDialog>
   );
 }
+
+const resolveClasses = createClassNames({
+  "control-dialog": uiStyles0.controlDialog,
+  "dialog-loading": uiStyles0.dialogLoading,
+  "empty-state": uiStyles0.emptyState,
+  "execution-summary": uiStyles0.executionSummary,
+  icon: uiStyles0.icon,
+  "status-badge": uiStyles0.statusBadge,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "button-danger": uiStyles0.buttonDanger,
+  "id-column": uiStyles0.idColumn,
+  "table-cell-time": uiStyles0.tableCellTime,
+  "id-cell": uiStyles0.idCell,
+  "replication-resource": uiStyles0.replicationResource,
+  "icon-button": uiStyles0.iconButton,
+  "success-text": uiStyles0.successText,
+  "danger-text": uiStyles0.dangerText,
+  "table-scroll": uiStyles0.tableScroll,
+  "replication-task-table": uiStyles0.replicationTaskTable,
+  "control-dialog-wide": uiStyles0.controlDialogWide,
+  notice: uiStyles0.notice,
+  "notice-danger": uiStyles0.noticeDanger,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

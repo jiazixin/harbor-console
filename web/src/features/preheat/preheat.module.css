@@ -1,0 +1,83 @@
+/* P2P distribution page styles. */
+
+.preheatProviderBand {
+  min-height: 94px;
+  display: grid;
+  grid-template-columns: minmax(190px, 0.38fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--orange);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.preheatProviderList {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preheatProviderBadge {
+  min-width: 156px;
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+}
+
+.preheatProviderBadge > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.preheatProviderBadge strong,
+.preheatProviderBadge small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preheatProviderBadge strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.preheatProviderBadge small {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.preheatProviderBand h2 {
+  margin: 3px 0 0;
+  color: var(--ink);
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+@media (max-width: 620px) {
+  .preheatProviderBand {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .preheatProviderList {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .preheatProviderBadge {
+    min-width: 0;
+  }
+}

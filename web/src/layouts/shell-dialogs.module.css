@@ -1,0 +1,88 @@
+@layer ui-dialogs {
+  .preferenceSections {
+    display: grid;
+    gap: 18px;
+  }
+}
+
+@layer ui-dialogs {
+  .preferenceSection {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+}
+
+@layer ui-dialogs {
+  .preferenceSection legend {
+    padding: 0;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 700;
+  }
+}
+
+@layer ui-dialogs {
+  .preferenceSection > p {
+    margin: 3px 0 9px;
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .preferenceChoiceGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+}
+
+@layer ui-dialogs {
+  .preferenceChoiceGrid.three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@layer ui-dialogs {
+  .preferenceChoiceGrid :global(.hc_8b938f52_checkRow) {
+    min-width: 0;
+    min-height: 58px;
+    margin: 0;
+  }
+}
+
+@layer ui-dialogs {
+  @media (max-width: 720px) {
+    .preferenceChoiceGrid,
+    .preferenceChoiceGrid.three {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+@layer ui-dialogs {
+  .dialogSecondaryAction {
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-control-group);
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.preferenceSections {
+}
+.preferenceSection {
+}
+.preferenceChoiceGrid {
+}
+.three {
+}
+.dialogSecondaryAction {
+}

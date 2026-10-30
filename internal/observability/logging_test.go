@@ -58,7 +58,7 @@ func TestAccessLoggerRecordsRequestWithoutQuery(t *testing.T) {
 		w.WriteHeader(http.StatusTeapot)
 		_, _ = w.Write([]byte("teapot"))
 	})
-	handler := AccessLog(next, logger, config.Logging{AccessLog: true}, "/health")
+	handler := AccessLog(AccessLogOptions{Logger: logger, Settings: config.Logging{AccessLog: true}, HealthPaths: []string{"/health"}})(next)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/api/example?token=secret", nil)
 	request.RemoteAddr = "192.0.2.10:4321"
@@ -91,7 +91,7 @@ func TestAccessLoggerSuppressesHealthChecks(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var output bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&output, nil))
-			handler := AccessLog(next, logger, config.Logging{AccessLog: true, LogHealthChecks: test.logHealth}, "/health")
+			handler := AccessLog(AccessLogOptions{Logger: logger, Settings: config.Logging{AccessLog: true, LogHealthChecks: test.logHealth}, HealthPaths: []string{"/health"}})(next)
 			handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/health", nil))
 			if got := output.Len() > 0; got != test.wantOutput {
 				t.Fatalf("health log output = %q, wantOutput %v", output.String(), test.wantOutput)

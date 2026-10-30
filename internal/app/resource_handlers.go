@@ -44,17 +44,17 @@ var resourceSpecs = map[string]resourceSpec{
 func (a *app) handleResource(w http.ResponseWriter, r *http.Request) {
 	current, ok := a.currentSession(r)
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "会话已失效", "请重新连接 Harbor")
+		writeError(w, r, errSessionRequired)
 		return
 	}
 	if len(r.URL.RawQuery) > maxQueryBytes {
-		writeError(w, http.StatusBadRequest, "查询参数过长", "请缩短筛选条件后重试")
+		writeError(w, r, errQueryTooLong)
 		return
 	}
 	kind := r.PathValue("kind")
 	spec, ok := resourceSpecs[kind]
 	if !ok {
-		writeError(w, http.StatusNotFound, "未知资源", "该资源不在 Harbor 代理允许列表中")
+		writeError(w, r, failure(http.StatusNotFound, "not_found", "resource is not in the Harbor proxy allowlist"))
 		return
 	}
 	input := r.URL.Query()
@@ -64,7 +64,7 @@ func (a *app) handleResource(w http.ResponseWriter, r *http.Request) {
 	}
 	path, headers, err := buildControlPath(pathSpec, input)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "路径参数无效", err.Error())
+		writeError(w, r, err)
 		return
 	}
 	if input.Get("page_size") == "" && slicesContain(spec.allowedQuery, "page_size") {
@@ -72,27 +72,27 @@ func (a *app) handleResource(w http.ResponseWriter, r *http.Request) {
 	}
 	query, err := buildControlQuery(spec.allowedQuery, input, true)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "查询参数无效", err.Error())
+		writeError(w, r, err)
 		return
 	}
 	if current.Demo {
 		payload, ok := demoResource(kind, input)
 		if !ok {
-			writeError(w, http.StatusNotFound, "没有演示数据", "该资源尚无演示数据")
+			writeError(w, r, errDemoDataMissing)
 			return
 		}
 		writeJSON(w, http.StatusOK, payload)
 		return
 	}
-	response, err := a.harborRequest(r.Context(), current, http.MethodGet, path, query, nil, headers)
+	response, err := a.harborRequest(r.Context(), harborRequestOptions{current: current, method: http.MethodGet, path: path, query: query, body: nil, headers: headers})
 	if err != nil {
-		writeUpstreamError(w, err)
+		writeUpstreamError(w, r, err)
 		return
 	}
 	var payload any
 	if len(response.Body) > 0 {
 		if err := json.Unmarshal(response.Body, &payload); err != nil {
-			writeError(w, http.StatusBadGateway, "Harbor 响应无效", "资源接口没有返回有效 JSON")
+			writeError(w, r, errInvalidHarborJSON)
 			return
 		}
 	}
@@ -102,16 +102,16 @@ func (a *app) handleResource(w http.ResponseWriter, r *http.Request) {
 func (a *app) handleSearch(w http.ResponseWriter, r *http.Request) {
 	current, ok := a.currentSession(r)
 	if !ok {
-		writeError(w, http.StatusUnauthorized, "会话已失效", "请重新连接 Harbor")
+		writeError(w, r, errSessionRequired)
 		return
 	}
 	term := strings.TrimSpace(r.URL.Query().Get("q"))
 	if len(term) < 2 {
-		writeError(w, http.StatusBadRequest, "搜索词太短", "至少输入两个字符")
+		writeError(w, r, invalidField("q", "search_term_too_short", "must contain at least two characters"))
 		return
 	}
 	if len(term) > 200 {
-		writeError(w, http.StatusBadRequest, "搜索词太长", "搜索词不能超过 200 个字符")
+		writeError(w, r, invalidField("q", "too_long", "must not exceed 200 characters"))
 		return
 	}
 	if current.Demo {
@@ -119,8 +119,8 @@ func (a *app) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var payload any
-	if err := a.harborGetJSON(r.Context(), current, "/api/v2.0/search", url.Values{"q": {term}}, &payload); err != nil {
-		writeUpstreamError(w, err)
+	if err := a.harborGetJSON(r.Context(), harborJSONRequest{current: current, path: "/api/v2.0/search", query: url.Values{"q": {term}}, out: &payload}); err != nil {
+		writeUpstreamError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, payload)

@@ -1,4 +1,3 @@
-import { formatDate, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type {
   HarborSelector,
@@ -6,9 +5,14 @@ import type {
   ProjectLabel,
   RetentionMetadata,
 } from "../../app/models";
+import { displayTimeZone } from "../../app/preferences";
 import { EmptyState } from "../../components/empty-state";
-import { Icon } from "../../components/icons";
+import { Icon } from "../../components/icon";
 import { OverflowText } from "../../components/overflow-text";
+import uiStyles0 from "../../components/shared-ui.module.css";
+import { createClassNames } from "../../lib/css/class-names";
+import { formatDate, formatNumber } from "../../lib/format/formatters";
+import styles from "./projects.module.css";
 
 function firstSelector(selectors: HarborSelector[] | undefined) {
   return selectors?.[0];
@@ -18,10 +22,12 @@ function safeLabelColor(value: string | undefined): string {
   return /^#[0-9a-f]{6}$/i.test(value ?? "") ? String(value) : "#7b7b82";
 }
 
-function LabelSwatch({ color }: { color: string | undefined }) {
+type LabelSwatchProps = { color: string | undefined };
+
+function LabelSwatch({ color }: LabelSwatchProps) {
   return (
     <svg
-      className="label-swatch"
+      className={resolveClasses("label-swatch")}
       viewBox="0 0 12 12"
       aria-hidden="true"
       focusable="false"
@@ -31,19 +37,7 @@ function LabelSwatch({ color }: { color: string | undefined }) {
   );
 }
 
-export function ProjectRulesSection({
-  project,
-  projectId,
-  rules,
-  labels,
-  metadata,
-  onCreateRule,
-  onEditRule,
-  onDeleteRule,
-  onCreateLabel,
-  onEditLabel,
-  onDeleteLabel,
-}: {
+type ProjectRulesSectionProps = {
   project: string;
   projectId: number;
   rules: ImmutableTagRule[];
@@ -63,16 +57,30 @@ export function ProjectRulesSection({
     label: ProjectLabel,
   ) => void;
   onDeleteLabel: (label: ProjectLabel) => void;
-}) {
+};
+
+export function ProjectRulesSection({
+  project,
+  projectId,
+  rules,
+  labels,
+  metadata,
+  onCreateRule,
+  onEditRule,
+  onDeleteRule,
+  onCreateLabel,
+  onEditLabel,
+  onDeleteLabel,
+}: ProjectRulesSectionProps) {
   const { locale, t } = useLocale();
   const metadataAvailable =
     !metadata.load_error &&
     Boolean(metadata.scope_selectors?.length) &&
     Boolean(metadata.tag_selectors?.length);
   return (
-    <div className="rules-layout">
+    <div className={resolveClasses(styles.rulesLayout)}>
       <section>
-        <div className="section-heading">
+        <div className={resolveClasses("section-heading")}>
           <div>
             <h2>{t("不可变 Tag 规则")}</h2>
             <p>
@@ -80,25 +88,27 @@ export function ProjectRulesSection({
             </p>
           </div>
           <button
-            className="button button-small button-primary"
+            className={resolveClasses("button button-small button-primary")}
             type="button"
             disabled={!metadataAvailable}
-            onClick={() => onCreateRule(project, metadata)}
+            onClick={() => {
+              onCreateRule(project, metadata);
+            }}
           >
             <Icon name="plus" />
             <span>{t("新建规则")}</span>
           </button>
         </div>
         {!metadataAvailable ? (
-          <p className="notice notice-warning">
+          <p className={resolveClasses("notice notice-warning")}>
             {metadata.load_error ??
               t(
                 "当前 Harbor 实例未提供 selector metadata，不可变规则编辑已禁用。",
               )}
           </p>
         ) : null}
-        <div className="table-shell">
-          <div className="table-scroll">
+        <div className={resolveClasses("table-shell")}>
+          <div className={resolveClasses("table-scroll")}>
             {!rules.length ? (
               <EmptyState
                 title="暂无不可变规则"
@@ -135,30 +145,36 @@ export function ProjectRulesSection({
                         </td>
                         <td>
                           <span
-                            className={`badge ${rule.disabled ? "" : "badge-green"}`.trim()}
+                            className={resolveClasses(
+                              `badge ${rule.disabled ? "" : "badge-green"}`.trim(),
+                            )}
                           >
                             {t(rule.disabled ? "已停用" : "已启用")}
                           </span>
                         </td>
                         <td>
-                          <div className="row-actions">
+                          <div className={resolveClasses("row-actions")}>
                             <button
-                              className="icon-button"
+                              className={resolveClasses("icon-button")}
                               type="button"
                               title={t("编辑规则")}
                               aria-label={t("编辑规则")}
-                              onClick={() =>
-                                onEditRule(project, rule, metadata)
-                              }
+                              onClick={() => {
+                                onEditRule(project, rule, metadata);
+                              }}
                             >
                               <Icon name="edit" />
                             </button>
                             <button
-                              className="icon-button danger-icon"
+                              className={resolveClasses(
+                                "icon-button danger-icon",
+                              )}
                               type="button"
                               title={t("删除规则")}
                               aria-label={t("删除规则")}
-                              onClick={() => onDeleteRule(project, rule)}
+                              onClick={() => {
+                                onDeleteRule(project, rule);
+                              }}
                             >
                               <Icon name="trash" />
                             </button>
@@ -174,7 +190,7 @@ export function ProjectRulesSection({
         </div>
       </section>
       <section>
-        <div className="section-heading">
+        <div className={resolveClasses("section-heading")}>
           <div>
             <h2>{t("项目标签")}</h2>
             <p>
@@ -182,16 +198,18 @@ export function ProjectRulesSection({
             </p>
           </div>
           <button
-            className="button button-small button-primary"
+            className={resolveClasses("button button-small button-primary")}
             type="button"
-            onClick={() => onCreateLabel(project, projectId)}
+            onClick={() => {
+              onCreateLabel(project, projectId);
+            }}
           >
             <Icon name="plus" />
             <span>{t("新建标签")}</span>
           </button>
         </div>
-        <div className="table-shell">
-          <div className="table-scroll">
+        <div className={resolveClasses("table-shell")}>
+          <div className={resolveClasses("table-scroll")}>
             {!labels.length ? (
               <EmptyState
                 title="暂无项目标签"
@@ -204,7 +222,9 @@ export function ProjectRulesSection({
                   <tr>
                     <th>{t("标签")}</th>
                     <th>{t("描述")}</th>
-                    <th className="table-cell-time">{t("最近更新")}</th>
+                    <th className={resolveClasses("table-cell-time")}>
+                      {t("最近更新")}
+                    </th>
                     <th />
                   </tr>
                 </thead>
@@ -212,7 +232,7 @@ export function ProjectRulesSection({
                   {labels.map((label) => (
                     <tr key={label.id}>
                       <td>
-                        <div className="cell-title">
+                        <div className={resolveClasses("cell-title")}>
                           <LabelSwatch color={label.color} />
                           <OverflowText as="strong">
                             {t(label.name)}
@@ -224,31 +244,35 @@ export function ProjectRulesSection({
                           {label.description ? t(label.description) : "-"}
                         </OverflowText>
                       </td>
-                      <td className="table-cell-time">
-                        {formatDate(
-                          label.update_time ?? label.creation_time,
-                          locale,
-                        )}
+                      <td className={resolveClasses("table-cell-time")}>
+                        {formatDate(label.update_time ?? label.creation_time, {
+                          locale: locale,
+                          timeZone: displayTimeZone(),
+                        })}
                       </td>
                       <td>
-                        <div className="row-actions">
+                        <div className={resolveClasses("row-actions")}>
                           <button
-                            className="icon-button"
+                            className={resolveClasses("icon-button")}
                             type="button"
                             title={t("编辑标签")}
                             aria-label={t("编辑标签")}
-                            onClick={() =>
-                              onEditLabel(project, projectId, label)
-                            }
+                            onClick={() => {
+                              onEditLabel(project, projectId, label);
+                            }}
                           >
                             <Icon name="edit" />
                           </button>
                           <button
-                            className="icon-button danger-icon"
+                            className={resolveClasses(
+                              "icon-button danger-icon",
+                            )}
                             type="button"
                             title={t("删除标签")}
                             aria-label={t("删除标签")}
-                            onClick={() => onDeleteLabel(label)}
+                            onClick={() => {
+                              onDeleteLabel(label);
+                            }}
                           >
                             <Icon name="trash" />
                           </button>
@@ -265,3 +289,39 @@ export function ProjectRulesSection({
     </div>
   );
 }
+
+const resolveClasses = createClassNames({
+  "empty-state": uiStyles0.emptyState,
+  icon: uiStyles0.icon,
+  "overflow-text": uiStyles0.overflowText,
+  "label-swatch": uiStyles0.labelSwatch,
+  "section-heading": uiStyles0.sectionHeading,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "button-primary": uiStyles0.buttonPrimary,
+  notice: uiStyles0.notice,
+  "notice-warning": uiStyles0.noticeWarning,
+  "table-shell": uiStyles0.tableShell,
+  "table-scroll": uiStyles0.tableScroll,
+  badge: uiStyles0.badge,
+  "badge-green": uiStyles0.badgeGreen,
+  "row-actions": uiStyles0.rowActions,
+  "icon-button": uiStyles0.iconButton,
+  "danger-icon": uiStyles0.dangerIcon,
+  tag: uiStyles0.tag,
+  "table-cell-time": uiStyles0.tableCellTime,
+  "cell-title": uiStyles0.cellTitle,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

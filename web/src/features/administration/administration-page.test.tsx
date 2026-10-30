@@ -1,17 +1,11 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { ApiError, controlApi } from "../../app/api-client";
-import { parseHashRoute } from "../../app/hash-router";
-import { LocaleProvider } from "../../app/locale-context";
+import { parseConsoleRoute } from "../../app/console-route";
 import type { ProjectQuota } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
 import { AdministrationPage } from "./administration-page";
 import {
   AdministrationDialog,
@@ -25,10 +19,10 @@ afterEach(() => {
 
 function renderPage(hash: string, authMode = "db_auth", navigate = vi.fn()) {
   render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       <AdministrationPage
-        route={parseHashRoute(hash)}
+        route={parseConsoleRoute(hash)}
         demo
         authMode={authMode}
         hasRootCertificate
@@ -37,13 +31,14 @@ function renderPage(hash: string, authMode = "db_auth", navigate = vi.fn()) {
         onRefresh={vi.fn()}
         onNotice={vi.fn()}
       />
-    </LocaleProvider>,
+    </TestProviders>,
   );
   return navigate;
 }
 
 describe("administration resources", () => {
   it("loads users with the legacy Harbor query and preserves the resource table", async () => {
+    const user = setupUser();
     const list = vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [
         {
@@ -74,17 +69,20 @@ describe("administration resources", () => {
         sort: "username",
         q: "username=~release",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.change(screen.getByRole("searchbox", { name: "按用户名搜索" }), {
-      target: { value: "platform" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+    await replaceText(
+      user,
+      screen.getByRole("searchbox", { name: "按用户名搜索" }),
+      "platform",
+    );
+    await user.click(screen.getByRole("button", { name: "搜索" }));
     expect(navigate).toHaveBeenCalledWith("administration/users?q=platform");
   });
 
   it("loads system robots, permission metadata, and all visible projects in parallel", async () => {
+    const user = setupUser();
     const list = vi
       .spyOn(controlApi, "list")
       .mockImplementation((operation) => {
@@ -122,7 +120,7 @@ describe("administration resources", () => {
     renderPage("#/administration/robots");
     expect(await screen.findByText("robot$global-mirror")).toBeVisible();
     expect(screen.getByText("永不过期")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "编辑系统机器人" }));
+    await user.click(screen.getByRole("button", { name: "编辑系统机器人" }));
     expect(
       screen.getByRole("dialog", { name: "编辑系统机器人" }),
     ).toBeVisible();
@@ -136,13 +134,14 @@ describe("administration resources", () => {
         sort: "name",
         q: "Level=system",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
   });
 });
 
 describe("administration operations", () => {
   it("loads maintenance contracts and starts a manual full scan", async () => {
+    const user = setupUser();
     const list = vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [
         {
@@ -180,23 +179,31 @@ describe("administration operations", () => {
     expect(list).toHaveBeenCalledWith(
       "gc-history",
       { page: 2, page_size: 10, sort: "-creation_time" },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(data).toHaveBeenCalledWith(
       "scan-all-metrics",
       {},
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "立即扫描" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith("scan-all-schedule", {}, "POST", {
-        schedule: { type: "Manual" },
-      }),
-    );
+    await user.click(screen.getByRole("button", { name: "立即扫描" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "scan-all-schedule",
+        parameters: {},
+        method: "POST",
+        payload: {
+          schedule: { type: "Manual" },
+        },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: expect.any(String) as unknown,
+      });
+    });
   });
 
   it("explains that a full scan needs a scanner when Harbor reports none", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [],
       pagination: { page: 1, page_size: 10, total: 0 },
@@ -204,10 +211,15 @@ describe("administration operations", () => {
     vi.spyOn(controlApi, "data").mockImplementation((operation) =>
       operation.startsWith("scan-all")
         ? Promise.reject(
-            new ApiError(
-              "Harbor 前置条件未满足：No scanner is configured; scanning cannot be performed.",
-              412,
-            ),
+            new ApiError("Harbor precondition failed", {
+              status: 412,
+              code: "harbor_precondition_failed",
+              requestId: "",
+              details: {
+                harbor_message:
+                  "No scanner is configured; scanning cannot be performed.",
+              },
+            }),
           )
         : Promise.resolve({ id: 1, schedule: { type: "None" } }),
     );
@@ -219,11 +231,12 @@ describe("administration operations", () => {
       ),
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: "立即扫描" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "前往扫描器" }));
+    await user.click(screen.getByRole("button", { name: "前往扫描器" }));
     expect(navigate).toHaveBeenCalledWith("security/scanners");
   });
 
   it("loads audit purge data and submits the legacy manual payload", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [],
       pagination: { page: 1, page_size: 20, total: 0 },
@@ -246,25 +259,33 @@ describe("administration operations", () => {
     renderPage("#/administration/purge");
 
     expect(await screen.findByText("审计清理执行历史")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "立即执行" }));
+    await user.click(screen.getByRole("button", { name: "立即执行" }));
     expect(
       screen.getByRole("dialog", { name: "立即清理审计日志" }),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "开始执行" }));
+    await user.click(screen.getByRole("button", { name: "开始执行" }));
 
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith("purge-schedule", {}, "POST", {
-        schedule: { type: "Manual" },
-        parameters: {
-          audit_retention_hour: 720,
-          dry_run: true,
-          include_event_types: "create_artifact,delete_artifact",
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "purge-schedule",
+        parameters: {},
+        method: "POST",
+        payload: {
+          schedule: { type: "Manual" },
+          parameters: {
+            audit_retention_hour: 720,
+            dry_run: true,
+            include_event_types: "create_artifact,delete_artifact",
+          },
         },
-      }),
-    );
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: expect.any(String) as unknown,
+      });
+    });
   });
 
   it("loads Job Service queues and preserves queue action contracts", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [],
       pagination: { page: 1, page_size: 20, total: 0 },
@@ -282,20 +303,23 @@ describe("administration operations", () => {
     renderPage("#/administration/jobs");
 
     expect(await screen.findByText("IMAGE_SCAN")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "暂停队列" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith(
-        "jobservice-queue",
-        { type: "IMAGE_SCAN" },
-        "PUT",
-        { action: "pause" },
-      ),
-    );
+    await user.click(screen.getByRole("button", { name: "暂停队列" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "jobservice-queue",
+        parameters: { type: "IMAGE_SCAN" },
+        method: "PUT",
+        payload: { action: "pause" },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: undefined,
+      });
+    });
   });
 });
 
 describe("administration configuration", () => {
   it("tests LDAP and saves only the selected authentication mode fields", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "data").mockImplementation((operation) => {
       if (operation === "configurations") {
         return Promise.resolve({
@@ -329,59 +353,78 @@ describe("administration configuration", () => {
     });
     const mutate = vi
       .spyOn(controlApi, "mutate")
-      .mockResolvedValue({ data: { success: true } });
+      .mockResolvedValue({ success: true });
 
     renderPage("#/administration/configuration?tab=auth");
     const mode = await screen.findByRole("button", { name: "认证模式" });
-    fireEvent.click(mode);
-    fireEvent.click(screen.getByRole("option", { name: "LDAP" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "LDAP 地址" }), {
-      target: { value: "ldaps://ldap.example.com:636" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "用户 Base DN" }), {
-      target: { value: "ou=users,dc=example,dc=com" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "测试连接" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith("ldap-ping", {}, "POST", {
-        ldap_url: "ldaps://ldap.example.com:636",
-        ldap_search_dn: "",
-        ldap_search_password: "",
-        ldap_base_dn: "ou=users,dc=example,dc=com",
-        ldap_filter: "",
-        ldap_uid: "uid",
-        ldap_scope: 2,
-        ldap_connection_timeout: 5,
-        ldap_verify_cert: true,
-      }),
+    await user.click(mode);
+    await user.click(screen.getByRole("option", { name: "LDAP" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "LDAP 地址" }),
+      "ldaps://ldap.example.com:636",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "用户 Base DN" }),
+      "ou=users,dc=example,dc=com",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "保存认证配置" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith("configurations", {}, "PUT", {
-        auth_mode: "ldap_auth",
-        primary_auth_mode: false,
-        ldap_url: "ldaps://ldap.example.com:636",
-        ldap_timeout: 5,
-        ldap_search_dn: "",
-        ldap_base_dn: "ou=users,dc=example,dc=com",
-        ldap_filter: "",
-        ldap_uid: "uid",
-        ldap_scope: 2,
-        ldap_group_base_dn: "",
-        ldap_group_search_filter: "",
-        ldap_group_attribute_name: "cn",
-        ldap_group_admin_dn: "",
-        ldap_group_membership_attribute: "memberOf",
-        ldap_group_search_scope: 2,
-        ldap_group_attach_parallel: false,
-        ldap_verify_cert: true,
-      }),
-    );
+    await user.click(screen.getByRole("button", { name: "测试连接" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "ldap-ping",
+        parameters: {},
+        method: "POST",
+        payload: {
+          ldap_url: "ldaps://ldap.example.com:636",
+          ldap_search_dn: "",
+          ldap_search_password: "",
+          ldap_base_dn: "ou=users,dc=example,dc=com",
+          ldap_filter: "",
+          ldap_uid: "uid",
+          ldap_scope: 2,
+          ldap_connection_timeout: 5,
+          ldap_verify_cert: true,
+        },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: expect.any(String) as unknown,
+      });
+    });
+
+    await user.click(screen.getByRole("button", { name: "保存认证配置" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "configurations",
+        parameters: {},
+        method: "PUT",
+        payload: {
+          auth_mode: "ldap_auth",
+          primary_auth_mode: false,
+          ldap_url: "ldaps://ldap.example.com:636",
+          ldap_timeout: 5,
+          ldap_search_dn: "",
+          ldap_base_dn: "ou=users,dc=example,dc=com",
+          ldap_filter: "",
+          ldap_uid: "uid",
+          ldap_scope: 2,
+          ldap_group_base_dn: "",
+          ldap_group_search_filter: "",
+          ldap_group_attribute_name: "cn",
+          ldap_group_admin_dn: "",
+          ldap_group_membership_attribute: "memberOf",
+          ldap_group_search_scope: 2,
+          ldap_group_attach_parallel: false,
+          ldap_verify_cert: true,
+        },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: undefined,
+      });
+    });
   });
 
   it("normalizes and saves the administration system CVE allowlist", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "data").mockImplementation((operation) => {
       if (operation === "configurations") return Promise.resolve({});
       if (operation === "system-cve-allowlist") {
@@ -396,20 +439,30 @@ describe("administration configuration", () => {
 
     renderPage("#/administration/configuration?tab=security");
     const editor = await screen.findByRole("textbox", { name: "CVE 编号" });
-    fireEvent.change(editor, {
-      target: { value: "cve-2026-1842\nCVE-2025-52881\nCVE-2026-1842" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "保存安全配置" }));
-
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith("system-cve-allowlist", {}, "PUT", {
-        expires_at: null,
-        items: [{ cve_id: "CVE-2026-1842" }, { cve_id: "CVE-2025-52881" }],
-      }),
+    await replaceText(
+      user,
+      editor,
+      "cve-2026-1842\nCVE-2025-52881\nCVE-2026-1842",
     );
+    await user.click(screen.getByRole("button", { name: "保存安全配置" }));
+
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "system-cve-allowlist",
+        parameters: {},
+        method: "PUT",
+        payload: {
+          expires_at: null,
+          items: [{ cve_id: "CVE-2026-1842" }, { cve_id: "CVE-2025-52881" }],
+        },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: undefined,
+      });
+    });
   });
 
   it("saves system settings without writing locked configuration fields", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "data").mockImplementation((operation) => {
       if (operation === "configurations") {
         return Promise.resolve({
@@ -443,34 +496,42 @@ describe("administration configuration", () => {
 
     renderPage("#/administration/configuration?tab=system");
     expect(await screen.findByText("Harbor 根证书")).toBeVisible();
-    fireEvent.click(screen.getByRole("checkbox", { name: /只读模式/ }));
-    fireEvent.click(
+    await user.click(screen.getByRole("checkbox", { name: /只读模式/ }));
+    await user.click(
       screen.getByRole("checkbox", { name: /删除制品.*delete_artifact/ }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "保存系统设置" }));
+    await user.click(screen.getByRole("button", { name: "保存系统设置" }));
 
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith("configurations", {}, "PUT", {
-        project_creation_restriction: "adminonly",
-        robot_name_prefix: "robot$",
-        audit_log_forward_endpoint: "",
-        token_expiration: 30,
-        session_timeout: 60,
-        robot_token_duration: 90,
-        read_only: true,
-        notification_enable: true,
-        scanner_skip_update_pulltime: false,
-        quota_per_project_enable: true,
-        skip_audit_log_database: false,
-        storage_per_project: 10 * 1024 ** 3,
-        disabled_audit_log_event_types: "",
-      }),
-    );
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "configurations",
+        parameters: {},
+        method: "PUT",
+        payload: {
+          project_creation_restriction: "adminonly",
+          robot_name_prefix: "robot$",
+          audit_log_forward_endpoint: "",
+          token_expiration: 30,
+          session_timeout: 60,
+          robot_token_duration: 90,
+          read_only: true,
+          notification_enable: true,
+          scanner_skip_update_pulltime: false,
+          quota_per_project_enable: true,
+          skip_audit_log_database: false,
+          storage_per_project: 10 * 1024 ** 3,
+          disabled_audit_log_event_types: "",
+        },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: undefined,
+      });
+    });
   });
 });
 
 describe("administration dialogs", () => {
   it("persists the disabled state after creating a system robot", async () => {
+    const user = setupUser();
     const credential = {
       id: 63,
       name: "robot$acceptance-system",
@@ -478,11 +539,11 @@ describe("administration dialogs", () => {
     };
     const mutate = vi
       .spyOn(controlApi, "mutate")
-      .mockResolvedValueOnce({ data: credential })
+      .mockResolvedValueOnce(credential)
       .mockResolvedValueOnce(undefined);
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <AdministrationDialog
           action={{ kind: "create-robot" }}
@@ -495,15 +556,17 @@ describe("administration dialogs", () => {
           onCompleted={vi.fn()}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "账号名称" }), {
-      target: { value: "acceptance-system" },
-    });
-    fireEvent.click(screen.getByRole("checkbox", { name: "查看" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /停用账号/ }));
-    fireEvent.click(screen.getByRole("button", { name: "创建账号" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "账号名称" }),
+      "acceptance-system",
+    );
+    await user.click(screen.getByRole("checkbox", { name: "查看" }));
+    await user.click(screen.getByRole("checkbox", { name: /停用账号/ }));
+    await user.click(screen.getByRole("button", { name: "创建账号" }));
 
     await waitFor(() =>
       expect(screen.getByText("one-time-secret")).toBeVisible(),
@@ -522,14 +585,28 @@ describe("administration dialogs", () => {
         },
       ],
     };
-    expect(mutate).toHaveBeenNthCalledWith(1, "robots", {}, "POST", payload);
-    expect(mutate).toHaveBeenNthCalledWith(2, "robot", { id: 63 }, "PUT", {
-      name: "robot$acceptance-system",
-      description: "",
-      level: "system",
-      duration: 90,
-      disable: true,
-      permissions: payload.permissions,
+    expect(mutate).toHaveBeenNthCalledWith(1, {
+      operation: "robots",
+      parameters: {},
+      method: "POST",
+      payload: payload,
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
+    });
+    expect(mutate).toHaveBeenNthCalledWith(2, {
+      operation: "robot",
+      parameters: { id: 63 },
+      method: "PUT",
+      payload: {
+        name: "robot$acceptance-system",
+        description: "",
+        level: "system",
+        duration: 90,
+        disable: true,
+        permissions: payload.permissions,
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
     });
   });
 
@@ -537,7 +614,7 @@ describe("administration dialogs", () => {
     const action: AdministrationAction = { kind: "create-label" };
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <AdministrationDialog
           action={action}
@@ -548,7 +625,7 @@ describe("administration dialogs", () => {
           onCompleted={vi.fn()}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(screen.getByRole("textbox", { name: "标签名称" })).toHaveAttribute(
@@ -558,6 +635,7 @@ describe("administration dialogs", () => {
   });
 
   it("updates a quota and verifies the persisted Harbor value", async () => {
+    const user = setupUser();
     const quota: ProjectQuota = {
       id: 9,
       ref: { id: 2, name: "library" },
@@ -572,7 +650,7 @@ describe("administration dialogs", () => {
     const action: AdministrationAction = { kind: "edit-quota", quota };
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <AdministrationDialog
           action={action}
@@ -583,22 +661,28 @@ describe("administration dialogs", () => {
           onCompleted={completed}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(
+    await replaceText(
+      user,
       screen.getByRole("spinbutton", { name: "存储上限（GB）" }),
-      {
-        target: { value: "10" },
-      },
+      "10",
     );
-    fireEvent.click(screen.getByRole("button", { name: "保存配额" }));
+    await user.click(screen.getByRole("button", { name: "保存配额" }));
 
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith("quota", { id: 9 }, "PUT", {
-        hard: { storage: 10 * 1024 ** 3 },
-      }),
-    );
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "quota",
+        parameters: { id: 9 },
+        method: "PUT",
+        payload: {
+          hard: { storage: 10 * 1024 ** 3 },
+        },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: undefined,
+      });
+    });
     expect(completed).toHaveBeenCalledWith("项目配额已更新");
   });
 });

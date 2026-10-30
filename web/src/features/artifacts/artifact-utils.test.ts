@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-
 import type { HarborArtifact } from "../../app/models";
 import {
-  artifactMatchesScanStatus,
   artifactArchitectureSummary,
-  artifactPullCommand,
+  artifactMatchesScanStatus,
   artifactPlatformLabel,
   artifactPlatforms,
+  artifactPullCommand,
   artifactScanState,
   artifactSignatureState,
   repositoryDisplayName,

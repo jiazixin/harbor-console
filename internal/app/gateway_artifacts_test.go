@@ -27,8 +27,8 @@ func TestControlRepositoryUsesOfficialDoubleEncoding(t *testing.T) {
 		}
 		return http.StatusOK, `{"name":"platform/team/gateway"}`
 	})
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodGet, "/api/control/repository?project=platform&repository=platform%2Fteam%2Fgateway", nil)
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := httptest.NewRequest(http.MethodGet, "/api/operations/repository?project=platform&repository=platform%2Fteam%2Fgateway", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -59,8 +59,8 @@ func TestControlCreateTagForwardsOfficialMethodPathAndBody(t *testing.T) {
 		}
 		return http.StatusCreated, ``
 	})
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodPost, "/api/control/artifact-tags?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc", strings.NewReader(`{"name":"v1.2.3"}`))
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := jsonRequest(http.MethodPost, "/api/operations/artifact-tags?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc", strings.NewReader(`{"name":"v1.2.3"}`))
 	request.Header.Set("Origin", "http://example.com")
 	request.Host = "example.com"
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
@@ -81,11 +81,11 @@ func TestControlArtifactMetadataOperationsUseOfficialAPI(t *testing.T) {
 		upstream   string
 		status     int
 	}{
-		{name: "add artifact label", method: http.MethodPost, consoleURL: "/api/control/artifact-labels?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc", wantPath: "/api/v2.0/projects/platform/repositories/gateway/artifacts/sha256:abc/labels", body: `{"id":41}`, upstream: `{}`, status: http.StatusOK},
-		{name: "remove artifact label", method: http.MethodDelete, consoleURL: "/api/control/artifact-label?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc&label=41", wantPath: "/api/v2.0/projects/platform/repositories/gateway/artifacts/sha256:abc/labels/41", upstream: `{}`, status: http.StatusOK},
-		{name: "list artifact accessories", method: http.MethodGet, consoleURL: "/api/control/artifact-accessories?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc&page=2&page_size=50&sort=-creation_time", wantPath: "/api/v2.0/projects/platform/repositories/gateway/artifacts/sha256:abc/accessories", upstream: `[]`, status: http.StatusOK},
-		{name: "get artifact SBOM", method: http.MethodGet, consoleURL: "/api/control/artifact-addition?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc&addition=sbom", wantPath: "/api/v2.0/projects/platform/repositories/gateway/artifacts/sha256:abc/additions/sbom", upstream: `{"spdxVersion":"SPDX-2.3"}`, status: http.StatusOK},
-		{name: "get Helm values", method: http.MethodGet, consoleURL: "/api/control/artifact-addition?project=platform&repository=platform%2Fchart&reference=1.0.0&addition=values.yaml", wantPath: "/api/v2.0/projects/platform/repositories/chart/artifacts/1.0.0/additions/values.yaml", upstream: `"replicaCount: 3\\n"`, status: http.StatusOK},
+		{name: "add artifact label", method: http.MethodPost, consoleURL: "/api/operations/artifact-labels?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc", wantPath: "/api/v2.0/projects/platform/repositories/gateway/artifacts/sha256:abc/labels", body: `{"id":41}`, upstream: `{}`, status: http.StatusOK},
+		{name: "remove artifact label", method: http.MethodDelete, consoleURL: "/api/operations/artifact-label?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc&label=41", wantPath: "/api/v2.0/projects/platform/repositories/gateway/artifacts/sha256:abc/labels/41", upstream: `{}`, status: http.StatusOK},
+		{name: "list artifact accessories", method: http.MethodGet, consoleURL: "/api/operations/artifact-accessories?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc&offset=50&limit=50&sort=-creation_time", wantPath: "/api/v2.0/projects/platform/repositories/gateway/artifacts/sha256:abc/accessories", upstream: `[]`, status: http.StatusOK},
+		{name: "get artifact SBOM", method: http.MethodGet, consoleURL: "/api/operations/artifact-addition?project=platform&repository=platform%2Fgateway&reference=sha256%3Aabc&addition=sbom", wantPath: "/api/v2.0/projects/platform/repositories/gateway/artifacts/sha256:abc/additions/sbom", upstream: `{"spdxVersion":"SPDX-2.3"}`, status: http.StatusOK},
+		{name: "get Helm values", method: http.MethodGet, consoleURL: "/api/operations/artifact-addition?project=platform&repository=platform%2Fchart&reference=1.0.0&addition=values.yaml", wantPath: "/api/v2.0/projects/platform/repositories/chart/artifacts/1.0.0/additions/values.yaml", upstream: `"replicaCount: 3\\n"`, status: http.StatusOK},
 	}
 
 	for _, test := range tests {
@@ -112,8 +112,8 @@ func TestControlArtifactMetadataOperationsUseOfficialAPI(t *testing.T) {
 				}
 				return test.status, test.upstream
 			})
-			current := createTestSession(t, application, client, false)
-			request := httptest.NewRequest(test.method, test.consoleURL, strings.NewReader(test.body))
+			current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+			request := jsonRequest(test.method, test.consoleURL, strings.NewReader(test.body))
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			if test.method != http.MethodGet {
 				request.Host = "console.test"
@@ -142,8 +142,8 @@ func TestControlArtifactIconUsesOfficialAPI(t *testing.T) {
 		}
 		return http.StatusOK, `{"content-type":"image/png","content":"iVBORw0KGgo="}`
 	})
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodGet, "/api/control/artifact-icon?digest="+url.QueryEscape("sha256:icon/digest"), nil)
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := httptest.NewRequest(http.MethodGet, "/api/operations/artifact-icon?digest="+url.QueryEscape("sha256:icon/digest"), nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -162,11 +162,11 @@ func TestDemoArtifactIconAndMetadata(t *testing.T) {
 	}
 	handler := application.routes()
 	login := httptest.NewRecorder()
-	handler.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/demo", strings.NewReader("{}")))
+	handler.ServeHTTP(login, jsonRequest(http.MethodPost, "/api/demo-sessions", strings.NewReader("{}")))
 	cookie := login.Result().Cookies()[0]
 
 	icon := httptest.NewRecorder()
-	iconRequest := httptest.NewRequest(http.MethodGet, "/api/control/artifact-icon?digest="+url.QueryEscape(demoArtifactIconDigest), nil)
+	iconRequest := httptest.NewRequest(http.MethodGet, "/api/operations/artifact-icon?digest="+url.QueryEscape(demoArtifactIconDigest), nil)
 	iconRequest.AddCookie(cookie)
 	handler.ServeHTTP(icon, iconRequest)
 	if icon.Code != http.StatusOK || !strings.Contains(icon.Body.String(), `"content-type":"image/png"`) || !strings.Contains(icon.Body.String(), `"content":"iVBORw0KGgo`) {
@@ -174,7 +174,7 @@ func TestDemoArtifactIconAndMetadata(t *testing.T) {
 	}
 
 	artifact := httptest.NewRecorder()
-	artifactRequest := httptest.NewRequest(http.MethodGet, "/api/control/artifact?project=platform&repository=platform%2Fgateway&reference="+url.QueryEscape("sha256:41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4")+"&with_accessory=true", nil)
+	artifactRequest := httptest.NewRequest(http.MethodGet, "/api/operations/artifact?project=platform&repository=platform%2Fgateway&reference="+url.QueryEscape("sha256:41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4")+"&with_accessory=true", nil)
 	artifactRequest.AddCookie(cookie)
 	handler.ServeHTTP(artifact, artifactRequest)
 	for _, expected := range []string{`"icon":"` + demoArtifactIconDigest, `"signature.cosign"`, `"signature.notation"`, `"org.opencontainers.image.source"`} {
@@ -193,20 +193,20 @@ func TestControlArtifactMetadataRejectsUnsafeParameters(t *testing.T) {
 		t.Fatalf("invalid request reached Harbor: %s", request.URL.Path)
 		return http.StatusInternalServerError, `{}`
 	})
-	current := createTestSession(t, application, client, false)
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
 	tests := []struct {
 		name   string
 		method string
 		url    string
 		body   string
 	}{
-		{name: "unknown addition", method: http.MethodGet, url: "/api/control/artifact-addition?project=p&repository=r&reference=x&addition=../../manifest"},
-		{name: "zero label", method: http.MethodPost, url: "/api/control/artifact-labels?project=p&repository=r&reference=x", body: `{"id":0}`},
-		{name: "unknown label field", method: http.MethodPost, url: "/api/control/artifact-labels?project=p&repository=r&reference=x", body: `{"id":1,"name":"injected"}`},
+		{name: "unknown addition", method: http.MethodGet, url: "/api/operations/artifact-addition?project=p&repository=r&reference=x&addition=../../manifest"},
+		{name: "zero label", method: http.MethodPost, url: "/api/operations/artifact-labels?project=p&repository=r&reference=x", body: `{"id":0}`},
+		{name: "unknown label field", method: http.MethodPost, url: "/api/operations/artifact-labels?project=p&repository=r&reference=x", body: `{"id":1,"name":"injected"}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(test.method, test.url, strings.NewReader(test.body))
+			request := jsonRequest(test.method, test.url, strings.NewReader(test.body))
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			if test.method != http.MethodGet {
 				request.Host = "console.test"
@@ -245,8 +245,8 @@ func TestControlArtifactCopyUsesOfficialAPI(t *testing.T) {
 		}
 		return http.StatusCreated, `{}`
 	})
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodPost, "/api/control/artifact-copy?project=release&repository=release%2Fbackend%2Fgateway&from="+url.QueryEscape(source), nil)
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := httptest.NewRequest(http.MethodPost, "/api/operations/artifact-copy?project=release&repository=release%2Fbackend%2Fgateway&from="+url.QueryEscape(source), nil)
 	request.Host = "console.test"
 	request.Header.Set("Origin", "http://console.test")
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
@@ -265,11 +265,11 @@ func TestControlArtifactCopyRejectsInvalidSource(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			current := createTestSession(t, application, mockClient(func(*http.Request) (int, string) {
+			current := createTestSession(t, testSessionOptions{application: application, client: mockClient(func(*http.Request) (int, string) {
 				t.Fatal("invalid artifact copy reached Harbor")
 				return http.StatusInternalServerError, `{}`
-			}), false)
-			request := httptest.NewRequest(http.MethodPost, "/api/control/artifact-copy?project=release&repository=backend&from="+url.QueryEscape(source), nil)
+			}), demo: false})
+			request := httptest.NewRequest(http.MethodPost, "/api/operations/artifact-copy?project=release&repository=backend&from="+url.QueryEscape(source), nil)
 			request.Host = "console.test"
 			request.Header.Set("Origin", "http://console.test")
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
@@ -287,10 +287,10 @@ func TestDemoArtifactLabelLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current := createTestSession(t, application, nil, true)
+	current := createTestSession(t, testSessionOptions{application: application, client: nil, demo: true})
 	request := func(method, target, body string) *httptest.ResponseRecorder {
 		t.Helper()
-		req := httptest.NewRequest(method, target, strings.NewReader(body))
+		req := jsonRequest(method, target, strings.NewReader(body))
 		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 		if method != http.MethodGet {
 			req.Host = "console.test"
@@ -300,17 +300,17 @@ func TestDemoArtifactLabelLifecycle(t *testing.T) {
 		application.routes().ServeHTTP(recorder, req)
 		return recorder
 	}
-	artifactURL := "/api/control/artifact?project=platform&repository=platform%2Fgateway&reference=sha256%3A41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4&with_label=true"
-	removeURL := "/api/control/artifact-label?project=platform&repository=platform%2Fgateway&reference=sha256%3A41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4&label=41"
-	if removed := request(http.MethodDelete, removeURL, ""); removed.Code != http.StatusOK {
+	artifactURL := "/api/operations/artifact?project=platform&repository=platform%2Fgateway&reference=sha256%3A41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4&with_label=true"
+	removeURL := "/api/operations/artifact-label?project=platform&repository=platform%2Fgateway&reference=sha256%3A41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4&label=41"
+	if removed := request(http.MethodDelete, removeURL, ""); removed.Code != http.StatusNoContent {
 		t.Fatalf("remove status = %d, body = %s", removed.Code, removed.Body.String())
 	}
 	afterRemove := request(http.MethodGet, artifactURL, "")
 	if strings.Contains(afterRemove.Body.String(), `"id":41`) {
 		t.Fatalf("removed label still present: %s", afterRemove.Body.String())
 	}
-	addURL := "/api/control/artifact-labels?project=platform&repository=platform%2Fgateway&reference=sha256%3A41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4"
-	if added := request(http.MethodPost, addURL, `{"id":41}`); added.Code != http.StatusOK {
+	addURL := "/api/operations/artifact-labels?project=platform&repository=platform%2Fgateway&reference=sha256%3A41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4"
+	if added := request(http.MethodPost, addURL, `{"id":41}`); added.Code != http.StatusNoContent {
 		t.Fatalf("add status = %d, body = %s", added.Code, added.Body.String())
 	}
 	afterAdd := request(http.MethodGet, artifactURL, "")

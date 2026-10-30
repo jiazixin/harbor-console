@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-
+import { optionalData } from "../../app/optional-data";
 import { controlApi } from "../../app/api-client";
-import type { ConsoleRoute } from "../../app/hash-router";
+import type { ConsoleRoute } from "../../app/console-route";
+import { UserInputError } from "../../app/errors";
 import type {
   ControlList,
   HarborArtifact,
@@ -9,6 +9,8 @@ import type {
   ProjectSummary,
   RepositorySummary,
 } from "../../app/models";
+import { useLoadedQuery } from "../../app/use-loaded-query";
+import { artifactKeys } from "./artifact-keys";
 import { artifactMatchesScanStatus } from "./artifact-utils";
 
 const pageSize = 50;
@@ -42,6 +44,7 @@ type RepositoryData = {
   project: ProjectSummary;
   artifacts: ControlList<HarborArtifact>;
   labels: ProjectLabel[];
+  labelErrors: string[];
 };
 
 export type RepositoryArtifactAction =
@@ -157,7 +160,7 @@ async function loadArtifacts(
       break;
     }
     if (page === 200) {
-      throw new Error(
+      throw new UserInputError(
         "扫描状态筛选最多处理 20000 个制品，请先使用类型、Tag 或标签缩小范围",
       );
     }
@@ -180,18 +183,18 @@ function emptyLabelList(): ControlList<ProjectLabel> {
   return { items: [], pagination: { page: 1, page_size: 100, total: 0 } };
 }
 
-/** Labels are optional on this page; a failed request shows no labels. */
+/** Labels may fail independently; keep their errors beside the artifact results. */
 function loadLabels(
   scope: { scope: "g" } | { scope: "p"; project_id: number },
   signal: AbortSignal,
-): Promise<ControlList<ProjectLabel>> {
-  return controlApi
-    .list<ProjectLabel>(
+) {
+  return optionalData(
+    controlApi.list<ProjectLabel>(
       "labels",
       { ...scope, page: 1, page_size: 100, sort: "name" },
       signal,
-    )
-    .catch(emptyLabelList);
+    ),
+  );
 }
 
 async function loadRepositoryData(
@@ -220,17 +223,21 @@ async function loadRepositoryData(
               { scope: "p", project_id: loaded.project_id ?? 0 },
               signal,
             )
-          : emptyLabelList(),
+          : { data: emptyLabelList(), error: "" },
       ),
       loadLabels({ scope: "g" }, signal),
     ]);
-  if (!project) throw new Error("项目不存在");
-  if (!repository) throw new Error("仓库不存在");
+  if (!project) throw new UserInputError("项目不存在");
+  if (!repository) throw new UserInputError("仓库不存在");
   return {
     repository,
     project,
     artifacts,
-    labels: [...projectLabels.items, ...globalLabels.items],
+    labels: [
+      ...(projectLabels.data?.items ?? []),
+      ...(globalLabels.data?.items ?? []),
+    ],
+    labelErrors: [projectLabels.error, globalLabels.error].filter(Boolean),
   };
 }
 
@@ -258,38 +265,9 @@ export function artifactPath(
   return `projects/${encodeURIComponent(project)}/repositories/${encodeURIComponent(repository)}/artifacts/${encodeURIComponent(reference)}`;
 }
 
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError";
-}
-
 /** Loads the repository, its project, one page of artifacts and the usable labels. */
 export function useRepositoryData(routeState: RepositoryRouteState) {
-  const [data, setData] = useState<RepositoryData>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [reloadToken, setReloadToken] = useState(0);
-  const reload = useCallback(
-    () => setReloadToken((current) => current + 1),
-    [],
+  return useLoadedQuery(artifactKeys.repository(routeState), (signal) =>
+    loadRepositoryData(routeState, signal),
   );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError("");
-    void loadRepositoryData(routeState, controller.signal)
-      .then(setData)
-      .catch((loadError: unknown) => {
-        if (isAbortError(loadError)) return;
-        setError(
-          loadError instanceof Error ? loadError.message : String(loadError),
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [reloadToken, routeState]);
-
-  return { data, loading, error, reload };
 }

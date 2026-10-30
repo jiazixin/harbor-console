@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -17,31 +16,31 @@ func validateMemberCreate(body map[string]any) error {
 	user, userOK := body["member_user"].(map[string]any)
 	group, groupOK := body["member_group"].(map[string]any)
 	if userOK == groupOK {
-		return errors.New("必须且只能提供 member_user 或 member_group")
+		return invalidField("member_user", "exactly_one_of", "exactly one of member_user and member_group is required")
 	}
 	if userOK {
 		if err := validateAllowedFields(user, "user_id", "username"); err != nil {
-			return fmt.Errorf("member_user 无效：%w", err)
+			return nestField("member_user", err)
 		}
 		username, _ := user["username"].(string)
-		if err := validateResourceName(username, "成员用户名", 255, true); err != nil {
+		if err := validateResourceName(resourceNameValidation{value: username, path: "member_user.username", maximum: 255, allowSpaces: true}); err != nil {
 			return err
 		}
 	}
 	if groupOK {
 		if err := validateAllowedFields(group, "id", "group_name", "group_type", "ldap_group_dn"); err != nil {
-			return fmt.Errorf("member_group 无效：%w", err)
+			return nestField("member_group", err)
 		}
 		name, _ := group["group_name"].(string)
-		if err := validateResourceName(name, "成员组名称", 255, true); err != nil {
+		if err := validateResourceName(resourceNameValidation{value: name, path: "member_group.group_name", maximum: 255, allowSpaces: true}); err != nil {
 			return err
 		}
 		groupType, valid := integerNumberValue(group["group_type"])
 		if !valid || groupType < 1 || groupType > 3 {
-			return errors.New("成员组类型必须是 LDAP、HTTP 或 OIDC")
+			return invalidField("member_group.group_type", "invalid_group_type", "must be 1 (LDAP), 2 (HTTP) or 3 (OIDC)")
 		}
 		if groupType == 1 && strings.TrimSpace(stringValue(group["ldap_group_dn"])) == "" {
-			return errors.New("LDAP 成员组必须包含 ldap_group_dn")
+			return invalidField("member_group.ldap_group_dn", "required", "is required for LDAP groups")
 		}
 	}
 	return nil
@@ -57,7 +56,7 @@ func validateMemberRole(body map[string]any) error {
 func validateRole(body map[string]any) error {
 	role, valid := integerNumberValue(body["role_id"])
 	if !valid || role < 1 || role > 4 {
-		return errors.New("role_id 必须是 1 到 4：项目管理员、开发者、访客或维护者")
+		return invalidField("role_id", "invalid_role", "must be 1 to 4: project admin, developer, guest or maintainer")
 	}
 	return nil
 }
@@ -67,12 +66,12 @@ func validateRobotCreate(body map[string]any) error {
 		return err
 	}
 	name, _ := body["name"].(string)
-	if err := validateResourceName(name, "机器人名称", 255, true); err != nil {
+	if err := validateResourceName(resourceNameValidation{value: name, path: "name", maximum: 255, allowSpaces: true}); err != nil {
 		return err
 	}
 	level, _ := body["level"].(string)
 	if level != "project" && level != "system" {
-		return errors.New("机器人 level 必须是 project 或 system")
+		return invalidField("level", "invalid_value", "must be project or system")
 	}
 	return validateRobotUpdateFields(body)
 }
@@ -82,12 +81,12 @@ func validateRobotUpdate(body map[string]any) error {
 		return err
 	}
 	name, _ := body["name"].(string)
-	if err := validateResourceName(name, "机器人名称", 255, true); err != nil {
+	if err := validateResourceName(resourceNameValidation{value: name, path: "name", maximum: 255, allowSpaces: true}); err != nil {
 		return err
 	}
 	level, _ := body["level"].(string)
 	if level != "project" && level != "system" {
-		return errors.New("机器人 level 必须是 project 或 system")
+		return invalidField("level", "invalid_value", "must be project or system")
 	}
 	return validateRobotUpdateFields(body)
 }
@@ -96,31 +95,31 @@ func validateRobotUpdateFields(body map[string]any) error {
 	if rawDescription, exists := body["description"]; exists {
 		description, ok := rawDescription.(string)
 		if !ok || len(description) > 1024 || strings.ContainsRune(description, '\x00') {
-			return errors.New("机器人描述必须是 1024 个字符以内的文本")
+			return invalidField("description", "too_long", "must be text of at most 1024 characters")
 		}
 	}
 	if rawDisabled, exists := body["disable"]; exists {
 		if _, ok := rawDisabled.(bool); !ok {
-			return errors.New("机器人 disable 必须是布尔值")
+			return invalidField("disable", "not_boolean", "must be a boolean")
 		}
 	}
 	duration, valid := integerNumberValue(body["duration"])
 	if !valid || (duration != -1 && duration < 1) {
-		return errors.New("机器人有效期必须是 -1（永不过期）或正整数")
+		return invalidField("duration", "invalid_duration", "must be -1 (never expires) or a positive integer")
 	}
 	permissions, ok := body["permissions"].([]any)
 	if !ok || len(permissions) == 0 {
-		return errors.New("机器人 permissions 不能为空")
+		return invalidField("permissions", "required", "must not be empty")
 	}
-	for _, rawPermission := range permissions {
+	for index, rawPermission := range permissions {
 		permission, ok := rawPermission.(map[string]any)
 		if !ok {
-			return errors.New("机器人 permission 必须是 JSON 对象")
+			return invalidField(fmt.Sprintf("permissions.%d", index), "not_object", "must be a JSON object")
 		}
 		namespace, _ := permission["namespace"].(string)
 		access, accessOK := permission["access"].([]any)
 		if strings.TrimSpace(namespace) == "" || !accessOK || len(access) == 0 {
-			return errors.New("机器人 permission 必须包含 namespace 和 access")
+			return invalidField(fmt.Sprintf("permissions.%d", index), "invalid_permission", "must contain namespace and access")
 		}
 	}
 	return nil
@@ -132,10 +131,10 @@ func validateRobotSecret(body map[string]any) error {
 	}
 	secret, ok := body["secret"].(string)
 	if !ok {
-		return errors.New("机器人密钥必须是文本")
+		return invalidField("secret", "not_string", "must be a string")
 	}
 	if len(secret) > 255 || strings.ContainsAny(secret, "\r\n\x00") {
-		return errors.New("机器人密钥包含无效字符或长度超过 255")
+		return invalidField("secret", "invalid_text", "contains invalid characters or exceeds 255 bytes")
 	}
 	return nil
 }
@@ -145,12 +144,12 @@ func validateUserCreate(body map[string]any) error {
 		return err
 	}
 	username, _ := body["username"].(string)
-	if err := validateResourceName(username, "用户名", 255, false); err != nil {
+	if err := validateResourceName(resourceNameValidation{value: username, path: "username", maximum: 255, allowSpaces: false}); err != nil {
 		return err
 	}
 	password, _ := body["password"].(string)
-	if err := validateUserSecret(password); err != nil {
-		return fmt.Errorf("用户密码%s", err)
+	if err := validateUserSecret(password, "password"); err != nil {
+		return err
 	}
 	return validateUserProfileFields(body)
 }
@@ -167,19 +166,19 @@ func validateUserProfileFields(body map[string]any) error {
 		if value, ok := body[field]; ok {
 			text, textOK := value.(string)
 			if !textOK || strings.ContainsAny(text, "\r\n\x00") {
-				return fmt.Errorf("%s 必须是文本且不能包含换行或控制字符", field)
+				return invalidField(field, "invalid_text", "must be text without line breaks or control characters")
 			}
 			maximum := 255
 			if field == "comment" {
 				maximum = 30
 			}
 			if len(text) > maximum {
-				return fmt.Errorf("%s 必须是 %d 个 UTF-8 字节以内的文本", field, maximum)
+				return invalidField(field, "too_long", fmt.Sprintf("must not exceed %d UTF-8 bytes", maximum))
 			}
 		}
 	}
 	if email, _ := body["email"].(string); email != "" && (!strings.Contains(email, "@") || len(email) > 255) {
-		return errors.New("邮箱地址格式无效")
+		return invalidField("email", "invalid_email", "is not a valid email address")
 	}
 	return nil
 }
@@ -189,7 +188,7 @@ func validateUserSysadmin(body map[string]any) error {
 		return err
 	}
 	if _, ok := body["sysadmin_flag"].(bool); !ok {
-		return errors.New("sysadmin_flag 必须是布尔值")
+		return invalidField("sysadmin_flag", "not_boolean", "must be a boolean")
 	}
 	return nil
 }
@@ -199,11 +198,11 @@ func validateUserPassword(body map[string]any) error {
 		return err
 	}
 	password, _ := body["new_password"].(string)
-	if err := validateUserSecret(password); err != nil {
-		return fmt.Errorf("新密码%s", err)
+	if err := validateUserSecret(password, "new_password"); err != nil {
+		return err
 	}
 	if old, ok := body["old_password"].(string); ok && (len(old) > 4096 || strings.ContainsRune(old, '\x00')) {
-		return errors.New("旧密码长度超过限制")
+		return invalidField("old_password", "too_long", "exceeds 4096 bytes or contains NUL")
 	}
 	return nil
 }
@@ -213,36 +212,36 @@ func validateUserCLISecret(body map[string]any) error {
 		return err
 	}
 	secret, _ := body["secret"].(string)
-	if err := validateUserSecret(secret); err != nil {
-		return fmt.Errorf("CLI Secret%s", err)
+	if err := validateUserSecret(secret, "secret"); err != nil {
+		return err
 	}
 	return nil
 }
 
-func validateUserSecret(secret string) error {
+func validateUserSecret(secret, path string) error {
 	if len(secret) < 8 || len(secret) > 128 || strings.ContainsRune(secret, '\x00') {
-		return errors.New("必须是 8 到 128 个字符，并至少包含一个大写字母、一个小写字母和一个数字")
+		return invalidField(path, "password_policy", "must have 8 to 128 characters with an uppercase letter, a lowercase letter and a digit")
 	}
 	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(secret)
 	hasLower := regexp.MustCompile(`[a-z]`).MatchString(secret)
 	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(secret)
 	if !hasUpper || !hasLower || !hasNumber {
-		return errors.New("必须是 8 到 128 个字符，并至少包含一个大写字母、一个小写字母和一个数字")
+		return invalidField(path, "password_policy", "must have 8 to 128 characters with an uppercase letter, a lowercase letter and a digit")
 	}
 	return nil
 }
 
 func validateUserGroup(body map[string]any) error {
 	name, _ := body["group_name"].(string)
-	if err := validateResourceName(name, "用户组名称", 255, true); err != nil {
+	if err := validateResourceName(resourceNameValidation{value: name, path: "group_name", maximum: 255, allowSpaces: true}); err != nil {
 		return err
 	}
 	groupType, valid := integerNumberValue(body["group_type"])
 	if !valid || groupType < 1 || groupType > 3 {
-		return errors.New("用户组类型必须是 LDAP、HTTP 或 OIDC")
+		return invalidField("group_type", "invalid_group_type", "must be 1 (LDAP), 2 (HTTP) or 3 (OIDC)")
 	}
 	if groupType == 1 && strings.TrimSpace(stringValue(body["ldap_group_dn"])) == "" {
-		return errors.New("LDAP 用户组必须填写组 DN")
+		return invalidField("ldap_group_dn", "required", "is required for LDAP groups")
 	}
 	return nil
 }

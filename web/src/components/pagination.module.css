@@ -1,0 +1,86 @@
+@layer ui-collections {
+  .controlPagination {
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 13px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-collections {
+  .paginationSummary,
+  .paginationButtons {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+}
+
+@layer ui-collections {
+  .paginationSummary > span {
+    white-space: nowrap;
+  }
+}
+
+@layer ui-collections {
+  .paginationPageSize {
+    width: 116px;
+    height: var(--control-height-compact);
+    flex: 0 0 auto;
+  }
+}
+
+@layer ui-collections {
+  .paginationPageSize :global(.hc_8b938f52_unifiedSelectTrigger) {
+    font-size: 11px;
+  }
+}
+
+@layer ui-collections {
+  .paginationButtons {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+}
+
+@layer ui-collections {
+  @media (max-width: 620px) {
+    .controlPagination {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+}
+
+@layer ui-collections {
+  @media (max-width: 620px) {
+    .paginationSummary,
+    .paginationButtons {
+      flex-wrap: wrap;
+    }
+  }
+}
+
+@layer ui-collections {
+  @media (max-width: 620px) {
+    .paginationButtons {
+      justify-content: center;
+    }
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.controlPagination {
+}
+.paginationSummary {
+}
+.paginationButtons {
+}
+.paginationPageSize {
+}

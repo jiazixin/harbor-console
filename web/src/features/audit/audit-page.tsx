@@ -1,33 +1,29 @@
-import {
-  type SubmitEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-
-import { ApiError, controlApi } from "../../app/api-client";
+import { type SubmitEvent, useEffect, useMemo } from "react";
+import { controlApi } from "../../app/api-client";
 import {
   auditQueryValue,
   globalAuditDescriptionLabel,
   globalAuditOperationLabel,
 } from "../../app/audit-log";
-import type { ConsoleRoute } from "../../app/hash-router";
+import type { ConsoleRoute } from "../../app/console-route";
 import { useLocale } from "../../app/locale-context";
-import type { AuditLog, AuditLogEvent, ControlList } from "../../app/models";
+import type { AuditLog, AuditLogEvent } from "../../app/models";
+import { useLoadedQuery } from "../../app/use-loaded-query";
 import { AuditLogTable } from "../../components/audit-log-table";
-import { Pagination } from "../../components/data-table";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
-import {
-  DemoBanner,
-  PageHeader,
-  RefreshButton,
-  SectionHeading,
-} from "../../components/page-elements";
+import { DemoBanner } from "../../components/demo-banner";
+import { ErrorView } from "../../components/error-view";
+import { FormInput } from "../../components/form-input";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { Pagination } from "../../components/pagination";
+import { RefreshButton } from "../../components/refresh-button";
+import { SectionHeading } from "../../components/section-heading";
+import uiStyles0 from "../../components/shared-ui.module.css";
 import { UnifiedSelect } from "../../components/unified-select";
-import { useResettableState } from "../../components/use-resettable-state";
+import { createClassNames } from "../../lib/css/class-names";
+import { useResettableState } from "../../lib/state/use-resettable-state";
+import { auditKeys } from "./audit-keys";
+import styles from "./audit.module.css";
 
 type AuditResultFilter = "" | "failed" | "success";
 
@@ -77,12 +73,17 @@ function formString(form: FormData, name: string): string {
   return typeof value === "string" ? value : "";
 }
 
-export function auditPath(
-  page: number,
-  pageSize: number,
-  filters: AuditFilters,
-  sort: "op_time" | "-op_time" = "-op_time",
-): string {
+export function auditPath({
+  page,
+  pageSize,
+  filters,
+  sort = "-op_time",
+}: {
+  page: number;
+  pageSize: number;
+  filters: AuditFilters;
+  sort?: "op_time" | "-op_time";
+}): string {
   const query = new URLSearchParams();
   if (filters.username) query.set("username", filters.username);
   if (filters.resource) query.set("resource", filters.resource);
@@ -94,15 +95,17 @@ export function auditPath(
   return `audit${query.size ? `?${query}` : ""}`;
 }
 
+type AuditFilterFormProps = {
+  values: AuditRouteState;
+  operations: string[];
+  navigate: (path: string) => void;
+};
+
 function AuditFilterForm({
   values,
   operations,
   navigate,
-}: {
-  values: AuditRouteState;
-  operations: string[];
-  navigate: (path: string) => void;
-}) {
+}: AuditFilterFormProps) {
   const { locale, t } = useLocale();
   const [resource, setResource] = useResettableState(values.resource);
   const [username, setUsername] = useResettableState(values.username);
@@ -120,10 +123,10 @@ function AuditFilterForm({
     const form = new FormData(event.currentTarget);
     const submittedResult = formString(form, "result");
     navigate(
-      auditPath(
-        1,
-        values.pageSize,
-        {
+      auditPath({
+        page: 1,
+        pageSize: values.pageSize,
+        filters: {
           username: formString(form, "username").trim(),
           resource: formString(form, "resource").trim(),
           operation: formString(form, "operation"),
@@ -132,48 +135,62 @@ function AuditFilterForm({
               ? submittedResult
               : "",
         },
-        values.sort,
-      ),
+        sort: values.sort,
+      }),
     );
   }
 
   return (
     <form
-      className="table-toolbar audit-filter-form filter-toolbar"
+      className={resolveClasses(
+        `table-toolbar ${styles.auditFilterForm} filter-toolbar`,
+      )}
       onSubmit={submit}
     >
-      <div className="filter-toolbar-query">
-        <div className="filter-toolbar-controls">
-          <div className="toolbar-search">
+      <div className={resolveClasses("filter-toolbar-query")}>
+        <div className={resolveClasses("filter-toolbar-controls")}>
+          <div className={resolveClasses("toolbar-search")}>
             <Icon name="search" />
-            <input
+            <FormInput
               name="username"
               type="search"
               maxLength={200}
               value={username}
               placeholder={t("用户名")}
               aria-label={t("按用户名筛选")}
-              onChange={(event) => setUsername(event.currentTarget.value)}
+              onChange={(event) => {
+                setUsername(event.currentTarget.value);
+              }}
             />
           </div>
-          <div className="toolbar-search audit-resource-search">
+          <div
+            className={resolveClasses(
+              `toolbar-search ${styles.auditResourceSearch}`,
+            )}
+          >
             <Icon name="database" />
-            <input
+            <FormInput
               name="resource"
               type="search"
               maxLength={200}
               value={resource}
               placeholder={t("资源名称")}
               aria-label={t("按资源名称筛选")}
-              onChange={(event) => setResource(event.currentTarget.value)}
+              onChange={(event) => {
+                setResource(event.currentTarget.value);
+              }}
             />
           </div>
-          <label className="toolbar-field audit-operation-filter">
+          <label
+            className={resolveClasses(
+              `toolbar-field ${styles.auditOperationFilter}`,
+            )}
+          >
             <span>{t("事件")}</span>
             <UnifiedSelect
               name="operation"
               ariaLabel={t("按事件筛选")}
-              className="toolbar-select"
+              className={resolveClasses("toolbar-select")}
               value={operation}
               options={[
                 { value: "", label: t("全部事件") },
@@ -185,12 +202,14 @@ function AuditFilterForm({
               onChange={setOperation}
             />
           </label>
-          <label className="toolbar-field audit-result-filter">
+          <label
+            className={resolveClasses("toolbar-field audit-result-filter")}
+          >
             <span>{t("结果")}</span>
             <UnifiedSelect
               name="result"
               ariaLabel={t("按结果筛选")}
-              className="toolbar-select"
+              className={resolveClasses("toolbar-select")}
               value={result}
               options={[
                 { value: "", label: t("全部结果") },
@@ -201,30 +220,33 @@ function AuditFilterForm({
             />
           </label>
         </div>
-        <div className="filter-toolbar-actions">
-          <button className="button button-small button-primary" type="submit">
+        <div className={resolveClasses("filter-toolbar-actions")}>
+          <button
+            className={resolveClasses("button button-small button-primary")}
+            type="submit"
+          >
             <Icon name="search" />
             <span>{t("筛选")}</span>
           </button>
           {activeFilters ? (
             <button
-              className="button button-small"
+              className={resolveClasses("button button-small")}
               type="button"
-              onClick={() =>
+              onClick={() => {
                 navigate(
-                  auditPath(
-                    1,
-                    values.pageSize,
-                    {
+                  auditPath({
+                    page: 1,
+                    pageSize: values.pageSize,
+                    filters: {
                       username: "",
                       resource: "",
                       operation: "",
                       result: "",
                     },
-                    values.sort,
-                  ),
-                )
-              }
+                    sort: values.sort,
+                  }),
+                );
+              }}
             >
               <Icon name="x" />
               <span>{t("取消筛选")}</span>
@@ -236,110 +258,71 @@ function AuditFilterForm({
   );
 }
 
+type AuditPageProps = {
+  route: ConsoleRoute;
+  demo: boolean;
+  refreshing: boolean;
+  navigate: (path: string) => void;
+  onRefresh: () => void;
+};
+
 export function AuditPage({
   route,
   demo,
   refreshing,
   navigate,
   onRefresh,
-}: {
-  route: ConsoleRoute;
-  demo: boolean;
-  refreshing: boolean;
-  navigate: (path: string) => void;
-  onRefresh: () => void;
-}) {
+}: AuditPageProps) {
   const { locale, t } = useLocale();
   const loadKey = route.query.toString();
   const values = useMemo(
     () => parseAuditQuery(new URLSearchParams(loadKey)),
     [loadKey],
   );
-  const [collection, setCollection] = useState<ControlList<AuditLog>>();
-  const [events, setEvents] = useState<AuditLogEvent[]>([]);
-  const [error, setError] = useState<{ message: string; status?: number }>();
-  const [version, setVersion] = useState(0);
-  const requestVersion = useRef(0);
-  const eventCache = useRef<AuditLogEvent[] | undefined>(undefined);
-  const reload = useCallback(() => setVersion((current) => current + 1), []);
+  const eventsQuery = useAuditEventData();
+  const events = eventsQuery.data;
+  const logsQuery = useAuditData({ values });
+  const collection = logsQuery.data;
+  const error = logsQuery.error;
+  const reload = logsQuery.reload;
 
   useEffect(() => {
-    const controller = new AbortController();
-    const currentVersion = requestVersion.current + 1;
-    requestVersion.current = currentVersion;
-    setError(undefined);
-    const filters: AuditFilters = values;
-    const eventsPromise = eventCache.current
-      ? Promise.resolve(eventCache.current)
-      : controlApi
-          .data<AuditLogEvent[]>("audit-log-events", {}, controller.signal)
-          .then((data) => data ?? [])
-          .catch(() => []);
-    void Promise.all([
-      controlApi.list<AuditLog>(
-        "audit-logs",
-        {
-          page: values.page,
-          page_size: values.pageSize,
-          sort: values.sort,
-          q: auditControlQuery(filters),
-        },
-        controller.signal,
+    if (!collection || logsQuery.loading) return;
+    const totalPages = Math.max(
+      1,
+      Math.ceil(
+        collection.pagination.total /
+          Math.max(1, collection.pagination.page_size),
       ),
-      eventsPromise,
-    ])
-      .then(([nextCollection, nextEvents]) => {
-        if (
-          controller.signal.aborted ||
-          requestVersion.current !== currentVersion
-        )
-          return;
-        const totalPages = Math.max(
-          1,
-          Math.ceil(
-            nextCollection.pagination.total /
-              Math.max(1, nextCollection.pagination.page_size),
-          ),
-        );
-        if (values.page > totalPages) {
-          navigate(auditPath(totalPages, values.pageSize, values));
-          return;
-        }
-        eventCache.current = nextEvents;
-        setEvents(nextEvents);
-        setCollection(nextCollection);
-      })
-      .catch((loadError: unknown) => {
-        if (
-          controller.signal.aborted ||
-          requestVersion.current !== currentVersion
-        )
-          return;
-        setError({
-          message:
-            loadError instanceof Error ? loadError.message : String(loadError),
-          status: loadError instanceof ApiError ? loadError.status : undefined,
-        });
-      });
-    return () => controller.abort();
-  }, [loadKey, navigate, values, version]);
+    );
+    if (values.page <= totalPages) return;
+    const frame = window.requestAnimationFrame(() => {
+      navigate(
+        auditPath({
+          page: totalPages,
+          pageSize: values.pageSize,
+          filters: values,
+        }),
+      );
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [collection, logsQuery.loading, navigate, values]);
 
-  const logs = collection?.items ?? [];
+  const logs = useMemo(() => collection?.items ?? [], [collection]);
   const activeFilters = Boolean(
     values.username || values.resource || values.operation || values.result,
   );
-  const operations = useMemo(
-    () =>
-      [
-        ...new Set(
-          [
-            ...events.map((event) => event.event_type ?? ""),
-            ...logs.map((log) => log.operation ?? ""),
-          ].filter(Boolean),
-        ),
-      ].sort((left, right) => left.localeCompare(right, locale)),
-    [events, locale, logs],
-  );
+  const operations = (() =>
+    [
+      ...new Set(
+        [
+          ...(events ?? []).map((event) => event.event_type ?? ""),
+          ...logs.map((log) => log.operation ?? ""),
+        ].filter(Boolean),
+      ),
+    ].sort((left, right) => left.localeCompare(right, locale)))();
   return (
     <>
       <PageHeader
@@ -356,21 +339,27 @@ export function AuditPage({
         }
       />
       {demo ? <DemoBanner /> : null}
+      {eventsQuery.error ? (
+        <ErrorView message={eventsQuery.error} retry={eventsQuery.reload} />
+      ) : null}
       {!collection && !error ? (
-        <section className="table-shell">
+        <section className={resolveClasses("table-shell")}>
           <div
-            className="route-loading"
+            className={resolveClasses("route-loading")}
             role="status"
             aria-label={t("正在载入")}
           >
-            <span className="spinner spinner-small" aria-hidden="true" />
+            <span
+              className={resolveClasses("spinner spinner-small")}
+              aria-hidden="true"
+            />
           </div>
         </section>
       ) : null}
       {error ? (
         <ErrorView
           title="审计日志载入失败"
-          message={error.message}
+          message={error}
           retry={() => {
             reload();
             onRefresh();
@@ -385,14 +374,16 @@ export function AuditPage({
             zhUnit="条"
             enUnit="entries"
           />
-          <section className="table-shell">
+          <section className={resolveClasses("table-shell")}>
             <AuditFilterForm
               values={values}
               operations={operations}
               navigate={navigate}
             />
             <div>
-              <div className="table-scroll audit-table-scroll">
+              <div
+                className={resolveClasses("table-scroll audit-table-scroll")}
+              >
                 <AuditLogTable
                   logs={logs}
                   emptyTitle={
@@ -405,16 +396,16 @@ export function AuditPage({
                   }
                   emptyIcon="history"
                   sort={values.sort}
-                  onSort={(sort) =>
+                  onSort={(sort) => {
                     navigate(
-                      auditPath(
-                        1,
-                        values.pageSize,
-                        values,
-                        sort as "op_time" | "-op_time",
-                      ),
-                    )
-                  }
+                      auditPath({
+                        page: 1,
+                        pageSize: values.pageSize,
+                        filters: values,
+                        sort: sort as "op_time" | "-op_time",
+                      }),
+                    );
+                  }}
                   operationLabel={globalAuditOperationLabel}
                   descriptionLabel={globalAuditDescriptionLabel}
                 />
@@ -422,17 +413,93 @@ export function AuditPage({
             </div>
             <Pagination
               pagination={collection.pagination}
-              onPageChange={(page) =>
-                navigate(auditPath(page, values.pageSize, values, values.sort))
-              }
+              onPageChange={(page) => {
+                navigate(
+                  auditPath({
+                    page: page,
+                    pageSize: values.pageSize,
+                    filters: values,
+                    sort: values.sort,
+                  }),
+                );
+              }}
               pageSizeOptions={[20, 50, 100]}
-              onPageSizeChange={(pageSize) =>
-                navigate(auditPath(1, pageSize, values, values.sort))
-              }
+              onPageSizeChange={(pageSize) => {
+                navigate(
+                  auditPath({
+                    page: 1,
+                    pageSize: pageSize,
+                    filters: values,
+                    sort: values.sort,
+                  }),
+                );
+              }}
             />
           </section>
         </>
       ) : null}
     </>
+  );
+}
+
+const resolveClasses = createClassNames({
+  "audit-log-table": uiStyles0.auditLogTable,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  "section-heading": uiStyles0.sectionHeading,
+  "unified-select": uiStyles0.unifiedSelect,
+  "table-toolbar": uiStyles0.tableToolbar,
+  "filter-toolbar": uiStyles0.filterToolbar,
+  "filter-toolbar-query": uiStyles0.filterToolbarQuery,
+  "filter-toolbar-controls": uiStyles0.filterToolbarControls,
+  "toolbar-search": uiStyles0.toolbarSearch,
+  "toolbar-field": uiStyles0.toolbarField,
+  "toolbar-select": uiStyles0.toolbarSelect,
+  "filter-toolbar-actions": uiStyles0.filterToolbarActions,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "button-primary": uiStyles0.buttonPrimary,
+  "table-shell": uiStyles0.tableShell,
+  "route-loading": uiStyles0.routeLoading,
+  spinner: uiStyles0.spinner,
+  "spinner-small": uiStyles0.spinnerSmall,
+  "table-scroll": uiStyles0.tableScroll,
+  "audit-table-scroll": uiStyles0.auditTableScroll,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});
+
+function useAuditData({ values }: { values: AuditRouteState }) {
+  return useLoadedQuery(auditKeys.logs(values), (signal) =>
+    controlApi.list<AuditLog>(
+      "audit-logs",
+      {
+        page: values.page,
+        page_size: values.pageSize,
+        sort: values.sort,
+        q: auditControlQuery(values),
+      },
+      signal,
+    ),
+  );
+}
+
+function useAuditEventData() {
+  return useLoadedQuery(auditKeys.events, (signal) =>
+    controlApi
+      .data<AuditLogEvent[]>("audit-log-events", {}, signal)
+      .then((data) => data ?? []),
   );
 }

@@ -2,14 +2,14 @@ package app
 
 import "fmt"
 
-func (state *demoState) expandDemoPolicyRegistries(policy map[string]any) {
+func (ds *demoState) expandDemoPolicyRegistries(policy map[string]any) {
 	for _, key := range []string{"src_registry", "dest_registry"} {
 		reference, ok := policy[key].(map[string]any)
 		if !ok || numberValue(reference["id"]) <= 0 {
 			continue
 		}
-		if index, found := findMapNumber(state.registries, "id", fmt.Sprint(numberValue(reference["id"]))); found {
-			policy[key] = cloneMap(state.registries[index])
+		if index, found := findMapNumber(ds.registries, "id", fmt.Sprint(numberValue(reference["id"]))); found {
+			policy[key] = cloneMap(ds.registries[index])
 		}
 	}
 }

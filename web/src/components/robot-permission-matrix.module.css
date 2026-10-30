@@ -1,0 +1,171 @@
+@layer ui-controls {
+  .permissionMatrix {
+    min-width: 0;
+    margin: 20px 0 0;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+  }
+}
+
+@layer ui-controls {
+  .permissionMatrix legend {
+    margin-left: 12px;
+    padding: 0 7px;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 750;
+  }
+}
+
+@layer ui-controls {
+  .permissionMatrixToolbar {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-control-group);
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-controls {
+  .permissionResourceList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@layer ui-controls {
+  .permissionResource {
+    min-width: 0;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@layer ui-controls {
+  .permissionResource:nth-child(odd) {
+    border-right: 1px solid var(--line);
+  }
+}
+
+@layer ui-controls {
+  .permissionResource header {
+    min-height: 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 7px;
+    padding: 0;
+    border: 0;
+  }
+}
+
+@layer ui-controls {
+  .permissionResource header strong {
+    color: var(--ink);
+    font-size: 11px;
+  }
+}
+
+@layer ui-controls {
+  .permissionResource header code {
+    overflow: hidden;
+    color: var(--ink-faint);
+    font-size: 11px;
+    text-overflow: ellipsis;
+  }
+}
+
+@layer ui-controls {
+  .permissionResource > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 9px;
+  }
+}
+
+@layer ui-controls {
+  .permissionResource label {
+    position: relative;
+    cursor: pointer;
+  }
+}
+
+@layer ui-controls {
+  .permissionResource label input {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+    border: 0;
+    cursor: pointer;
+  }
+}
+
+@layer ui-controls {
+  .permissionResource label span {
+    min-height: 26px;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    color: var(--ink-soft);
+    font-size: 11px;
+    font-weight: 650;
+    transition:
+      border-color var(--motion-fast) var(--motion-ease),
+      background var(--motion-fast) var(--motion-ease),
+      color var(--motion-fast) var(--motion-ease);
+  }
+}
+
+@layer ui-controls {
+  .permissionResource label input:checked + span {
+    border-color: var(--orange);
+    background: var(--orange-soft);
+    color: var(--orange-strong);
+  }
+}
+
+@layer ui-controls {
+  .permissionResource label input:focus-visible + span {
+    outline: 2px solid var(--orange-strong);
+    outline-offset: 2px;
+  }
+}
+
+@layer ui-controls {
+  .permissionMatrixCompact {
+    margin-top: 10px;
+  }
+}
+
+@layer ui-controls {
+  @media (max-width: 620px) {
+    .permissionResource:nth-child(odd) {
+      border-right: 0;
+    }
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.permissionMatrix {
+}
+.permissionMatrixToolbar {
+}
+.permissionResourceList {
+}
+.permissionResource {
+}
+.permissionMatrixCompact {
+}

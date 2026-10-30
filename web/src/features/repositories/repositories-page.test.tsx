@@ -1,21 +1,16 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { parseHashRoute } from "../../app/hash-router";
-import { LocaleProvider } from "../../app/locale-context";
+import { parseConsoleRoute } from "../../app/console-route";
 import type {
   ProjectSummary,
   RepositorySummary,
   Session,
 } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { first } from "../../test/first";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
 import { RepositoriesPage } from "./repositories-page";
 
 const session: Session = {
@@ -64,6 +59,7 @@ afterEach(() => {
 
 describe("RepositoriesPage", () => {
   it("loads, filters, sorts, changes view, and opens repositories with legacy contracts", async () => {
+    const user = setupUser();
     const list = vi
       .spyOn(controlApi, "list")
       .mockImplementation((_operation, parameters) => {
@@ -78,10 +74,10 @@ describe("RepositoriesPage", () => {
     const showPushCommand = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <RepositoriesPage
-          route={parseHashRoute("#/repositories")}
+          route={parseConsoleRoute("#/repositories")}
           session={session}
           projects={projects}
           refreshing={false}
@@ -89,7 +85,7 @@ describe("RepositoriesPage", () => {
           onRefresh={vi.fn().mockResolvedValue(undefined)}
           onShowPushCommand={showPushCommand}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(
@@ -104,49 +100,54 @@ describe("RepositoriesPage", () => {
     expect(
       screen
         .getByRole("group", { name: "仓库展示方式" })
-        .closest(".repository-asset-toolbar-actions"),
+        .closest(".hc_6f6adfd6_repositoryAssetToolbarActions"),
     ).not.toBeNull();
     expect(list).toHaveBeenCalledWith(
       "repositories",
       { project: "platform", page: 1, page_size: 100, sort: "name" },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(list).toHaveBeenCalledWith(
       "repositories",
       { project: "sandbox", page: 1, page_size: 100, sort: "name" },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.change(
+    await replaceText(
+      user,
       screen.getByRole("searchbox", { name: "搜索项目或仓库" }),
-      { target: { value: "worker" } },
+      "worker",
     );
-    fireEvent.click(screen.getByRole("button", { name: "项目" }));
-    fireEvent.click(screen.getByRole("option", { name: "sandbox" }));
+    await user.click(screen.getByRole("button", { name: "项目" }));
+    await user.click(screen.getByRole("option", { name: "sandbox" }));
     expect(navigate).toHaveBeenCalledWith("repositories?project=sandbox");
-    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
+    await user.click(screen.getByRole("button", { name: "筛选" }));
     expect(navigate).toHaveBeenCalledWith("repositories?q=worker");
 
-    fireEvent.click(screen.getByRole("button", { name: "按拉取次数降序排序" }));
+    await user.click(
+      screen.getByRole("button", { name: "按拉取次数降序排序" }),
+    );
     expect(navigate).toHaveBeenCalledWith("repositories?sort=-pull_count");
 
-    fireEvent.click(screen.getByRole("button", { name: "卡片视图" }));
+    await user.click(screen.getByRole("button", { name: "卡片视图" }));
     expect(screen.getByRole("button", { name: "卡片视图" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    fireEvent.click(screen.getAllByRole("button", { name: "查看推送指引" })[0]);
+    await user.click(
+      first(screen.getAllByRole("button", { name: "查看推送指引" })),
+    );
     expect(showPushCommand).toHaveBeenCalledWith("platform", "platform/api");
-    fireEvent.click(screen.getByRole("button", { name: "api" }));
+    await user.click(screen.getByRole("button", { name: "api" }));
     expect(navigate).toHaveBeenCalledWith(
       "projects/platform/repositories/platform%2Fapi/artifacts",
     );
 
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         window.localStorage.getItem("harbor-console-preferences-v1"),
-      ).toContain('"repositoryView":"card"'),
-    );
+      ).toContain('"repositoryView":"card"');
+    });
   });
 
   it("keeps the route geometry stable and advances bounded repository loads without batch barriers", async () => {
@@ -169,10 +170,10 @@ describe("RepositoriesPage", () => {
       });
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <RepositoriesPage
-          route={parseHashRoute("#/repositories")}
+          route={parseConsoleRoute("#/repositories")}
           session={session}
           projects={manyProjects}
           refreshing={false}
@@ -180,20 +181,24 @@ describe("RepositoriesPage", () => {
           onRefresh={vi.fn().mockResolvedValue(undefined)}
           onShowPushCommand={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     const statistics = screen.getByRole("region", {
       name: "镜像仓库统计",
     });
     expect(statistics).toHaveAttribute("aria-busy", "true");
-    await waitFor(() => expect(list).toHaveBeenCalledTimes(4));
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledTimes(4);
+    });
 
     resolvers.get("project-1")?.({
       items: [],
       pagination: { page: 1, page_size: 100, total: 0 },
     });
-    await waitFor(() => expect(list).toHaveBeenCalledTimes(5));
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledTimes(5);
+    });
 
     for (const project of manyProjects.slice(1)) {
       resolvers.get(project.name)?.({
@@ -221,10 +226,10 @@ describe("RepositoriesPage", () => {
     );
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <RepositoriesPage
-          route={parseHashRoute("#/repositories")}
+          route={parseConsoleRoute("#/repositories")}
           session={session}
           projects={projects}
           refreshing={false}
@@ -232,7 +237,7 @@ describe("RepositoriesPage", () => {
           onRefresh={vi.fn().mockResolvedValue(undefined)}
           onShowPushCommand={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("2 projects")).toBeVisible();

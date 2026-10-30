@@ -2,18 +2,16 @@ package app
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
 	"net/url"
 	"strings"
 )
 
 func validateConfigurations(body map[string]any) error {
 	if len(body) == 0 {
-		return errors.New("系统配置更新内容不能为空")
+		return invalidField("", "body_required", "configuration update must not be empty")
 	}
 	if _, exists := body["self_registration"]; exists {
-		return errors.New("self_registration 是 Harbor v2.15 的只读配置项，不能通过此 API 修改")
+		return invalidField("self_registration", "read_only", "is read-only in Harbor v2.15")
 	}
 	stringFields := map[string]bool{
 		"auth_mode": true, "ldap_base_dn": true, "ldap_filter": true, "ldap_group_base_dn": true,
@@ -44,19 +42,19 @@ func validateConfigurations(body map[string]any) error {
 		case stringFields[key]:
 			text, ok := value.(string)
 			if !ok || len(text) > 65535 || strings.ContainsRune(text, '\x00') {
-				return fmt.Errorf("系统配置项 %s 的类型或长度无效", key)
+				return invalidField(key, "invalid_text", "must be a string of at most 65535 bytes")
 			}
 		case boolFields[key]:
 			if _, ok := value.(bool); !ok {
-				return fmt.Errorf("系统配置项 %s 必须是布尔值", key)
+				return invalidField(key, "not_boolean", "must be a boolean")
 			}
 		case numberFields[key]:
 			number, ok := integerNumberValue(value)
 			if !ok || !validConfigurationNumber(key, number) {
-				return fmt.Errorf("系统配置项 %s 的数值无效", key)
+				return invalidField(key, "out_of_range", "is not a valid number for this setting")
 			}
 		default:
-			return fmt.Errorf("系统配置项 %s 不在控制台允许列表中", key)
+			return invalidField(key, "unknown_field", "is not in the console allowlist")
 		}
 	}
 	if err := validateConfigurationSemantics(body); err != nil {
@@ -78,21 +76,20 @@ func validConfigurationNumber(key string, value int64) bool {
 
 func validateConfigurationSemantics(body map[string]any) error {
 	if value, ok := body["auth_mode"].(string); ok && !slicesContain([]string{"db_auth", "ldap_auth", "uaa_auth", "oidc_auth", "http_auth"}, value) {
-		return errors.New("认证模式必须是 db_auth、ldap_auth、uaa_auth、oidc_auth 或 http_auth")
+		return invalidField("auth_mode", "invalid_value", "must be db_auth, ldap_auth, uaa_auth, oidc_auth or http_auth")
 	}
 	if value, ok := body["project_creation_restriction"].(string); ok && !slicesContain([]string{"adminonly", "everyone"}, value) {
-		return errors.New("项目创建权限必须是 adminonly 或 everyone")
+		return invalidField("project_creation_restriction", "invalid_value", "must be adminonly or everyone")
 	}
 	if value, ok := body["robot_name_prefix"].(string); ok && (strings.TrimSpace(value) == "" || len(value) > 255 || strings.ContainsAny(value, "\r\n")) {
-		return errors.New("机器人账号前缀必须是 255 个字符以内的单行文本")
+		return invalidField("robot_name_prefix", "invalid_text", "must be non-empty single-line text of at most 255 characters")
 	}
-	for key, label := range map[string]string{
-		"uaa_endpoint": "UAA 地址", "http_authproxy_endpoint": "HTTP 认证地址",
-		"http_authproxy_tokenreview_endpoint": "HTTP Token Review 地址", "oidc_endpoint": "OIDC 地址",
-		"audit_log_forward_endpoint": "审计日志转发地址",
+	for _, key := range []string{
+		"uaa_endpoint", "http_authproxy_endpoint", "http_authproxy_tokenreview_endpoint", "oidc_endpoint",
+		"audit_log_forward_endpoint",
 	} {
 		if value, ok := body[key].(string); ok && strings.TrimSpace(value) != "" {
-			if err := validateHTTPURL(value, label); err != nil {
+			if err := validateHTTPURL(value, key); err != nil {
 				return err
 			}
 		}
@@ -100,12 +97,12 @@ func validateConfigurationSemantics(body map[string]any) error {
 	if value, ok := body["ldap_url"].(string); ok && strings.TrimSpace(value) != "" {
 		parsed, err := url.Parse(strings.TrimSpace(value))
 		if err != nil || parsed.Host == "" || (parsed.Scheme != "ldap" && parsed.Scheme != "ldaps") || parsed.User != nil || parsed.Fragment != "" {
-			return errors.New("LDAP 地址必须是完整的 ldap:// 或 ldaps:// URL")
+			return invalidField("ldap_url", "invalid_ldap_url", "must be a complete ldap:// or ldaps:// URL")
 		}
 	}
 	if raw, ok := body["banner_message"].(string); ok {
 		if err := validateBannerMessage(raw); err != nil {
-			return err
+			return nestField("banner_message", err)
 		}
 	}
 	return nil
@@ -117,28 +114,28 @@ func validateBannerMessage(raw string) error {
 	}
 	var banner map[string]any
 	if err := json.Unmarshal([]byte(raw), &banner); err != nil {
-		return errors.New("横幅消息必须是 Harbor 官方 BannerMessage JSON")
+		return invalidField("", "invalid_json", "must be Harbor BannerMessage JSON")
 	}
 	if err := validateAllowedFields(banner, "message", "closable", "type", "fromDate", "toDate"); err != nil {
-		return fmt.Errorf("横幅消息无效：%w", err)
+		return err
 	}
 	message, ok := banner["message"].(string)
 	if !ok || strings.TrimSpace(message) == "" || len(message) > 800 || strings.ContainsRune(message, '\x00') {
-		return errors.New("横幅消息正文必须是 1 到 800 个字符")
+		return invalidField("message", "invalid_text", "must have 1 to 800 characters")
 	}
 	closable, ok := banner["closable"].(bool)
 	if !ok {
-		return errors.New("横幅消息 closable 必须是布尔值")
+		return invalidField("closable", "not_boolean", "must be a boolean")
 	}
 	_ = closable
 	typeName, ok := banner["type"].(string)
 	if !ok || !slicesContain([]string{"success", "info", "warning", "danger"}, typeName) {
-		return errors.New("横幅消息类型必须是 success、info、warning 或 danger")
+		return invalidField("type", "invalid_value", "must be success, info, warning or danger")
 	}
 	for _, key := range []string{"fromDate", "toDate"} {
 		if value, exists := banner[key]; exists && value != nil {
 			if _, ok := value.(string); !ok {
-				return fmt.Errorf("横幅消息 %s 必须是日期字符串或 null", key)
+				return invalidField(key, "invalid_date", "must be a date string or null")
 			}
 		}
 	}

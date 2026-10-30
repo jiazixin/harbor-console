@@ -47,12 +47,17 @@ function compareSortValues(
 }
 
 /** Sorts by a field name, where a leading "-" means descending order. */
-function sortByField<T>(
-  items: readonly T[],
-  sort: string,
-  locale: string,
-  valueOf: (item: T, field: string) => SortValue,
-): T[] {
+function sortByField<T>({
+  items,
+  sort,
+  locale,
+  valueOf,
+}: {
+  items: readonly T[];
+  sort: string;
+  locale: string;
+  valueOf: (item: T, field: string) => SortValue;
+}): T[] {
   const descending = sort.startsWith("-");
   const field = sort.replace(/^-/, "");
   return [...items].sort((left, right) => {
@@ -89,34 +94,49 @@ export function sortPolicies(
   sort: string,
   locale: string,
 ): ReplicationPolicy[] {
-  return sortByField(policies, sort, locale, policySortValue);
+  return sortByField({
+    items: policies,
+    sort: sort,
+    locale: locale,
+    valueOf: policySortValue,
+  });
 }
 
-export function sortExecutions(
-  executions: readonly ReplicationExecution[],
-  policies: readonly ReplicationPolicy[],
-  sort: string,
-  locale: string,
-): ReplicationExecution[] {
+export function sortExecutions({
+  executions,
+  policies,
+  sort,
+  locale,
+}: {
+  executions: readonly ReplicationExecution[];
+  policies: readonly ReplicationPolicy[];
+  sort: string;
+  locale: string;
+}): ReplicationExecution[] {
   const policyNames = new Map(
     policies.map((policy) => [policy.id, policy.name ?? ""]),
   );
-  return sortByField(executions, sort, locale, (execution, field) => {
-    switch (field) {
-      case "id":
-        return execution.id ?? 0;
-      case "policy":
-        return policyNames.get(execution.policy_id) ?? "";
-      case "trigger":
-        return execution.trigger ?? "";
-      case "status":
-        return execution.status ?? "";
-      case "tasks":
-        return executionTaskCount(execution);
-      case "duration":
-        return executionDuration(execution);
-      default:
-        return timestamp(execution.start_time);
-    }
+  return sortByField({
+    items: executions,
+    sort: sort,
+    locale: locale,
+    valueOf: (execution, field) => {
+      switch (field) {
+        case "id":
+          return execution.id ?? 0;
+        case "policy":
+          return policyNames.get(execution.policy_id) ?? "";
+        case "trigger":
+          return execution.trigger ?? "";
+        case "status":
+          return execution.status ?? "";
+        case "tasks":
+          return executionTaskCount(execution);
+        case "duration":
+          return executionDuration(execution);
+        default:
+          return timestamp(execution.start_time);
+      }
+    },
   });
 }

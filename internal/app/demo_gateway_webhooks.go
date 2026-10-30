@@ -2,16 +2,12 @@ package app
 
 import (
 	"net/http"
-	"net/url"
-	"time"
+
+	"harbor-console/internal/timefmt"
 )
 
-func (state *demoState) handleWebhookControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleWebhookControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
@@ -19,34 +15,34 @@ func (state *demoState) handleWebhookControl(
 	case "webhooks":
 		projectName := query.Get("project")
 		if method == http.MethodGet {
-			state.writeList(w, state.webhooks[projectName], query)
+			ds.writeList(w, ds.webhooks[projectName], query)
 			return
 		}
-		state.nextWebhookID++
+		ds.nextWebhookID++
 		webhook := cloneMap(body)
-		webhook["id"] = state.nextWebhookID
-		webhook["project_id"] = projectID(state.projects, projectName)
-		webhook["creation_time"] = time.Now().UTC().Format(time.RFC3339)
-		state.webhooks[projectName] = append(state.webhooks[projectName], webhook)
+		webhook["id"] = ds.nextWebhookID
+		webhook["project_id"] = projectID(ds.projects, projectName)
+		webhook["creation_time"] = ds.now().UTC().Format(timefmt.Layout)
+		ds.webhooks[projectName] = append(ds.webhooks[projectName], webhook)
 		status, data = http.StatusCreated, webhook
 
 	case "webhook":
 		projectName := query.Get("project")
-		index, found := findMapNumber(state.webhooks[projectName], "id", query.Get("id"))
+		index, found := findMapNumber(ds.webhooks[projectName], "id", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "Webhook 不存在"
+			errStatus, errMessage = http.StatusNotFound, "webhook not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.webhooks[projectName][index]
+			data = ds.webhooks[projectName][index]
 		} else if method == http.MethodPut {
-			id, projectID := state.webhooks[projectName][index]["id"], state.webhooks[projectName][index]["project_id"]
-			state.webhooks[projectName][index] = cloneMap(body)
-			state.webhooks[projectName][index]["id"], state.webhooks[projectName][index]["project_id"] = id, projectID
-			state.webhooks[projectName][index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
-			data = state.webhooks[projectName][index]
+			id, projectID := ds.webhooks[projectName][index]["id"], ds.webhooks[projectName][index]["project_id"]
+			ds.webhooks[projectName][index] = cloneMap(body)
+			ds.webhooks[projectName][index]["id"], ds.webhooks[projectName][index]["project_id"] = id, projectID
+			ds.webhooks[projectName][index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+			data = ds.webhooks[projectName][index]
 		} else {
-			state.webhooks[projectName] = append(state.webhooks[projectName][:index], state.webhooks[projectName][index+1:]...)
+			ds.webhooks[projectName] = append(ds.webhooks[projectName][:index], ds.webhooks[projectName][index+1:]...)
 		}
 
 	case "webhook-events":
@@ -54,29 +50,29 @@ func (state *demoState) handleWebhookControl(
 
 	case "webhook-executions":
 		projectName := query.Get("project")
-		if _, found := findMapNumber(state.webhooks[projectName], "id", query.Get("id")); !found {
-			errStatus, errMessage = http.StatusNotFound, "Webhook 策略不存在"
+		if _, found := findMapNumber(ds.webhooks[projectName], "id", query.Get("id")); !found {
+			errStatus, errMessage = http.StatusNotFound, "webhook policy not found"
 			break
 		}
-		executions := state.webhookExecutions[parseDemoID(query.Get("id"))]
+		executions := ds.webhookExecutions[parseDemoID(query.Get("id"))]
 		executions = filterMaps(executions, demoQueryString(query.Get("q"), "status"), "status")
-		state.writeList(w, executions, query)
+		ds.writeList(w, executions, query)
 		return
 
 	case "webhook-tasks":
 		executionID := parseDemoID(query.Get("execution"))
-		if _, found := findMapNumber(state.webhookExecutions[parseDemoID(query.Get("id"))], "id", query.Get("execution")); !found {
-			errStatus, errMessage = http.StatusNotFound, "Webhook 执行记录不存在"
+		if _, found := findMapNumber(ds.webhookExecutions[parseDemoID(query.Get("id"))], "id", query.Get("execution")); !found {
+			errStatus, errMessage = http.StatusNotFound, "webhook execution not found"
 			break
 		}
-		state.writeList(w, state.webhookTasks[executionID], query)
+		ds.writeList(w, ds.webhookTasks[executionID], query)
 		return
 
 	case "webhook-task-log":
 		key := query.Get("execution") + ":" + query.Get("task")
-		logText, found := state.webhookLogs[key]
+		logText, found := ds.webhookLogs[key]
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "Webhook 任务日志不存在"
+			errStatus, errMessage = http.StatusNotFound, "webhook task log not found"
 			break
 		}
 		data = logText

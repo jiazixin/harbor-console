@@ -1,9 +1,6 @@
-import { controlApi } from "./api-client";
-import type {
-  ControlDataResponse,
-  RobotCredential,
-  RobotPermission,
-} from "./models";
+import { UserInputError } from "./errors";
+import type { RobotCredential, RobotPermission } from "./models";
+import type { ControlMutate } from "./use-control-mutation";
 
 export type RobotMutationPayload = {
   name: string;
@@ -36,22 +33,25 @@ export function robotUpdatePayload(
 export async function createRobotAccount(
   payload: RobotMutationPayload,
   messages: { missingId: string; missingSecret: string },
+  mutate: ControlMutate,
 ): Promise<RobotCredential> {
-  const response = await controlApi.mutate<
-    ControlDataResponse<RobotCredential>
-  >("robots", {}, "POST", payload);
-  const credential = response.data;
-  if (!credential?.secret) throw new Error(messages.missingSecret);
+  const credential = await mutate<RobotCredential | null>({
+    operation: "robots",
+    parameters: {},
+    method: "POST",
+    payload: payload,
+  });
+  if (!credential?.secret) throw new UserInputError(messages.missingSecret);
 
   // Harbor 2.15 accepts `disable` on create but does not persist it.
   if (payload.disable) {
-    if (!credential.id) throw new Error(messages.missingId);
-    await controlApi.mutate(
-      "robot",
-      { id: credential.id },
-      "PUT",
-      robotUpdatePayload(payload, credential.name),
-    );
+    if (!credential.id) throw new UserInputError(messages.missingId);
+    await mutate({
+      operation: "robot",
+      parameters: { id: credential.id },
+      method: "PUT",
+      payload: robotUpdatePayload(payload, credential.name),
+    });
   }
 
   return credential;

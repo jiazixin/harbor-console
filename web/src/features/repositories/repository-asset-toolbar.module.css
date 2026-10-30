@@ -1,0 +1,28 @@
+@layer ui-collections {
+  .repositoryAssetToolbarPrimary,
+  .repositoryAssetToolbarActions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-control);
+  }
+}
+
+@layer ui-collections {
+  .repositoryAssetToolbarPrimary {
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+  }
+}
+
+@layer ui-collections {
+  .repositoryAssetToolbarActions {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.repositoryAssetToolbarPrimary {
+}
+.repositoryAssetToolbarActions {
+}

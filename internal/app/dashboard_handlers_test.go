@@ -56,10 +56,8 @@ func TestDashboardDerivesStatisticsFromVisibleResources(t *testing.T) {
 		Password:    "test-only",
 		Client:      client,
 	}
-	if err := application.sessions.create(current); err != nil {
-		t.Fatal(err)
-	}
-	request := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
+	application.sessions.create(current)
+	request := httptest.NewRequest(http.MethodGet, "/api/dashboards/current", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -135,7 +133,7 @@ func TestDashboardDerivesStatisticsFromVisibleResources(t *testing.T) {
 func TestDashboardBoundsAggregateUpstreamWork(t *testing.T) {
 	runtimeConfig := config.Default()
 	runtimeConfig.Server.WriteTimeout = config.Duration(100 * time.Millisecond)
-	application, err := newAppWithConfig(runtimeConfig, nil)
+	application, err := newAppWithConfig(runtimeConfig, nil, Build{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,8 +145,8 @@ func TestDashboardBoundsAggregateUpstreamWork(t *testing.T) {
 		<-request.Context().Done()
 		return nil, request.Context().Err()
 	})}
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := httptest.NewRequest(http.MethodGet, "/api/dashboards/current", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	response := httptest.NewRecorder()
 	started := time.Now()

@@ -1,13 +1,8 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../../app/locale-context";
+import { first } from "../../test/first";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
 import { LoginPage } from "./login-page";
 
 afterEach(() => {
@@ -20,6 +15,7 @@ afterEach(() => {
 
 describe("LoginPage", () => {
   it("normalizes a pasted Harbor URL and submits the typed connection contract", async () => {
+    const user = setupUser();
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -36,28 +32,24 @@ describe("LoginPage", () => {
     vi.stubGlobal("fetch", fetchMock);
     const authenticated = vi.fn();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <LoginPage onAuthenticated={authenticated} onNotice={vi.fn()} />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(screen.getByPlaceholderText("harbor.example.com"), {
-      target: { value: "http://harbor.example.com" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("admin"), {
-      target: { value: "admin" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("输入密码"), {
-      target: { value: "secret" },
-    });
-    const form = screen
-      .getByRole("button", { name: "连接实例" })
-      .closest("form");
-    expect(form).not.toBeNull();
-    if (form) fireEvent.submit(form);
+    await replaceText(
+      user,
+      screen.getByPlaceholderText("harbor.example.com"),
+      "http://harbor.example.com",
+    );
+    await replaceText(user, screen.getByPlaceholderText("admin"), "admin");
+    await replaceText(user, screen.getByPlaceholderText("输入密码"), "secret");
+    await user.click(screen.getByRole("button", { name: "连接实例" }));
 
-    await waitFor(() => expect(authenticated).toHaveBeenCalledOnce());
-    const [, init] = fetchMock.mock.calls[0];
+    await waitFor(() => {
+      expect(authenticated).toHaveBeenCalledOnce();
+    });
+    const [, init] = first(fetchMock.mock.calls);
     expect(typeof init?.body).toBe("string");
     const body = typeof init?.body === "string" ? init.body : "{}";
     expect(JSON.parse(body)).toEqual({
@@ -68,26 +60,28 @@ describe("LoginPage", () => {
     });
   });
 
-  it("switches visible copy without reloading the page", () => {
+  it("switches visible copy without reloading the page", async () => {
+    const user = setupUser();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <LoginPage onAuthenticated={() => undefined} onNotice={vi.fn()} />
-      </LocaleProvider>,
+      </TestProviders>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Switch to English" }));
+    await user.click(screen.getByRole("button", { name: "Switch to English" }));
     expect(
       screen.getByRole("heading", { name: "Connect your Harbor instance" }),
     ).toBeInTheDocument();
   });
 
-  it("requires an address before entering the anonymous public catalog", () => {
+  it("requires an address before entering the anonymous public catalog", async () => {
+    const user = setupUser();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <LoginPage onAuthenticated={() => undefined} onNotice={vi.fn()} />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /浏览公开镜像目录/ }));
+    await user.click(screen.getByRole("button", { name: /浏览公开镜像目录/ }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "请先填写需要浏览的 Harbor 地址。",
@@ -95,6 +89,7 @@ describe("LoginPage", () => {
   });
 
   it("opens the React public catalog and calls only anonymous APIs", async () => {
+    const user = setupUser();
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -109,22 +104,48 @@ describe("LoginPage", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     render(
-      <LocaleProvider>
+      <TestProviders>
         <LoginPage onAuthenticated={() => undefined} onNotice={vi.fn()} />
-      </LocaleProvider>,
+      </TestProviders>,
     );
-    fireEvent.change(screen.getByPlaceholderText("harbor.example.com"), {
-      target: { value: "harbor.example.com" },
-    });
+    await replaceText(
+      user,
+      screen.getByPlaceholderText("harbor.example.com"),
+      "harbor.example.com",
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: /浏览公开镜像目录/ }));
+    await user.click(screen.getByRole("button", { name: /浏览公开镜像目录/ }));
 
     expect(
       await screen.findByRole("heading", { name: "公开项目" }),
     ).toBeInTheDocument();
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/public/projects");
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST" });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+    expect(first(fetchMock.mock.calls)[0]).toBe("/api/public/projects");
+    expect(first(fetchMock.mock.calls)[1]).toMatchObject({ method: "POST" });
     expect(screen.queryByPlaceholderText("admin")).not.toBeInTheDocument();
+  });
+  it("rejects credentials in public catalog URLs before history or network access", async () => {
+    const user = setupUser();
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <TestProviders>
+        <LoginPage onAuthenticated={vi.fn()} onNotice={vi.fn()} />
+      </TestProviders>,
+    );
+    await replaceText(
+      user,
+      screen.getByPlaceholderText("harbor.example.com"),
+      "https://user:private-password@harbor.example.com",
+    );
+    await user.click(screen.getByRole("button", { name: /浏览公开镜像目录/ }));
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(JSON.stringify(window.history.state)).not.toContain(
+      "private-password",
+    );
+    expect(window.location.href).not.toContain("private-password");
   });
 });

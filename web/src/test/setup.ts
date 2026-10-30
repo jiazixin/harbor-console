@@ -6,7 +6,9 @@ function memoryStorage(): Storage {
     get length() {
       return values.size;
     },
-    clear: () => values.clear(),
+    clear: () => {
+      values.clear();
+    },
     getItem: (key) => values.get(key) ?? null,
     key: (index) => [...values.keys()][index] ?? null,
     removeItem: (key) => values.delete(key),

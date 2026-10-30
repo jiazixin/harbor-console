@@ -1,35 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-
 import { instanceApi } from "../app/api-client";
-import type { HarborInstance } from "../app/models";
-import {
-  readStoredItem,
-  writeStoredItem,
-} from "../lib/browser-storage/storage";
-import type { ShellPanel } from "./application-overlays";
-
-type Theme = "dark" | "light";
-
-const themeStorageKey = "harbor-console-theme";
-
-function storedTheme(): Theme {
-  return readStoredItem("localStorage", themeStorageKey) === "dark"
-    ? "dark"
-    : "light";
-}
-
-/** The color theme, applied to the document and remembered in this browser. */
-export function useTheme() {
-  const [theme, setTheme] = useState(storedTheme);
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    writeStoredItem("localStorage", themeStorageKey, theme);
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "dark" ? "#171717" : "#f7f7f8");
-  }, [theme]);
-  return [theme, setTheme] as const;
-}
+import { useLoadedQuery } from "../app/use-loaded-query";
+import type { ShellPanel } from "./application-overlays-support";
+import { shellKeys } from "./shell-keys";
 
 /**
  * The top-bar popover panel. Opening moves focus into the panel; Escape or a
@@ -113,38 +86,23 @@ export function useSearchShortcut(onOpen: () => void) {
       onOpen();
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [onOpen]);
 }
 
 /** Loads the saved Harbor connections while the instance panel is open. */
-export function useHarborInstances(
-  open: boolean,
-  onError: (message: string) => void,
-) {
-  const [instances, setInstances] = useState<HarborInstance[]>([]);
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    const controller = new AbortController();
-    setLoading(true);
-    void instanceApi
-      .list(controller.signal)
-      .then((collection) => setInstances(collection.items))
-      .catch((loadError: unknown) => {
-        if (
-          loadError instanceof DOMException &&
-          loadError.name === "AbortError"
-        )
-          return;
-        onError(
-          loadError instanceof Error ? loadError.message : String(loadError),
-        );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [onError, open]);
-  return { instances, loading };
+export function useHarborInstances(open: boolean) {
+  const instancesQuery = useLoadedQuery(
+    shellKeys.instances,
+    (signal) => instanceApi.list(signal).then((collection) => collection.items),
+    { enabled: open },
+  );
+  return {
+    instances: instancesQuery.data ?? [],
+    error: instancesQuery.error,
+    reload: instancesQuery.reload,
+    loading: instancesQuery.loading,
+  };
 }

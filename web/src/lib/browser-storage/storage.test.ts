@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { readStoredItem, removeStoredItem, writeStoredItem } from "./storage";
 
 afterEach(() => vi.restoreAllMocks());
@@ -12,10 +11,12 @@ describe("optional browser storage", () => {
         throw new DOMException("Access denied", "SecurityError");
       });
       expect(readStoredItem(storage, "preference")).toBeNull();
-      expect(() =>
-        writeStoredItem(storage, "preference", "value"),
-      ).not.toThrow();
-      expect(() => removeStoredItem(storage, "preference")).not.toThrow();
+      expect(() => {
+        writeStoredItem(storage, "preference", "value");
+      }).not.toThrow();
+      expect(() => {
+        removeStoredItem(storage, "preference");
+      }).not.toThrow();
     },
   );
 
@@ -23,8 +24,8 @@ describe("optional browser storage", () => {
     vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("Quota exceeded", "QuotaExceededError");
     });
-    expect(() =>
-      writeStoredItem("localStorage", "preference", "value"),
-    ).not.toThrow();
+    expect(() => {
+      writeStoredItem("localStorage", "preference", "value");
+    }).not.toThrow();
   });
 });

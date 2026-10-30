@@ -20,33 +20,33 @@ func TestControlGovernanceOperationsUseOfficialAPI(t *testing.T) {
 		upstream   string
 		status     int
 	}{
-		{name: "list robots", method: http.MethodGet, consoleURL: "/api/control/robots?page=1&page_size=20&q=Level%3Dproject%2CProjectID%3D7", wantPath: "/api/v2.0/robots", wantQuery: "page=1&page_size=20&q=Level%3Dproject%2CProjectID%3D7", upstream: `[]`, status: http.StatusOK},
-		{name: "create robot", method: http.MethodPost, consoleURL: "/api/control/robots", wantPath: "/api/v2.0/robots", body: `{"name":"ci","level":"project","duration":90,"permissions":[{"kind":"project","namespace":"platform","access":[{"resource":"repository","action":"pull"}]}]}`, upstream: `{"id":42,"name":"robot$platform+ci","secret":"secret"}`, status: http.StatusCreated},
-		{name: "update robot", method: http.MethodPut, consoleURL: "/api/control/robot?id=42", wantPath: "/api/v2.0/robots/42", body: `{"name":"robot$platform+ci","description":"pipeline","level":"project","duration":90,"disable":true,"permissions":[{"kind":"project","namespace":"platform","access":[{"resource":"repository","action":"pull"}]}]}`, upstream: `{}`, status: http.StatusOK},
-		{name: "refresh robot secret", method: http.MethodPatch, consoleURL: "/api/control/robot?id=42", wantPath: "/api/v2.0/robots/42", body: `{"secret":""}`, upstream: `{"secret":"new-secret"}`, status: http.StatusOK},
-		{name: "delete robot", method: http.MethodDelete, consoleURL: "/api/control/robot?id=42", wantPath: "/api/v2.0/robots/42", upstream: `{}`, status: http.StatusOK},
-		{name: "get robot permissions", method: http.MethodGet, consoleURL: "/api/control/permissions", wantPath: "/api/v2.0/permissions", upstream: `{"system":[],"project":[]}`, status: http.StatusOK},
-		{name: "list audit event types", method: http.MethodGet, consoleURL: "/api/control/audit-log-events", wantPath: "/api/v2.0/auditlog-exts/events", upstream: `[{"event_type":"push"}]`, status: http.StatusOK},
-		{name: "get replication execution", method: http.MethodGet, consoleURL: "/api/control/replication-execution?id=904", wantPath: "/api/v2.0/replication/executions/904", upstream: `{"id":904,"status":"Succeed"}`, status: http.StatusOK},
-		{name: "stop replication execution", method: http.MethodPut, consoleURL: "/api/control/replication-execution?id=904", wantPath: "/api/v2.0/replication/executions/904", upstream: `{}`, status: http.StatusOK},
-		{name: "list replication tasks", method: http.MethodGet, consoleURL: "/api/control/replication-tasks?id=904&page=1&page_size=20&sort=-start_time", wantPath: "/api/v2.0/replication/executions/904/tasks", upstream: `[]`, status: http.StatusOK},
-		{name: "get replication task log", method: http.MethodGet, consoleURL: "/api/control/replication-task-log?id=904&task=1904", wantPath: "/api/v2.0/replication/executions/904/tasks/1904/log", upstream: "copy completed", status: http.StatusOK},
-		{name: "list registry adapter metadata", method: http.MethodGet, consoleURL: "/api/control/registry-adapter-infos", wantPath: "/api/v2.0/replication/adapterinfos", upstream: `{"docker-hub":{"endpoint_pattern":{"endpoint_type":"EndpointPatternTypeFix"}}}`, status: http.StatusOK},
-		{name: "get local registry replication capabilities", method: http.MethodGet, consoleURL: "/api/control/registry-info?id=0", wantPath: "/api/v2.0/registries/0/info", upstream: `{"type":"harbor","supported_resource_filters":[{"type":"name","style":"input"}],"supported_triggers":["manual","scheduled","event_based"],"supported_copy_by_chunk":true}`, status: http.StatusOK},
-		{name: "list labels", method: http.MethodGet, consoleURL: "/api/control/labels?page=1&page_size=20&scope=p&project_id=1", wantPath: "/api/v2.0/labels", upstream: `[]`, status: http.StatusOK},
-		{name: "create label", method: http.MethodPost, consoleURL: "/api/control/labels", wantPath: "/api/v2.0/labels", body: `{"name":"release","color":"#f48120","scope":"p","project_id":1}`, upstream: `{}`, status: http.StatusCreated},
-		{name: "update label", method: http.MethodPut, consoleURL: "/api/control/label?id=7", wantPath: "/api/v2.0/labels/7", body: `{"name":"stable","color":"#16a34a","scope":"p","project_id":1}`, upstream: `{}`, status: http.StatusOK},
-		{name: "delete label", method: http.MethodDelete, consoleURL: "/api/control/label?id=7", wantPath: "/api/v2.0/labels/7", upstream: `{}`, status: http.StatusOK},
-		{name: "list immutable rules", method: http.MethodGet, consoleURL: "/api/control/immutable-rules?project=platform&page=1&page_size=20", wantPath: "/api/v2.0/projects/platform/immutabletagrules", upstream: `[]`, status: http.StatusOK},
-		{name: "create immutable rule", method: http.MethodPost, consoleURL: "/api/control/immutable-rules?project=platform", wantPath: "/api/v2.0/projects/platform/immutabletagrules", body: `{"tag_selectors":[{"pattern":"v*"}],"scope_selectors":{"repository":[{"pattern":"**"}]}}`, upstream: `{}`, status: http.StatusCreated},
-		{name: "update immutable rule", method: http.MethodPut, consoleURL: "/api/control/immutable-rule?project=platform&id=9", wantPath: "/api/v2.0/projects/platform/immutabletagrules/9", body: `{"tag_selectors":[{"pattern":"release-*"}],"scope_selectors":{"repository":[{"pattern":"services/**"}]}}`, upstream: `{}`, status: http.StatusOK},
-		{name: "delete immutable rule", method: http.MethodDelete, consoleURL: "/api/control/immutable-rule?project=platform&id=9", wantPath: "/api/v2.0/projects/platform/immutabletagrules/9", upstream: `{}`, status: http.StatusOK},
-		{name: "list webhooks", method: http.MethodGet, consoleURL: "/api/control/webhooks?project=platform&page=1&page_size=20", wantPath: "/api/v2.0/projects/platform/webhook/policies", upstream: `[]`, status: http.StatusOK},
-		{name: "create webhook", method: http.MethodPost, consoleURL: "/api/control/webhooks?project=platform", wantPath: "/api/v2.0/projects/platform/webhook/policies", body: `{"name":"release","targets":[{"type":"http","address":"https://hooks.example.com/harbor"}],"event_types":["PUSH_ARTIFACT"]}`, upstream: `{}`, status: http.StatusCreated},
-		{name: "get webhook", method: http.MethodGet, consoleURL: "/api/control/webhook?project=platform&id=8", wantPath: "/api/v2.0/projects/platform/webhook/policies/8", upstream: `{}`, status: http.StatusOK},
-		{name: "update webhook", method: http.MethodPut, consoleURL: "/api/control/webhook?project=platform&id=8", wantPath: "/api/v2.0/projects/platform/webhook/policies/8", body: `{"name":"release","targets":[{"type":"http","address":"https://hooks.example.com/harbor"}],"event_types":["DELETE_ARTIFACT"]}`, upstream: `{}`, status: http.StatusOK},
-		{name: "delete webhook", method: http.MethodDelete, consoleURL: "/api/control/webhook?project=platform&id=8", wantPath: "/api/v2.0/projects/platform/webhook/policies/8", upstream: `{}`, status: http.StatusOK},
-		{name: "list webhook event types", method: http.MethodGet, consoleURL: "/api/control/webhook-events?project=platform", wantPath: "/api/v2.0/projects/platform/webhook/events", upstream: `{"event_type":["PUSH_ARTIFACT"]}`, status: http.StatusOK},
+		{name: "list robots", method: http.MethodGet, consoleURL: "/api/operations/robots?offset=0&limit=20&q=Level%3Dproject%2CProjectID%3D7", wantPath: "/api/v2.0/robots", wantQuery: "page=1&page_size=20&q=Level%3Dproject%2CProjectID%3D7", upstream: `[]`, status: http.StatusOK},
+		{name: "create robot", method: http.MethodPost, consoleURL: "/api/operations/robots", wantPath: "/api/v2.0/robots", body: `{"name":"ci","level":"project","duration":90,"permissions":[{"kind":"project","namespace":"platform","access":[{"resource":"repository","action":"pull"}]}]}`, upstream: `{"id":42,"name":"robot$platform+ci","secret":"secret"}`, status: http.StatusCreated},
+		{name: "update robot", method: http.MethodPut, consoleURL: "/api/operations/robot?id=42", wantPath: "/api/v2.0/robots/42", body: `{"name":"robot$platform+ci","description":"pipeline","level":"project","duration":90,"disable":true,"permissions":[{"kind":"project","namespace":"platform","access":[{"resource":"repository","action":"pull"}]}]}`, upstream: `{}`, status: http.StatusOK},
+		{name: "refresh robot secret", method: http.MethodPatch, consoleURL: "/api/operations/robot?id=42", wantPath: "/api/v2.0/robots/42", body: `{"secret":""}`, upstream: `{"secret":"new-secret"}`, status: http.StatusOK},
+		{name: "delete robot", method: http.MethodDelete, consoleURL: "/api/operations/robot?id=42", wantPath: "/api/v2.0/robots/42", upstream: `{}`, status: http.StatusOK},
+		{name: "get robot permissions", method: http.MethodGet, consoleURL: "/api/operations/permissions", wantPath: "/api/v2.0/permissions", upstream: `{"system":[],"project":[]}`, status: http.StatusOK},
+		{name: "list audit event types", method: http.MethodGet, consoleURL: "/api/operations/audit-log-events", wantPath: "/api/v2.0/auditlog-exts/events", upstream: `[{"event_type":"push"}]`, status: http.StatusOK},
+		{name: "get replication execution", method: http.MethodGet, consoleURL: "/api/operations/replication-execution?id=904", wantPath: "/api/v2.0/replication/executions/904", upstream: `{"id":904,"status":"Succeed"}`, status: http.StatusOK},
+		{name: "stop replication execution", method: http.MethodPut, consoleURL: "/api/operations/replication-execution?id=904", wantPath: "/api/v2.0/replication/executions/904", upstream: `{}`, status: http.StatusOK},
+		{name: "list replication tasks", method: http.MethodGet, consoleURL: "/api/operations/replication-tasks?id=904&offset=0&limit=20&sort=-start_time", wantPath: "/api/v2.0/replication/executions/904/tasks", upstream: `[]`, status: http.StatusOK},
+		{name: "get replication task log", method: http.MethodGet, consoleURL: "/api/operations/replication-task-log?id=904&task=1904", wantPath: "/api/v2.0/replication/executions/904/tasks/1904/log", upstream: "copy completed", status: http.StatusOK},
+		{name: "list registry adapter metadata", method: http.MethodGet, consoleURL: "/api/operations/registry-adapter-infos", wantPath: "/api/v2.0/replication/adapterinfos", upstream: `{"docker-hub":{"endpoint_pattern":{"endpoint_type":"EndpointPatternTypeFix"}}}`, status: http.StatusOK},
+		{name: "get local registry replication capabilities", method: http.MethodGet, consoleURL: "/api/operations/registry-info?id=0", wantPath: "/api/v2.0/registries/0/info", upstream: `{"type":"harbor","supported_resource_filters":[{"type":"name","style":"input"}],"supported_triggers":["manual","scheduled","event_based"],"supported_copy_by_chunk":true}`, status: http.StatusOK},
+		{name: "list labels", method: http.MethodGet, consoleURL: "/api/operations/labels?offset=0&limit=20&scope=p&project_id=1", wantPath: "/api/v2.0/labels", upstream: `[]`, status: http.StatusOK},
+		{name: "create label", method: http.MethodPost, consoleURL: "/api/operations/labels", wantPath: "/api/v2.0/labels", body: `{"name":"release","color":"#f48120","scope":"p","project_id":1}`, upstream: `{}`, status: http.StatusCreated},
+		{name: "update label", method: http.MethodPut, consoleURL: "/api/operations/label?id=7", wantPath: "/api/v2.0/labels/7", body: `{"name":"stable","color":"#16a34a","scope":"p","project_id":1}`, upstream: `{}`, status: http.StatusOK},
+		{name: "delete label", method: http.MethodDelete, consoleURL: "/api/operations/label?id=7", wantPath: "/api/v2.0/labels/7", upstream: `{}`, status: http.StatusOK},
+		{name: "list immutable rules", method: http.MethodGet, consoleURL: "/api/operations/immutable-rules?project=platform&offset=0&limit=20", wantPath: "/api/v2.0/projects/platform/immutabletagrules", upstream: `[]`, status: http.StatusOK},
+		{name: "create immutable rule", method: http.MethodPost, consoleURL: "/api/operations/immutable-rules?project=platform", wantPath: "/api/v2.0/projects/platform/immutabletagrules", body: `{"tag_selectors":[{"pattern":"v*"}],"scope_selectors":{"repository":[{"pattern":"**"}]}}`, upstream: `{}`, status: http.StatusCreated},
+		{name: "update immutable rule", method: http.MethodPut, consoleURL: "/api/operations/immutable-rule?project=platform&id=9", wantPath: "/api/v2.0/projects/platform/immutabletagrules/9", body: `{"tag_selectors":[{"pattern":"release-*"}],"scope_selectors":{"repository":[{"pattern":"services/**"}]}}`, upstream: `{}`, status: http.StatusOK},
+		{name: "delete immutable rule", method: http.MethodDelete, consoleURL: "/api/operations/immutable-rule?project=platform&id=9", wantPath: "/api/v2.0/projects/platform/immutabletagrules/9", upstream: `{}`, status: http.StatusOK},
+		{name: "list webhooks", method: http.MethodGet, consoleURL: "/api/operations/webhooks?project=platform&offset=0&limit=20", wantPath: "/api/v2.0/projects/platform/webhook/policies", upstream: `[]`, status: http.StatusOK},
+		{name: "create webhook", method: http.MethodPost, consoleURL: "/api/operations/webhooks?project=platform", wantPath: "/api/v2.0/projects/platform/webhook/policies", body: `{"name":"release","targets":[{"type":"http","address":"https://hooks.example.com/harbor"}],"event_types":["PUSH_ARTIFACT"]}`, upstream: `{}`, status: http.StatusCreated},
+		{name: "get webhook", method: http.MethodGet, consoleURL: "/api/operations/webhook?project=platform&id=8", wantPath: "/api/v2.0/projects/platform/webhook/policies/8", upstream: `{}`, status: http.StatusOK},
+		{name: "update webhook", method: http.MethodPut, consoleURL: "/api/operations/webhook?project=platform&id=8", wantPath: "/api/v2.0/projects/platform/webhook/policies/8", body: `{"name":"release","targets":[{"type":"http","address":"https://hooks.example.com/harbor"}],"event_types":["DELETE_ARTIFACT"]}`, upstream: `{}`, status: http.StatusOK},
+		{name: "delete webhook", method: http.MethodDelete, consoleURL: "/api/operations/webhook?project=platform&id=8", wantPath: "/api/v2.0/projects/platform/webhook/policies/8", upstream: `{}`, status: http.StatusOK},
+		{name: "list webhook event types", method: http.MethodGet, consoleURL: "/api/operations/webhook-events?project=platform", wantPath: "/api/v2.0/projects/platform/webhook/events", upstream: `{"event_type":["PUSH_ARTIFACT"]}`, status: http.StatusOK},
 	}
 
 	for _, test := range tests {
@@ -76,8 +76,8 @@ func TestControlGovernanceOperationsUseOfficialAPI(t *testing.T) {
 				}
 				return test.status, test.upstream
 			})
-			current := createTestSession(t, application, client, false)
-			request := httptest.NewRequest(test.method, test.consoleURL, strings.NewReader(test.body))
+			current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+			request := jsonRequest(test.method, test.consoleURL, strings.NewReader(test.body))
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			if test.method != http.MethodGet {
 				request.Host = "console.test"
@@ -104,16 +104,16 @@ func TestControlProjectScannerAndRetentionOperationsUseOfficialAPI(t *testing.T)
 		status     int
 		project    bool
 	}{
-		{name: "get project scanner", method: http.MethodGet, consoleURL: "/api/control/project-scanner?project=platform", wantPath: "/api/v2.0/projects/platform/scanner", upstream: `{"uuid":"9f4f3538-31b8-4e23-a59f-8b071dfd0a55"}`, status: http.StatusOK, project: true},
-		{name: "set project scanner", method: http.MethodPut, consoleURL: "/api/control/project-scanner?project=platform", wantPath: "/api/v2.0/projects/platform/scanner", body: `{"uuid":"9f4f3538-31b8-4e23-a59f-8b071dfd0a55"}`, upstream: `{}`, status: http.StatusOK, project: true},
-		{name: "list project scanner candidates", method: http.MethodGet, consoleURL: "/api/control/project-scanner-candidates?project=platform&page=2&page_size=50&q=name%3D~trivy&sort=name", wantPath: "/api/v2.0/projects/platform/scanner/candidates", upstream: `[]`, status: http.StatusOK, project: true},
-		{name: "create retention", method: http.MethodPost, consoleURL: "/api/control/retentions", wantPath: "/api/v2.0/retentions", body: retentionBody, upstream: `{}`, status: http.StatusCreated},
-		{name: "get retention", method: http.MethodGet, consoleURL: "/api/control/retention?id=7", wantPath: "/api/v2.0/retentions/7", upstream: retentionBody, status: http.StatusOK},
-		{name: "update retention", method: http.MethodPut, consoleURL: "/api/control/retention?id=7", wantPath: "/api/v2.0/retentions/7", body: retentionBody, upstream: `{}`, status: http.StatusOK},
-		{name: "delete retention", method: http.MethodDelete, consoleURL: "/api/control/retention?id=7", wantPath: "/api/v2.0/retentions/7", upstream: `{}`, status: http.StatusOK},
-		{name: "list retention executions", method: http.MethodGet, consoleURL: "/api/control/retention-executions?id=7&page=1&page_size=20", wantPath: "/api/v2.0/retentions/7/executions", upstream: `[]`, status: http.StatusOK},
-		{name: "run retention dry run", method: http.MethodPost, consoleURL: "/api/control/retention-executions?id=7", wantPath: "/api/v2.0/retentions/7/executions", body: `{"dry_run":true}`, upstream: `{}`, status: http.StatusCreated},
-		{name: "stop retention execution", method: http.MethodPatch, consoleURL: "/api/control/retention-execution?id=7&eid=12", wantPath: "/api/v2.0/retentions/7/executions/12", body: `{"action":"stop"}`, upstream: `{}`, status: http.StatusOK},
+		{name: "get project scanner", method: http.MethodGet, consoleURL: "/api/operations/project-scanner?project=platform", wantPath: "/api/v2.0/projects/platform/scanner", upstream: `{"uuid":"9f4f3538-31b8-4e23-a59f-8b071dfd0a55"}`, status: http.StatusOK, project: true},
+		{name: "set project scanner", method: http.MethodPut, consoleURL: "/api/operations/project-scanner?project=platform", wantPath: "/api/v2.0/projects/platform/scanner", body: `{"uuid":"9f4f3538-31b8-4e23-a59f-8b071dfd0a55"}`, upstream: `{}`, status: http.StatusOK, project: true},
+		{name: "list project scanner candidates", method: http.MethodGet, consoleURL: "/api/operations/project-scanner-candidates?project=platform&offset=50&limit=50&q=name%3D~trivy&sort=name", wantPath: "/api/v2.0/projects/platform/scanner/candidates", upstream: `[]`, status: http.StatusOK, project: true},
+		{name: "create retention", method: http.MethodPost, consoleURL: "/api/operations/retentions", wantPath: "/api/v2.0/retentions", body: retentionBody, upstream: `{}`, status: http.StatusCreated},
+		{name: "get retention", method: http.MethodGet, consoleURL: "/api/operations/retention?id=7", wantPath: "/api/v2.0/retentions/7", upstream: retentionBody, status: http.StatusOK},
+		{name: "update retention", method: http.MethodPut, consoleURL: "/api/operations/retention?id=7", wantPath: "/api/v2.0/retentions/7", body: retentionBody, upstream: `{}`, status: http.StatusOK},
+		{name: "delete retention", method: http.MethodDelete, consoleURL: "/api/operations/retention?id=7", wantPath: "/api/v2.0/retentions/7", upstream: `{}`, status: http.StatusOK},
+		{name: "list retention executions", method: http.MethodGet, consoleURL: "/api/operations/retention-executions?id=7&offset=0&limit=20", wantPath: "/api/v2.0/retentions/7/executions", upstream: `[]`, status: http.StatusOK},
+		{name: "run retention dry run", method: http.MethodPost, consoleURL: "/api/operations/retention-executions?id=7", wantPath: "/api/v2.0/retentions/7/executions", body: `{"dry_run":true}`, upstream: `{}`, status: http.StatusCreated},
+		{name: "stop retention execution", method: http.MethodPatch, consoleURL: "/api/operations/retention-execution?id=7&eid=12", wantPath: "/api/v2.0/retentions/7/executions/12", body: `{"action":"stop"}`, upstream: `{}`, status: http.StatusOK},
 	}
 
 	for _, test := range tests {
@@ -140,8 +140,8 @@ func TestControlProjectScannerAndRetentionOperationsUseOfficialAPI(t *testing.T)
 				}
 				return test.status, test.upstream
 			})
-			current := createTestSession(t, application, client, false)
-			request := httptest.NewRequest(test.method, test.consoleURL, strings.NewReader(test.body))
+			current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+			request := jsonRequest(test.method, test.consoleURL, strings.NewReader(test.body))
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			if test.method != http.MethodGet {
 				request.Host = "console.test"
@@ -167,8 +167,8 @@ func TestControlRetentionMetadataUsesOfficialAPI(t *testing.T) {
 		}
 		return http.StatusOK, `{"templates":[{"rule_template":"latestPushedK"}],"scope_selectors":[{"kind":"doublestar","decorations":["repoMatches","repoExcludes"]}],"tag_selectors":[{"kind":"doublestar","decorations":["matches","excludes"]}]}`
 	})
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodGet, "/api/control/retention-metadatas", nil)
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := httptest.NewRequest(http.MethodGet, "/api/operations/retention-metadatas", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -181,21 +181,21 @@ func TestControlMemberDirectorySearch(t *testing.T) {
 	for _, test := range []struct {
 		name, operation, wantPath, wantQuery string
 	}{
-		{name: "users", operation: "users-search?username=release&page=1&page_size=20", wantPath: "/api/v2.0/users/search", wantQuery: "page=1&page_size=20&username=release"},
-		{name: "groups", operation: "user-groups-search?groupname=platform&page=1&page_size=20", wantPath: "/api/v2.0/usergroups/search", wantQuery: "groupname=platform&page=1&page_size=20"},
+		{name: "users", operation: "users-search?username=release&offset=0&limit=20", wantPath: "/api/v2.0/users/search", wantQuery: "page=1&page_size=20&username=release"},
+		{name: "groups", operation: "user-groups-search?groupname=platform&offset=0&limit=20", wantPath: "/api/v2.0/usergroups/search", wantQuery: "groupname=platform&page=1&page_size=20"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			application, err := newApp()
 			if err != nil {
 				t.Fatal(err)
 			}
-			current := createTestSession(t, application, mockClient(func(request *http.Request) (int, string) {
+			current := createTestSession(t, testSessionOptions{application: application, client: mockClient(func(request *http.Request) (int, string) {
 				if request.Method != http.MethodGet || request.URL.Path != test.wantPath || request.URL.RawQuery != test.wantQuery {
 					t.Fatalf("upstream request = %s %s?%s", request.Method, request.URL.Path, request.URL.RawQuery)
 				}
 				return http.StatusOK, `[]`
-			}), false)
-			request := httptest.NewRequest(http.MethodGet, "/api/control/"+test.operation, nil)
+			}), demo: false})
+			request := httptest.NewRequest(http.MethodGet, "/api/operations/"+test.operation, nil)
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			recorder := httptest.NewRecorder()
 			application.routes().ServeHTTP(recorder, request)
@@ -215,11 +215,11 @@ func TestControlMemberDirectorySearch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			current := createTestSession(t, application, mockClient(func(*http.Request) (int, string) {
+			current := createTestSession(t, testSessionOptions{application: application, client: mockClient(func(*http.Request) (int, string) {
 				t.Fatal("invalid directory query reached Harbor")
 				return http.StatusInternalServerError, "{}"
-			}), false)
-			request := httptest.NewRequest(http.MethodGet, "/api/control/"+operation, nil)
+			}), demo: false})
+			request := httptest.NewRequest(http.MethodGet, "/api/operations/"+operation, nil)
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			recorder := httptest.NewRecorder()
 			application.routes().ServeHTTP(recorder, request)
@@ -235,7 +235,7 @@ func TestControlProjectAuditOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current := createTestSession(t, application, mockClient(func(request *http.Request) (int, string) {
+	current := createTestSession(t, testSessionOptions{application: application, client: mockClient(func(request *http.Request) (int, string) {
 		if request.Method != http.MethodGet || request.URL.Path != "/api/v2.0/projects/platform/auditlog-exts" || request.URL.Query().Get("q") != "username=~release" {
 			t.Fatalf("upstream request = %s %s?%s", request.Method, request.URL.Path, request.URL.RawQuery)
 		}
@@ -243,8 +243,8 @@ func TestControlProjectAuditOperations(t *testing.T) {
 			t.Fatal("project resource name header was not forwarded")
 		}
 		return http.StatusOK, `[]`
-	}), false)
-	request := httptest.NewRequest(http.MethodGet, "/api/control/project-audit-logs?project=platform&page=1&page_size=20&sort=-op_time&q=username%3D~release", nil)
+	}), demo: false})
+	request := httptest.NewRequest(http.MethodGet, "/api/operations/project-audit-logs?project=platform&offset=0&limit=20&sort=-op_time&q=username%3D~release", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -258,13 +258,13 @@ func TestControlProjectDeletableUsesOfficialAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current := createTestSession(t, application, mockClient(func(request *http.Request) (int, string) {
+	current := createTestSession(t, testSessionOptions{application: application, client: mockClient(func(request *http.Request) (int, string) {
 		if request.Method != http.MethodGet || request.URL.Path != "/api/v2.0/projects/platform/_deletable" || request.Header.Get("X-Is-Resource-Name") != "true" {
 			t.Fatalf("upstream request = %s %s", request.Method, request.URL.Path)
 		}
 		return http.StatusOK, `{"deletable":false,"message":"contains repositories"}`
-	}), false)
-	request := httptest.NewRequest(http.MethodGet, "/api/control/project-deletable?project=platform", nil)
+	}), demo: false})
+	request := httptest.NewRequest(http.MethodGet, "/api/operations/project-deletable?project=platform", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	recorder := httptest.NewRecorder()
 	application.routes().ServeHTTP(recorder, request)
@@ -278,7 +278,7 @@ func TestDemoMemberDirectorySearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current := createTestSession(t, application, http.DefaultClient, true)
+	current := createTestSession(t, testSessionOptions{application: application, client: http.DefaultClient, demo: true})
 	request := func(path string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -287,11 +287,11 @@ func TestDemoMemberDirectorySearch(t *testing.T) {
 		application.routes().ServeHTTP(recorder, req)
 		return recorder
 	}
-	users := request("/api/control/users-search?username=RELEASE&page=1&page_size=1")
+	users := request("/api/operations/users-search?username=RELEASE&offset=0&limit=1")
 	if users.Code != http.StatusOK || !strings.Contains(users.Body.String(), `"username":"release-engineer"`) || !strings.Contains(users.Body.String(), `"total":1`) {
 		t.Fatalf("unexpected demo user search: %d %s", users.Code, users.Body.String())
 	}
-	groups := request("/api/control/user-groups-search?groupname=PLATFORM&page=1&page_size=20")
+	groups := request("/api/operations/user-groups-search?groupname=PLATFORM&offset=0&limit=20")
 	if groups.Code != http.StatusOK || !strings.Contains(groups.Body.String(), `"group_name":"platform-ops"`) {
 		t.Fatalf("unexpected demo group search: %d %s", groups.Code, groups.Body.String())
 	}
@@ -304,11 +304,11 @@ func TestDemoRetentionRuleRoundTrip(t *testing.T) {
 	}
 	handler := application.routes()
 	login := httptest.NewRecorder()
-	handler.ServeHTTP(login, httptest.NewRequest(http.MethodPost, "/api/demo", strings.NewReader("{}")))
+	handler.ServeHTTP(login, jsonRequest(http.MethodPost, "/api/demo-sessions", strings.NewReader("{}")))
 	cookie := login.Result().Cookies()[0]
 	request := func(method, target, body string) *httptest.ResponseRecorder {
 		t.Helper()
-		req := httptest.NewRequest(method, target, strings.NewReader(body))
+		req := jsonRequest(method, target, strings.NewReader(body))
 		req.AddCookie(cookie)
 		if method != http.MethodGet {
 			req.Host = "console.test"
@@ -319,39 +319,35 @@ func TestDemoRetentionRuleRoundTrip(t *testing.T) {
 		return recorder
 	}
 
-	metadata := request(http.MethodGet, "/api/control/retention-metadatas", "")
+	metadata := request(http.MethodGet, "/api/operations/retention-metadatas", "")
 	if metadata.Code != http.StatusOK {
 		t.Fatalf("metadata status = %d, body = %s", metadata.Code, metadata.Body.String())
 	}
-	current := request(http.MethodGet, "/api/control/retention?id=31", "")
+	current := request(http.MethodGet, "/api/operations/retention?id=31", "")
 	if current.Code != http.StatusOK {
 		t.Fatalf("retention status = %d, body = %s", current.Code, current.Body.String())
 	}
-	var envelope struct {
-		Data map[string]any `json:"data"`
-	}
+	var envelope map[string]any
 	if err := json.Unmarshal(current.Body.Bytes(), &envelope); err != nil {
 		t.Fatal(err)
 	}
-	rules, _ := envelope.Data["rules"].([]any)
+	rules, _ := envelope["rules"].([]any)
 	rule, _ := rules[0].(map[string]any)
 	params, _ := rule["params"].(map[string]any)
 	params["latestPushedK"] = float64(20)
-	body, err := json.Marshal(envelope.Data)
+	body, err := json.Marshal(envelope)
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated := request(http.MethodPut, "/api/control/retention?id=31", string(body))
+	updated := request(http.MethodPut, "/api/operations/retention?id=31", string(body))
 	if updated.Code != http.StatusOK {
 		t.Fatalf("retention update status = %d, body = %s", updated.Code, updated.Body.String())
 	}
-	var updatedEnvelope struct {
-		Data map[string]any `json:"data"`
-	}
+	var updatedEnvelope map[string]any
 	if err := json.Unmarshal(updated.Body.Bytes(), &updatedEnvelope); err != nil {
 		t.Fatal(err)
 	}
-	updatedRules, _ := updatedEnvelope.Data["rules"].([]any)
+	updatedRules, _ := updatedEnvelope["rules"].([]any)
 	updatedRule, _ := updatedRules[0].(map[string]any)
 	tags, _ := updatedRule["tag_selectors"].([]any)
 	tag, _ := tags[0].(map[string]any)

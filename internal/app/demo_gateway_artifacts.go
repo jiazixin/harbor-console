@@ -3,19 +3,16 @@ package app
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"harbor-console/internal/timefmt"
 )
 
 // handleArtifactControl serves artifacts, their accessories and build additions.
-func (state *demoState) handleArtifactControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleArtifactControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query := request.method, request.operation, request.query
 	handled = true
 	status = http.StatusOK
 
@@ -25,28 +22,29 @@ func (state *demoState) handleArtifactControl(
 		if !strings.HasPrefix(targetRepository, query.Get("project")+"/") {
 			targetRepository = query.Get("project") + "/" + targetRepository
 		}
-		if _, found := state.artifacts[targetRepository]; !found {
-			errStatus, errMessage = http.StatusNotFound, "目标仓库不存在"
+		if _, found := ds.artifacts[targetRepository]; !found {
+			errStatus, errMessage = http.StatusNotFound, "target repository not found"
 			break
 		}
 		sourceRepository, sourceReference, found := splitDemoArtifactSource(query.Get("from"))
 		if !found {
-			errStatus, errMessage = http.StatusBadRequest, "复制源格式无效"
+			errStatus, errMessage = http.StatusBadRequest, "invalid copy source"
 			break
 		}
-		sourceIndex, found := findArtifact(state.artifacts[sourceRepository], sourceReference)
+		sourceIndex, found := findArtifact(ds.artifacts[sourceRepository], sourceReference)
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "复制源制品不存在"
+			errStatus, errMessage = http.StatusNotFound, "copy source artifact not found"
 			break
 		}
-		source := state.artifacts[sourceRepository][sourceIndex]
-		if _, exists := findArtifact(state.artifacts[targetRepository], stringValue(source["digest"])); exists {
-			errStatus, errMessage = http.StatusConflict, "目标仓库中已经存在该制品"
+		source := ds.artifacts[sourceRepository][sourceIndex]
+		if _, exists := findArtifact(ds.artifacts[targetRepository], stringValue(source["digest"])); exists {
+			errStatus, errMessage = http.StatusConflict, "artifact already exists in the target repository"
 			break
 		}
 		copied := cloneMap(source)
-		copied["id"] = time.Now().UnixNano()
-		copied["push_time"] = time.Now().UTC().Format(time.RFC3339)
+		ds.nextArtifactID++
+		copied["id"] = ds.nextArtifactID
+		copied["push_time"] = ds.now().UTC().Format(timefmt.Layout)
 		copied["pull_time"] = nil
 		copied["labels"] = []any{}
 		copied["accessories"] = []any{}
@@ -56,61 +54,61 @@ func (state *demoState) handleArtifactControl(
 		} else {
 			copied["tags"] = []any{}
 		}
-		state.artifacts[targetRepository] = append([]map[string]any{copied}, state.artifacts[targetRepository]...)
-		updateDemoArtifactCount(state.repositories, query.Get("project"), targetRepository, len(demoVisibleArtifacts(state.artifacts[targetRepository])))
+		ds.artifacts[targetRepository] = append([]map[string]any{copied}, ds.artifacts[targetRepository]...)
+		ds.updateArtifactCount(demoArtifactCount{repositories: ds.repositories, project: query.Get("project"), repository: targetRepository, count: len(demoVisibleArtifacts(ds.artifacts[targetRepository]))})
 		status = http.StatusCreated
 
 	case "artifacts":
 		repositoryName := query.Get("repository")
-		items, found := state.artifacts[repositoryName]
+		items, found := ds.artifacts[repositoryName]
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "仓库不存在"
+			errStatus, errMessage = http.StatusNotFound, "repository not found"
 			break
 		}
-		state.writeList(w, demoVisibleArtifacts(items), query)
+		ds.writeList(w, demoVisibleArtifacts(items), query)
 		return
 
 	case "artifact":
 		repositoryName := query.Get("repository")
-		index, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
+		index, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.artifacts[repositoryName][index]
+			data = ds.artifacts[repositoryName][index]
 		} else {
-			state.artifacts[repositoryName] = append(state.artifacts[repositoryName][:index], state.artifacts[repositoryName][index+1:]...)
-			updateDemoArtifactCount(state.repositories, query.Get("project"), repositoryName, len(demoVisibleArtifacts(state.artifacts[repositoryName])))
+			ds.artifacts[repositoryName] = append(ds.artifacts[repositoryName][:index], ds.artifacts[repositoryName][index+1:]...)
+			ds.updateArtifactCount(demoArtifactCount{repositories: ds.repositories, project: query.Get("project"), repository: repositoryName, count: len(demoVisibleArtifacts(ds.artifacts[repositoryName]))})
 		}
 
 	case "artifact-accessories":
 		repositoryName := query.Get("repository")
-		artifactIndex, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
+		artifactIndex, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
-		accessories, _ := state.artifacts[repositoryName][artifactIndex]["accessories"].([]any)
-		state.writeListAny(w, accessories, query)
+		accessories, _ := ds.artifacts[repositoryName][artifactIndex]["accessories"].([]any)
+		ds.writeListAny(w, accessories, query)
 		return
 
 	case "artifact-icon":
 		if query.Get("digest") != demoArtifactIconDigest {
-			errStatus, errMessage = http.StatusNotFound, "制品图标不存在"
+			errStatus, errMessage = http.StatusNotFound, "artifact icon not found"
 			break
 		}
 		data = map[string]any{"content-type": "image/png", "content": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL07wAAAABJRU5ErkJggg=="}
 
 	case "artifact-addition":
 		repositoryName := query.Get("repository")
-		if _, found := findArtifact(state.artifacts[repositoryName], query.Get("reference")); !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+		if _, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference")); !found {
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
 		addition, found := demoArtifactAddition(query.Get("addition"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "当前制品没有该附加信息"
+			errStatus, errMessage = http.StatusNotFound, "artifact has no such addition"
 			break
 		}
 		data = addition
@@ -122,105 +120,101 @@ func (state *demoState) handleArtifactControl(
 }
 
 // handleArtifactReferenceControl serves the tags and labels attached to an artifact.
-func (state *demoState) handleArtifactReferenceControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleArtifactReferenceControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "artifact-tags":
 		repositoryName := query.Get("repository")
-		index, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
+		index, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
 		if method == http.MethodGet {
-			state.writeListAny(w, mapsToAny(tagsOf(state.artifacts[repositoryName][index])), query)
+			ds.writeListAny(w, mapsToAny(tagsOf(ds.artifacts[repositoryName][index])), query)
 			return
 		}
 		tagName := stringValue(body["name"])
-		tags := tagsOf(state.artifacts[repositoryName][index])
+		tags := tagsOf(ds.artifacts[repositoryName][index])
 		for _, tag := range tags {
 			if stringValue(tag["name"]) == tagName {
-				errStatus, errMessage = http.StatusConflict, "Tag 已存在"
+				errStatus, errMessage = http.StatusConflict, "tag already exists"
 				break
 			}
 		}
 		if errStatus != 0 {
 			break
 		}
-		tag := map[string]any{"id": len(tags) + 1, "name": tagName, "push_time": time.Now().UTC().Format(time.RFC3339), "immutable": false}
+		tag := map[string]any{"id": len(tags) + 1, "name": tagName, "push_time": ds.now().UTC().Format(timefmt.Layout), "immutable": false}
 		tags = append(tags, tag)
-		state.artifacts[repositoryName][index]["tags"] = mapsToAny(tags)
+		ds.artifacts[repositoryName][index]["tags"] = mapsToAny(tags)
 		status, data = http.StatusCreated, tag
 
 	case "artifact-tag":
 		repositoryName := query.Get("repository")
-		index, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
+		index, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
-		tags := tagsOf(state.artifacts[repositoryName][index])
+		tags := tagsOf(ds.artifacts[repositoryName][index])
 		tagIndex, found := findMap(tags, "name", query.Get("tag"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "Tag 不存在"
+			errStatus, errMessage = http.StatusNotFound, "tag not found"
 			break
 		}
 		if immutable, _ := tags[tagIndex]["immutable"].(bool); immutable {
-			errStatus, errMessage = http.StatusPreconditionFailed, "不可变 Tag 不能删除"
+			errStatus, errMessage = http.StatusPreconditionFailed, "immutable tag cannot be deleted"
 			break
 		}
 		tags = append(tags[:tagIndex], tags[tagIndex+1:]...)
-		state.artifacts[repositoryName][index]["tags"] = mapsToAny(tags)
+		ds.artifacts[repositoryName][index]["tags"] = mapsToAny(tags)
 
 	case "artifact-labels":
 		repositoryName := query.Get("repository")
-		artifactIndex, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
+		artifactIndex, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
 		labelID := numberValue(body["id"])
-		labelIndex, found := findMapNumber(state.labels, "id", strconv.FormatInt(labelID, 10))
+		labelIndex, found := findMapNumber(ds.labels, "id", strconv.FormatInt(labelID, 10))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "标签不存在"
+			errStatus, errMessage = http.StatusNotFound, "label not found"
 			break
 		}
-		labels := labelsOf(state.artifacts[repositoryName][artifactIndex])
+		labels := labelsOf(ds.artifacts[repositoryName][artifactIndex])
 		if _, attached := findMapNumber(labels, "id", strconv.FormatInt(labelID, 10)); attached {
-			errStatus, errMessage = http.StatusConflict, "标签已经绑定到该制品"
+			errStatus, errMessage = http.StatusConflict, "label already attached to the artifact"
 			break
 		}
-		label := state.labels[labelIndex]
-		projectID := numberValue(projectID(state.projects, query.Get("project")))
+		label := ds.labels[labelIndex]
+		projectID := numberValue(projectID(ds.projects, query.Get("project")))
 		if stringValue(label["scope"]) == "p" && numberValue(label["project_id"]) != projectID {
-			errStatus, errMessage = http.StatusForbidden, "不能绑定其他项目的标签"
+			errStatus, errMessage = http.StatusForbidden, "cannot attach a label of another project"
 			break
 		}
 		labels = append(labels, cloneMap(label))
-		state.artifacts[repositoryName][artifactIndex]["labels"] = mapsToAny(labels)
+		ds.artifacts[repositoryName][artifactIndex]["labels"] = mapsToAny(labels)
 
 	case "artifact-label":
 		repositoryName := query.Get("repository")
-		artifactIndex, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
+		artifactIndex, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
-		labels := labelsOf(state.artifacts[repositoryName][artifactIndex])
+		labels := labelsOf(ds.artifacts[repositoryName][artifactIndex])
 		labelIndex, found := findMapNumber(labels, "id", query.Get("label"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品未绑定该标签"
+			errStatus, errMessage = http.StatusNotFound, "label not attached to the artifact"
 			break
 		}
 		labels = append(labels[:labelIndex], labels[labelIndex+1:]...)
-		state.artifacts[repositoryName][artifactIndex]["labels"] = mapsToAny(labels)
+		ds.artifacts[repositoryName][artifactIndex]["labels"] = mapsToAny(labels)
 
 	default:
 		handled = false
@@ -229,24 +223,20 @@ func (state *demoState) handleArtifactReferenceControl(
 }
 
 // handleArtifactScanControl serves artifact scans and their vulnerability reports.
-func (state *demoState) handleArtifactScanControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleArtifactScanControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	operation, query, body := request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "artifact-scan":
 		repositoryName := query.Get("repository")
-		index, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
+		index, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
-		artifactItem := state.artifacts[repositoryName][index]
+		artifactItem := ds.artifacts[repositoryName][index]
 		overviewKey := "scan_overview"
 		if stringValue(body["scan_type"]) == "sbom" {
 			overviewKey = "sbom_overview"
@@ -259,47 +249,47 @@ func (state *demoState) handleArtifactScanControl(
 		for _, raw := range overview {
 			if report, ok := raw.(map[string]any); ok {
 				report["scan_status"] = "Running"
-				report["start_time"] = time.Now().UTC().Format(time.RFC3339)
+				report["start_time"] = ds.now().UTC().Format(timefmt.Layout)
 			}
 		}
 		status = http.StatusAccepted
 
 	case "artifact-scan-stop":
 		repositoryName := query.Get("repository")
-		index, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
+		index, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
 		overviewKey := "scan_overview"
 		if stringValue(body["scan_type"]) == "sbom" {
 			overviewKey = "sbom_overview"
 		}
-		overview, _ := state.artifacts[repositoryName][index][overviewKey].(map[string]any)
+		overview, _ := ds.artifacts[repositoryName][index][overviewKey].(map[string]any)
 		for _, raw := range overview {
 			if report, ok := raw.(map[string]any); ok {
 				report["scan_status"] = "Stopped"
-				report["end_time"] = time.Now().UTC().Format(time.RFC3339)
+				report["end_time"] = ds.now().UTC().Format(timefmt.Layout)
 			}
 		}
 		status = http.StatusAccepted
 
 	case "artifact-scan-log":
 		repositoryName := query.Get("repository")
-		if _, found := findArtifact(state.artifacts[repositoryName], query.Get("reference")); !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+		if _, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference")); !found {
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
-		data = "2026-07-28T06:40:00Z [INFO] 开始拉取漏洞数据库\n2026-07-28T06:40:03Z [INFO] 分析系统软件包\n2026-07-28T06:40:11Z [INFO] 漏洞扫描完成\n"
+		data = "2026-07-28T06:40:00Z [INFO] pulling the vulnerability database\n2026-07-28T06:40:03Z [INFO] analyzing system packages\n2026-07-28T06:40:11Z [INFO] vulnerability scan completed\n"
 
 	case "artifact-vulnerabilities":
 		repositoryName := query.Get("repository")
-		_, found := findArtifact(state.artifacts[repositoryName], query.Get("reference"))
+		_, found := findArtifact(ds.artifacts[repositoryName], query.Get("reference"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "制品不存在"
+			errStatus, errMessage = http.StatusNotFound, "artifact not found"
 			break
 		}
-		data = demoVulnerabilityReport()
+		data = demoVulnerabilityReport(ds.now())
 
 	default:
 		handled = false
@@ -308,19 +298,15 @@ func (state *demoState) handleArtifactScanControl(
 }
 
 // handleRobotControl serves robot accounts.
-func (state *demoState) handleRobotControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleRobotControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "robots":
 		if method == http.MethodGet {
-			items := state.robots
+			items := ds.robots
 			if level := demoQueryString(query.Get("q"), "level"); level != "" {
 				filtered := make([]map[string]any, 0)
 				for _, robot := range items {
@@ -342,41 +328,41 @@ func (state *demoState) handleRobotControl(
 			if name := demoQueryString(query.Get("q"), "name"); name != "" {
 				items = filterMaps(items, name, "name")
 			}
-			state.writeList(w, items, query)
+			ds.writeList(w, items, query)
 			return
 		}
-		state.nextRobotID++
+		ds.nextRobotID++
 		robot := cloneMap(body)
 		namespace := demoRobotNamespace(robot)
-		robot["id"] = state.nextRobotID
+		robot["id"] = ds.nextRobotID
 		if stringValue(robot["level"]) == "system" {
 			robot["name"] = "robot$" + stringValue(robot["name"])
 		} else {
 			robot["name"] = "robot$" + namespace + "+" + stringValue(robot["name"])
 		}
-		robot["project_id"] = numberValue(projectID(state.projects, namespace))
+		robot["project_id"] = numberValue(projectID(ds.projects, namespace))
 		robot["editable"] = true
-		robot["creation_time"] = time.Now().UTC().Format(time.RFC3339)
+		robot["creation_time"] = ds.now().UTC().Format(timefmt.Layout)
 		duration := numberValue(robot["duration"])
 		if duration < 0 {
 			robot["expires_at"] = -1
 		} else {
-			robot["expires_at"] = time.Now().Add(time.Duration(duration) * 24 * time.Hour).Unix()
+			robot["expires_at"] = ds.now().Add(time.Duration(duration) * 24 * time.Hour).Unix()
 		}
-		state.robots = append(state.robots, robot)
+		ds.robots = append(ds.robots, robot)
 		status = http.StatusCreated
-		data = map[string]any{"id": state.nextRobotID, "name": robot["name"], "secret": fmt.Sprintf("demo-secret-%d-X7k2", state.nextRobotID), "creation_time": robot["creation_time"], "expires_at": robot["expires_at"]}
+		data = map[string]any{"id": ds.nextRobotID, "name": robot["name"], "secret": fmt.Sprintf("demo-secret-%d-X7k2", ds.nextRobotID), "creation_time": robot["creation_time"], "expires_at": robot["expires_at"]}
 
 	case "robot":
-		index, found := findMapNumber(state.robots, "id", query.Get("id"))
+		index, found := findMapNumber(ds.robots, "id", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "机器人账号不存在"
+			errStatus, errMessage = http.StatusNotFound, "robot account not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.robots[index]
+			data = ds.robots[index]
 		} else if method == http.MethodPut {
-			current := state.robots[index]
+			current := ds.robots[index]
 			oldDuration := numberValue(current["duration"])
 			for key, value := range body {
 				if key != "id" && key != "name" && key != "project_id" && key != "creation_time" && key != "expires_at" {
@@ -388,15 +374,15 @@ func (state *demoState) handleRobotControl(
 				if newDuration < 0 {
 					current["expires_at"] = -1
 				} else {
-					current["expires_at"] = time.Now().Add(time.Duration(newDuration) * 24 * time.Hour).Unix()
+					current["expires_at"] = ds.now().Add(time.Duration(newDuration) * 24 * time.Hour).Unix()
 				}
 			}
-			current["update_time"] = time.Now().UTC().Format(time.RFC3339)
-			data = state.robots[index]
+			current["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+			data = ds.robots[index]
 		} else if method == http.MethodPatch {
 			data = map[string]any{"secret": fmt.Sprintf("demo-secret-%s-R9p4", query.Get("id"))}
 		} else {
-			state.robots = append(state.robots[:index], state.robots[index+1:]...)
+			ds.robots = append(ds.robots[:index], ds.robots[index+1:]...)
 		}
 
 	default:
@@ -406,19 +392,15 @@ func (state *demoState) handleRobotControl(
 }
 
 // handleLabelControl serves global and project label definitions.
-func (state *demoState) handleLabelControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleLabelControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "labels":
 		if method == http.MethodGet {
-			items := state.labels
+			items := ds.labels
 			if scope := strings.TrimSpace(query.Get("scope")); scope != "" {
 				filtered := make([]map[string]any, 0)
 				for _, label := range items {
@@ -441,43 +423,43 @@ func (state *demoState) handleLabelControl(
 			if name := strings.TrimSpace(query.Get("name")); name != "" {
 				items = filterMaps(items, name, "name")
 			}
-			state.writeList(w, items, query)
+			ds.writeList(w, items, query)
 			return
 		}
-		state.nextLabelID++
+		ds.nextLabelID++
 		label := cloneMap(body)
-		label["id"] = state.nextLabelID
-		label["creation_time"] = time.Now().UTC().Format(time.RFC3339)
-		state.labels = append(state.labels, label)
+		label["id"] = ds.nextLabelID
+		label["creation_time"] = ds.now().UTC().Format(timefmt.Layout)
+		ds.labels = append(ds.labels, label)
 		status, data = http.StatusCreated, label
 
 	case "label":
-		index, found := findMapNumber(state.labels, "id", query.Get("id"))
+		index, found := findMapNumber(ds.labels, "id", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "项目标签不存在"
+			errStatus, errMessage = http.StatusNotFound, "project label not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.labels[index]
+			data = ds.labels[index]
 		} else if method == http.MethodPut {
-			id, projectID := state.labels[index]["id"], state.labels[index]["project_id"]
-			state.labels[index] = cloneMap(body)
-			state.labels[index]["id"], state.labels[index]["project_id"] = id, projectID
-			state.labels[index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
-			data = state.labels[index]
+			id, projectID := ds.labels[index]["id"], ds.labels[index]["project_id"]
+			ds.labels[index] = cloneMap(body)
+			ds.labels[index]["id"], ds.labels[index]["project_id"] = id, projectID
+			ds.labels[index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+			data = ds.labels[index]
 		} else {
-			deletedID := numberValue(state.labels[index]["id"])
-			state.labels = append(state.labels[:index], state.labels[index+1:]...)
-			for repositoryName := range state.artifacts {
-				for artifactIndex := range state.artifacts[repositoryName] {
-					labels := labelsOf(state.artifacts[repositoryName][artifactIndex])
+			deletedID := numberValue(ds.labels[index]["id"])
+			ds.labels = append(ds.labels[:index], ds.labels[index+1:]...)
+			for repositoryName := range ds.artifacts {
+				for artifactIndex := range ds.artifacts[repositoryName] {
+					labels := labelsOf(ds.artifacts[repositoryName][artifactIndex])
 					filtered := labels[:0]
 					for _, label := range labels {
 						if numberValue(label["id"]) != deletedID {
 							filtered = append(filtered, label)
 						}
 					}
-					state.artifacts[repositoryName][artifactIndex]["labels"] = mapsToAny(filtered)
+					ds.artifacts[repositoryName][artifactIndex]["labels"] = mapsToAny(filtered)
 				}
 			}
 		}

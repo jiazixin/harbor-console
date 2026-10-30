@@ -1,13 +1,14 @@
 import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { createClassNames } from "../lib/css/class-names";
+import uiStyles0 from "./shared-ui.module.css";
 
 /** Animate structural changes without remounting data, forms or scroll owners. */
-export function ContentTransition({
-  mode,
-  children,
-}: {
+type ContentTransitionProps = {
   mode: string;
   children: ReactNode;
-}) {
+};
+
+export function ContentTransition({ mode, children }: ContentTransitionProps) {
   const ref = useRef<HTMLDivElement>(null);
   const previousMode = useRef(mode);
 
@@ -22,7 +23,9 @@ export function ContentTransition({
       duration: Number.parseFloat(tokens.getPropertyValue("--motion-standard")),
       easing: tokens.getPropertyValue("--motion-ease").trim(),
     });
-    const cancel = () => animation.cancel();
+    const cancel = () => {
+      animation.cancel();
+    };
     reducedMotion.addEventListener("change", cancel);
     return () => {
       cancel();
@@ -31,8 +34,24 @@ export function ContentTransition({
   }, [mode]);
 
   return (
-    <div ref={ref} className="content-transition">
+    <div ref={ref} className={resolveClasses("content-transition")}>
       {children}
     </div>
   );
 }
+
+const resolveClasses = createClassNames({
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

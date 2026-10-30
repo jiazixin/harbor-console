@@ -1,9 +1,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../../app/locale-context";
 import type { RetentionMetadata, RetentionPolicy } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
 import { ProjectRetentionSection } from "./project-retention-section";
 
 const metadata: RetentionMetadata = {
@@ -71,7 +70,7 @@ describe("ProjectRetentionSection", () => {
       .mockImplementation(() => undefined);
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectRetentionSection
           project="platform"
@@ -83,14 +82,14 @@ describe("ProjectRetentionSection", () => {
           onPageChange={vi.fn()}
           onAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(screen.getByText("app/**")).toBeInTheDocument();
     expect(screen.getByText("api/**")).toBeInTheDocument();
     expect(consoleError).not.toHaveBeenCalledWith(
       expect.stringContaining("same key"),
-      expect.anything(),
+      expect.anything() as unknown,
     );
   });
 
@@ -122,7 +121,7 @@ describe("ProjectRetentionSection", () => {
     };
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectRetentionSection
           project="platform"
@@ -134,7 +133,7 @@ describe("ProjectRetentionSection", () => {
           onPageChange={vi.fn()}
           onAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(screen.getAllByText(selector)).toHaveLength(2);

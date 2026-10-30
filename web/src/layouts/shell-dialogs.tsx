@@ -1,7 +1,6 @@
 import { useState } from "react";
-
-import { controlApi, instanceApi } from "../app/api-client";
-import { instanceHost } from "../app/formatters";
+import { instanceApi } from "../app/api-client";
+import { errorText, UserInputError } from "../app/errors";
 import { useLocale } from "../app/locale-context";
 import type { HarborIdentity, HarborInstance, Session } from "../app/models";
 import {
@@ -9,9 +8,16 @@ import {
   loadPreferences,
   savePreferences,
 } from "../app/preferences";
+import { useControlMutation } from "../app/use-control-mutation";
 import { ControlDialog } from "../components/control-dialog";
-import { Icon } from "../components/icons";
+import { FormInput } from "../components/form-input";
+import { FormTextarea } from "../components/form-textarea";
+import { Icon } from "../components/icon";
+import uiStyles0 from "../components/shared-ui.module.css";
 import { UnifiedSelect } from "../components/unified-select";
+import { createClassNames } from "../lib/css/class-names";
+import { instanceHost } from "../lib/format/formatters";
+import uiStyles1 from "./shell-dialogs.module.css";
 
 /** Account, instance and preference dialogs opened from the top bar. */
 export type ShellDialog =
@@ -29,7 +35,7 @@ function formString(data: FormData, key: string): string {
 
 function profileComment(value: string) {
   if (new TextEncoder().encode(value).length > 30)
-    throw new Error("用户备注不得超过 30 个 UTF-8 字节");
+    throw new UserInputError("用户备注不得超过 30 个 UTF-8 字节");
   return value;
 }
 
@@ -44,22 +50,29 @@ function generatedCLISecret(): string {
   return `Hc1${Array.from(values, (value) => alphabet[value % alphabet.length]).join("")}`;
 }
 
+type PreferenceChoiceProps = {
+  name: string;
+  value: string;
+  title: string;
+  description: string;
+  checked: boolean;
+};
+
 function PreferenceChoice({
   name,
   value,
   title,
   description,
   checked,
-}: {
-  name: string;
-  value: string;
-  title: string;
-  description: string;
-  checked: boolean;
-}) {
+}: PreferenceChoiceProps) {
   return (
-    <label className="check-row">
-      <input name={name} type="radio" value={value} defaultChecked={checked} />
+    <label className={resolveClasses("check-row")}>
+      <FormInput
+        name={name}
+        type="radio"
+        value={value}
+        defaultChecked={checked}
+      />
       <span>
         <strong>{title}</strong>
         <small>{description}</small>
@@ -68,17 +81,19 @@ function PreferenceChoice({
   );
 }
 
+type AddInstanceDialogProps = {
+  demo: boolean;
+  onClose: () => void;
+  onSessionChanged: (session: Session, message: string) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
+
 function AddInstanceDialog({
   demo,
   onClose,
   onSessionChanged,
   onNotice,
-}: {
-  demo: boolean;
-  onClose: () => void;
-  onSessionChanged: (session: Session, message: string) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: AddInstanceDialogProps) {
   const { t } = useLocale();
   const [protocol, setProtocol] = useState<"http" | "https">("https");
   const [addingDemo, setAddingDemo] = useState(false);
@@ -103,10 +118,10 @@ function AddInstanceDialog({
         onSessionChanged(current, t("新实例已连接"));
       }}
     >
-      <div className="form-grid">
-        <label className="field">
+      <div className={resolveClasses("form-grid")}>
+        <label className={resolveClasses("field")}>
           <span>{t("Harbor 地址")}</span>
-          <div className="url-input-group">
+          <div className={resolveClasses("url-input-group")}>
             <UnifiedSelect
               ariaLabel={t("连接协议")}
               value={protocol}
@@ -116,7 +131,7 @@ function AddInstanceDialog({
               ]}
               onChange={setProtocol}
             />
-            <input
+            <FormInput
               name="address"
               type="text"
               aria-label={t("Harbor 地址")}
@@ -128,9 +143,9 @@ function AddInstanceDialog({
             />
           </div>
         </label>
-        <label className="field">
+        <label className={resolveClasses("field")}>
           <span>{t("用户名")}</span>
-          <input
+          <FormInput
             name="username"
             required
             maxLength={256}
@@ -138,9 +153,9 @@ function AddInstanceDialog({
             autoComplete="username"
           />
         </label>
-        <label className="field">
+        <label className={resolveClasses("field")}>
           <span>{t("密码")}</span>
-          <input
+          <FormInput
             name="password"
             type="password"
             required
@@ -148,38 +163,35 @@ function AddInstanceDialog({
             autoComplete="current-password"
           />
         </label>
-        <label className="check-row">
-          <input name="skip_tls_verify" type="checkbox" />
+        <label className={resolveClasses("check-row")}>
+          <FormInput name="skip_tls_verify" type="checkbox" />
           <span>
             <strong>{t("允许自签名证书")}</strong>
             <small>{t("仅在可信内网环境中启用")}</small>
           </span>
         </label>
         {demo ? (
-          <div className="dialog-secondary-action">
+          <div className={resolveClasses("dialog-secondary-action")}>
             <span>{t("需要验证多实例流程？")}</span>
             <button
-              className="button button-small"
+              className={resolveClasses("button button-small")}
               type="button"
               disabled={addingDemo}
               onClick={() => {
                 setAddingDemo(true);
                 void instanceApi
                   .addDemo()
-                  .then((current) =>
-                    onSessionChanged(current, t("演示实例已添加")),
-                  )
+                  .then((current) => {
+                    onSessionChanged(current, t("演示实例已添加"));
+                  })
                   .catch((error: unknown) => {
-                    onNotice(
-                      error instanceof Error ? error.message : String(error),
-                      true,
-                    );
+                    onNotice(errorText(error), true);
                     setAddingDemo(false);
                   });
               }}
             >
               {addingDemo ? (
-                <span className="spinner button-spinner" />
+                <span className={resolveClasses("spinner button-spinner")} />
               ) : (
                 <Icon name="plus" />
               )}
@@ -192,15 +204,17 @@ function AddInstanceDialog({
   );
 }
 
+type RemoveInstanceDialogProps = {
+  instance: HarborInstance;
+  onClose: () => void;
+  onSessionChanged: (session: Session, message: string) => void;
+};
+
 function RemoveInstanceDialog({
   instance,
   onClose,
   onSessionChanged,
-}: {
-  instance: HarborInstance;
-  onClose: () => void;
-  onSessionChanged: (session: Session, message: string) => void;
-}) {
+}: RemoveInstanceDialogProps) {
   const { t } = useLocale();
   const host = instanceHost(instance.instance_url);
   return (
@@ -216,7 +230,7 @@ function RemoveInstanceDialog({
         onSessionChanged(current, t("实例连接已移除"));
       }}
     >
-      <div className="notice notice-danger">
+      <div className={resolveClasses("notice notice-danger")}>
         <Icon name="alert" />
         <span>
           {t(
@@ -228,17 +242,20 @@ function RemoveInstanceDialog({
   );
 }
 
+type ProfileDialogProps = {
+  session: Session;
+  identity?: HarborIdentity;
+  onClose: () => void;
+  onIdentityChanged: (identity: HarborIdentity, message: string) => void;
+};
+
 function ProfileDialog({
   session,
   identity,
   onClose,
   onIdentityChanged,
-}: {
-  session: Session;
-  identity?: HarborIdentity;
-  onClose: () => void;
-  onIdentityChanged: (identity: HarborIdentity, message: string) => void;
-}) {
+}: ProfileDialogProps) {
+  const mutate = useControlMutation([]);
   const { t } = useLocale();
   return (
     <ControlDialog
@@ -247,29 +264,35 @@ function ProfileDialog({
       submitLabel="保存资料"
       onClose={onClose}
       onSubmit={async (data) => {
-        if (!identity?.user_id) throw new Error(t("当前用户资料不可编辑"));
+        if (!identity?.user_id)
+          throw new UserInputError(t("当前用户资料不可编辑"));
         const next = {
           realname: formString(data, "realname"),
           email: formString(data, "email"),
           comment: profileComment(formString(data, "comment")),
         };
-        await controlApi.mutate("user", { id: identity.user_id }, "PUT", next);
+        await mutate({
+          operation: "user",
+          parameters: { id: identity.user_id },
+          method: "PUT",
+          payload: next,
+        });
         onIdentityChanged({ ...identity, ...next }, t("个人资料已更新"));
       }}
     >
-      <div className="form-grid two-columns">
-        <label className="field">
+      <div className={resolveClasses("form-grid two-columns")}>
+        <label className={resolveClasses("field")}>
           <span>{t("姓名")}</span>
-          <input
+          <FormInput
             name="realname"
             maxLength={255}
             defaultValue={identity?.realname ?? ""}
             autoComplete="name"
           />
         </label>
-        <label className="field">
+        <label className={resolveClasses("field")}>
           <span>{t("邮箱")}</span>
-          <input
+          <FormInput
             name="email"
             type="email"
             maxLength={255}
@@ -277,9 +300,9 @@ function ProfileDialog({
             autoComplete="email"
           />
         </label>
-        <label className="field field-span">
+        <label className={resolveClasses("field field-span")}>
           <span>{t("备注")}</span>
-          <textarea
+          <FormTextarea
             name="comment"
             rows={3}
             maxLength={30}
@@ -291,15 +314,14 @@ function ProfileDialog({
   );
 }
 
-function PasswordDialog({
-  identity,
-  onClose,
-  onNotice,
-}: {
+type PasswordDialogProps = {
   identity?: HarborIdentity;
   onClose: () => void;
   onNotice: (message: string, error?: boolean) => void;
-}) {
+};
+
+function PasswordDialog({ identity, onClose, onNotice }: PasswordDialogProps) {
+  const mutate = useControlMutation([]);
   const { t } = useLocale();
   return (
     <ControlDialog
@@ -308,7 +330,8 @@ function PasswordDialog({
       submitLabel="更新密码"
       onClose={onClose}
       onSubmit={async (data) => {
-        if (!identity?.user_id) throw new Error(t("当前用户密码不可修改"));
+        if (!identity?.user_id)
+          throw new UserInputError(t("当前用户密码不可修改"));
         const oldPassword =
           typeof data.get("old_password") === "string"
             ? (data.get("old_password") as string)
@@ -322,23 +345,26 @@ function PasswordDialog({
             ? (data.get("confirmation") as string)
             : "";
         if (password !== confirmation)
-          throw new Error(t("两次输入的新密码不一致"));
+          throw new UserInputError(t("两次输入的新密码不一致"));
         if (!secretPattern(password))
-          throw new Error(t("密码复杂度不符合要求"));
-        await controlApi.mutate(
-          "current-user-password",
-          { id: identity.user_id },
-          "PUT",
-          { old_password: oldPassword, new_password: password },
-        );
+          throw new UserInputError(t("密码复杂度不符合要求"));
+        await mutate({
+          operation: "current-user-password",
+          parameters: { id: identity.user_id },
+          method: "PUT",
+          payload: {
+            old_password: oldPassword,
+            new_password: password,
+          },
+        });
         onClose();
         onNotice(t("密码已更新，当前连接已续用新凭据"));
       }}
     >
-      <div className="form-grid">
-        <label className="field">
+      <div className={resolveClasses("form-grid")}>
+        <label className={resolveClasses("field")}>
           <span>{t("当前密码")}</span>
-          <input
+          <FormInput
             name="old_password"
             type="password"
             required
@@ -346,9 +372,9 @@ function PasswordDialog({
             autoComplete="current-password"
           />
         </label>
-        <label className="field">
+        <label className={resolveClasses("field")}>
           <span>{t("新密码")}</span>
-          <input
+          <FormInput
             name="new_password"
             type="password"
             required
@@ -356,13 +382,13 @@ function PasswordDialog({
             maxLength={128}
             autoComplete="new-password"
           />
-          <small className="field-help">
+          <small className={resolveClasses("field-help")}>
             {t("8-128 个字符，至少包含大写字母、小写字母和数字。")}
           </small>
         </label>
-        <label className="field">
+        <label className={resolveClasses("field")}>
           <span>{t("再次输入新密码")}</span>
-          <input
+          <FormInput
             name="confirmation"
             type="password"
             required
@@ -376,15 +402,18 @@ function PasswordDialog({
   );
 }
 
+type CliSecretDialogProps = {
+  identity?: HarborIdentity;
+  onClose: () => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
+
 function CliSecretDialog({
   identity,
   onClose,
   onNotice,
-}: {
-  identity?: HarborIdentity;
-  onClose: () => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: CliSecretDialogProps) {
+  const mutate = useControlMutation([]);
   const { t } = useLocale();
   const [suggestedSecret] = useState(generatedCLISecret);
   return (
@@ -395,26 +424,27 @@ function CliSecretDialog({
       onClose={onClose}
       onSubmit={async (data) => {
         if (!identity?.user_id)
-          throw new Error(t("当前账号没有可管理的 OIDC CLI Secret"));
+          throw new UserInputError(t("当前账号没有可管理的 OIDC CLI Secret"));
         const secret = formString(data, "secret");
         const confirmation = formString(data, "confirmation");
         if (secret !== confirmation)
-          throw new Error(t("两次输入的 CLI Secret 不一致"));
-        if (!secretPattern(secret)) throw new Error(t("密码复杂度不符合要求"));
-        await controlApi.mutate(
-          "current-user-cli-secret",
-          { id: identity.user_id },
-          "PUT",
-          { secret },
-        );
+          throw new UserInputError(t("两次输入的 CLI Secret 不一致"));
+        if (!secretPattern(secret))
+          throw new UserInputError(t("密码复杂度不符合要求"));
+        await mutate({
+          operation: "current-user-cli-secret",
+          parameters: { id: identity.user_id },
+          method: "PUT",
+          payload: { secret },
+        });
         onClose();
         onNotice(t("CLI Secret 已更新，当前连接已续用新凭据"));
       }}
     >
-      <div className="form-grid">
-        <label className="field">
+      <div className={resolveClasses("form-grid")}>
+        <label className={resolveClasses("field")}>
           <span>{t("新 CLI Secret")}</span>
-          <input
+          <FormInput
             name="secret"
             type="password"
             required
@@ -423,15 +453,15 @@ function CliSecretDialog({
             defaultValue={suggestedSecret}
             autoComplete="new-password"
           />
-          <small className="field-help">
+          <small className={resolveClasses("field-help")}>
             {t(
               "可使用预生成值，或输入至少包含大写字母、小写字母和数字的自定义值。",
             )}
           </small>
         </label>
-        <label className="field">
+        <label className={resolveClasses("field")}>
           <span>{t("再次输入")}</span>
-          <input
+          <FormInput
             name="confirmation"
             type="password"
             required
@@ -442,7 +472,7 @@ function CliSecretDialog({
           />
         </label>
       </div>
-      <div className="notice notice-warning">
+      <div className={resolveClasses("notice notice-warning")}>
         <Icon name="alert" />
         <span>
           {t("Docker、Helm 和自动化任务需要同步更新为新的 CLI Secret。")}
@@ -452,13 +482,12 @@ function CliSecretDialog({
   );
 }
 
-function PreferencesDialog({
-  onClose,
-  onNotice,
-}: {
+type PreferencesDialogProps = {
   onClose: () => void;
   onNotice: (message: string, error?: boolean) => void;
-}) {
+};
+
+function PreferencesDialog({ onClose, onNotice }: PreferencesDialogProps) {
   const { t } = useLocale();
   const [preferences] = useState(loadPreferences);
   return (
@@ -485,11 +514,11 @@ function PreferencesDialog({
         onNotice(t("偏好已保存"));
       }}
     >
-      <div className="preference-sections">
-        <fieldset className="preference-section">
+      <div className={resolveClasses("preference-sections")}>
+        <fieldset className={resolveClasses("preference-section")}>
           <legend>{t("日期与时间")}</legend>
           <p>{t("影响列表、详情和审计日志中的时间显示。")}</p>
-          <div className="preference-choice-grid">
+          <div className={resolveClasses("preference-choice-grid")}>
             <PreferenceChoice
               name="date_timezone"
               value="local"
@@ -508,10 +537,10 @@ function PreferencesDialog({
             />
           </div>
         </fieldset>
-        <fieldset className="preference-section">
+        <fieldset className={resolveClasses("preference-section")}>
           <legend>{t("容器 CLI")}</legend>
           <p>{t("用于生成拉取、Tag 和推送命令。")}</p>
-          <div className="preference-choice-grid three">
+          <div className={resolveClasses("preference-choice-grid three")}>
             <PreferenceChoice
               name="runtime"
               value="docker"
@@ -535,10 +564,10 @@ function PreferencesDialog({
             />
           </div>
         </fieldset>
-        <fieldset className="preference-section">
+        <fieldset className={resolveClasses("preference-section")}>
           <legend>{t("仓库展示")}</legend>
           <p>{t("作为镜像仓库和项目仓库的默认展示方式。")}</p>
-          <div className="preference-choice-grid">
+          <div className={resolveClasses("preference-choice-grid")}>
             <PreferenceChoice
               name="repository_view"
               value="list"
@@ -560,6 +589,16 @@ function PreferencesDialog({
   );
 }
 
+type ShellDialogHostProps = {
+  dialog?: ShellDialog;
+  session: Session;
+  identity?: HarborIdentity;
+  onClose: () => void;
+  onIdentityChanged: (identity: HarborIdentity, message: string) => void;
+  onSessionChanged: (session: Session, message: string) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
+
 export function ShellDialogHost({
   dialog,
   session,
@@ -568,15 +607,7 @@ export function ShellDialogHost({
   onIdentityChanged,
   onSessionChanged,
   onNotice,
-}: {
-  dialog?: ShellDialog;
-  session: Session;
-  identity?: HarborIdentity;
-  onClose: () => void;
-  onIdentityChanged: (identity: HarborIdentity, message: string) => void;
-  onSessionChanged: (session: Session, message: string) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: ShellDialogHostProps) {
   switch (dialog?.kind) {
     case undefined:
       return null;
@@ -626,3 +657,41 @@ export function ShellDialogHost({
       return <PreferencesDialog onClose={onClose} onNotice={onNotice} />;
   }
 }
+
+const resolveClasses = createClassNames({
+  "control-dialog": uiStyles0.controlDialog,
+  icon: uiStyles0.icon,
+  "unified-select": uiStyles0.unifiedSelect,
+  "check-row": uiStyles0.checkRow,
+  "form-grid": uiStyles0.formGrid,
+  field: uiStyles0.field,
+  "url-input-group": uiStyles0.urlInputGroup,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  spinner: uiStyles0.spinner,
+  "button-spinner": uiStyles0.buttonSpinner,
+  notice: uiStyles0.notice,
+  "notice-danger": uiStyles0.noticeDanger,
+  "two-columns": uiStyles0.twoColumns,
+  "field-span": uiStyles0.fieldSpan,
+  "field-help": uiStyles0.fieldHelp,
+  "notice-warning": uiStyles0.noticeWarning,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+  "dialog-secondary-action": uiStyles1.dialogSecondaryAction,
+  "preference-sections": uiStyles1.preferenceSections,
+  "preference-section": uiStyles1.preferenceSection,
+  "preference-choice-grid": uiStyles1.preferenceChoiceGrid,
+  three: uiStyles1.three,
+});

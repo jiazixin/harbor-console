@@ -1,11 +1,12 @@
 # Harbor Console 文档
 
-当前维护基线：2026-10-22。首次使用、配置和部署见根目录的 [中文 README](../README.md) / [English README](../README.en.md)。
+当前维护基线：2026-10-31。首次使用、配置和部署见根目录的 [中文 README](../README.md) / [English README](../README.en.md)。
 
 | 文档 | 解决的问题 |
 | --- | --- |
 | [架构与边界](DESIGN.md) | 系统如何运行，API、会话与部署有哪些约束 |
 | [UI 规范](UI.md) | 颜色、控件、表格、动效、键盘与响应式如何保持一致 |
+| [接口错误约定](API.md) | 错误响应格式、错误码与前端文案映射 |
 | [开发与验证](IMPLEMENTATION.md) | 应该修改哪里，如何运行检查和维护构建产物 |
 | [验收记录](ACCEPTANCE.md) | 本轮验证了什么，哪些环境还未覆盖 |
 | [变更记录](CHANGELOG.md) | 当前工作区的改进与设计决定 |

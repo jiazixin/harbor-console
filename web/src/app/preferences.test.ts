@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-
 import { loadPreferences, savePreferences } from "./preferences";
 
-afterEach(() => window.localStorage.clear());
+afterEach(() => {
+  window.localStorage.clear();
+});
 
 describe("console preferences", () => {
   it.each(["null", "[]", "true", '"docker"', "{broken"])(

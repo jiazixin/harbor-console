@@ -1,0 +1,31 @@
+// Generated from the adjacent CSS Module by node scripts/generate-css-types.mjs.
+declare const styles: {
+  readonly connectCopy: string;
+  readonly connectFooter: string;
+  readonly connectHeader: string;
+  readonly connectHeaderActions: string;
+  readonly connectMain: string;
+  readonly connectPanel: string;
+  readonly connectUrlGroup: string;
+  readonly connectionFacts: string;
+  readonly demoRow: string;
+  readonly fieldGrid: string;
+  readonly formError: string;
+  readonly loadingRows: string;
+  readonly panelHeading: string;
+  readonly productNote: string;
+  readonly publicCatalogBreadcrumb: string;
+  readonly publicCatalogContent: string;
+  readonly publicCatalogEntry: string;
+  readonly publicCatalogFooter: string;
+  readonly publicCatalogHeader: string;
+  readonly publicCatalogHeading: string;
+  readonly publicCatalogMain: string;
+  readonly publicCatalogSearch: string;
+  readonly publicCatalogView: string;
+  readonly sectionIndex: string;
+  readonly secureLabel: string;
+  readonly skeletonLine: string;
+  readonly textButton: string;
+};
+export default styles;

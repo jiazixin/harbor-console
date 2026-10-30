@@ -1,26 +1,18 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
-import { IconSprite } from "../../components/icons";
-import {
-  DeletePreheatInstanceDialog,
-  PreheatInstanceDialog,
-} from "./preheat-dialogs";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { DeletePreheatInstanceDialog } from "./delete-preheat-instance-dialog";
+import { PreheatInstanceDialog } from "./preheat-instance-dialog";
 
 function renderDialog(content: React.ReactNode) {
   return render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       {content}
-    </LocaleProvider>,
+    </TestProviders>,
   );
 }
 
@@ -55,6 +47,7 @@ describe("preheat instance dialogs", () => {
   });
 
   it("creates a production P2P instance payload without response fields", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const onSaved = vi.fn();
     renderDialog(
@@ -66,27 +59,41 @@ describe("preheat instance dialogs", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "实例名称" }), {
-      target: { value: "dragonfly-prod" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "服务地址" }), {
-      target: { value: "https://dragonfly.example.com" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "创建实例" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "实例名称" }),
+      "dragonfly-prod",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "服务地址" }),
+      "https://dragonfly.example.com",
+    );
+    await user.click(screen.getByRole("button", { name: "创建实例" }));
 
-    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
-    expect(mutate).toHaveBeenCalledWith("preheat-instances", {}, "POST", {
-      name: "dragonfly-prod",
-      description: "",
-      vendor: "dragonfly",
-      endpoint: "https://dragonfly.example.com",
-      auth_mode: "NONE",
-      enabled: true,
-      insecure: false,
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalledOnce();
+    });
+    expect(mutate).toHaveBeenCalledWith({
+      operation: "preheat-instances",
+      parameters: {},
+      method: "POST",
+      payload: {
+        name: "dragonfly-prod",
+        description: "",
+        vendor: "dragonfly",
+        endpoint: "https://dragonfly.example.com",
+        auth_mode: "NONE",
+        enabled: true,
+        insecure: false,
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
     });
   });
 
   it("tests the current BASIC draft and keeps blank edit credentials explicit", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const onNotice = vi.fn();
     renderDialog(
@@ -106,22 +113,32 @@ describe("preheat instance dialogs", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "测试连接" }));
-    await waitFor(() => expect(onNotice).toHaveBeenCalled());
-    expect(mutate).toHaveBeenCalledWith("preheat-instance-ping", {}, "POST", {
-      id: 61,
-      name: "dragonfly-prod",
-      description: "",
-      vendor: "dragonfly",
-      endpoint: "https://dragonfly.example.com",
-      auth_mode: "BASIC",
-      auth_info: {},
-      enabled: true,
-      insecure: false,
+    await user.click(screen.getByRole("button", { name: "测试连接" }));
+    await waitFor(() => {
+      expect(onNotice).toHaveBeenCalled();
+    });
+    expect(mutate).toHaveBeenCalledWith({
+      operation: "preheat-instance-ping",
+      parameters: {},
+      method: "POST",
+      payload: {
+        id: 61,
+        name: "dragonfly-prod",
+        description: "",
+        vendor: "dragonfly",
+        endpoint: "https://dragonfly.example.com",
+        auth_mode: "BASIC",
+        auth_info: {},
+        enabled: true,
+        insecure: false,
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
     });
   });
 
   it("deletes an instance by its stable Harbor name", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const onDeleted = vi.fn();
     renderDialog(
@@ -137,12 +154,16 @@ describe("preheat instance dialogs", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "删除实例" }));
-    await waitFor(() => expect(onDeleted).toHaveBeenCalledOnce());
-    expect(mutate).toHaveBeenCalledWith(
-      "preheat-instance",
-      { name: "dragonfly-prod" },
-      "DELETE",
-    );
+    await user.click(screen.getByRole("button", { name: "删除实例" }));
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalledOnce();
+    });
+    expect(mutate).toHaveBeenCalledWith({
+      operation: "preheat-instance",
+      parameters: { name: "dragonfly-prod" },
+      method: "DELETE",
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 });

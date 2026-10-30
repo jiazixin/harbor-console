@@ -1,29 +1,23 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { parseHashRoute } from "../../app/hash-router";
-import { LocaleProvider } from "../../app/locale-context";
+import { parseConsoleRoute } from "../../app/console-route";
 import type {
   AuditLog,
-  ProjectMember,
+  ImmutableTagRule,
   ProjectDetailSummary,
   ProjectLabel,
+  ProjectMember,
   ProjectSummary,
   ProjectWebhook,
-  ImmutableTagRule,
   RepositorySummary,
   RetentionExecution,
   RetentionPolicy,
   Session,
 } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
 import { ProjectDetailPage } from "./project-detail-page";
 
 const session: Session = {
@@ -75,12 +69,12 @@ describe("ProjectDetailPage", () => {
   it("loads project settings through the exact Harbor operations and parameters", async () => {
     vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(
       function (this: HTMLElement) {
-        return this.classList.contains("resource-tabs") ? 900 : 0;
+        return this.classList.contains("hc_8b938f52_resourceTabs") ? 900 : 0;
       },
     );
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
       function (this: HTMLElement) {
-        return this.classList.contains("resource-tabs") ? 390 : 0;
+        return this.classList.contains("hc_8b938f52_resourceTabs") ? 390 : 0;
       },
     );
     vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(
@@ -135,10 +129,10 @@ describe("ProjectDetailPage", () => {
       });
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectDetailPage
-          route={parseHashRoute("#/projects/platform/settings")}
+          route={parseConsoleRoute("#/projects/platform/settings")}
           session={session}
           isSystemAdmin={true}
           refreshing={false}
@@ -165,21 +159,21 @@ describe("ProjectDetailPage", () => {
           onDeleteProjectLabel={vi.fn()}
           onRetentionAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(
       await screen.findByRole("heading", { name: "访问与安全" }),
     ).toBeVisible();
-    await waitFor(() =>
+    await waitFor(() => {
       expect(
         screen.getByRole("navigation", { name: "项目页面" }).scrollLeft,
-      ).toBe(610),
-    );
+      ).toBe(610);
+    });
     expect(data).toHaveBeenCalledWith(
       "project-scanner",
       { project: "platform" },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(list).toHaveBeenCalledWith(
       "project-scanner-candidates",
@@ -189,7 +183,7 @@ describe("ProjectDetailPage", () => {
         page_size: 100,
         sort: "name",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(list).toHaveBeenCalledWith(
       "quotas",
@@ -199,11 +193,12 @@ describe("ProjectDetailPage", () => {
         reference: "project",
         reference_id: 1,
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
   });
 
   it("preserves repository selection, sorting, navigation, and actions", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "data").mockImplementation((operation) =>
       Promise.resolve(operation === "project" ? project : summary),
     );
@@ -216,10 +211,10 @@ describe("ProjectDetailPage", () => {
     const showPushCommand = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectDetailPage
-          route={parseHashRoute("#/projects/platform/repositories")}
+          route={parseConsoleRoute("#/projects/platform/repositories")}
           session={session}
           isSystemAdmin={true}
           refreshing={false}
@@ -246,15 +241,15 @@ describe("ProjectDetailPage", () => {
           onDeleteProjectLabel={vi.fn()}
           onRetentionAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(
       await screen.findByRole("heading", { name: "platform" }),
     ).toBeVisible();
-    expect(screen.getByRole("region", { name: "项目统计" })).toHaveTextContent(
-      "15",
-    );
+    expect(
+      await screen.findByRole("region", { name: "项目统计" }),
+    ).toHaveTextContent("15");
     expect(screen.getByText("api")).toBeInTheDocument();
     expect(controlApi.list).toHaveBeenCalledWith(
       "repositories",
@@ -264,36 +259,38 @@ describe("ProjectDetailPage", () => {
         page_size: 100,
         sort: "name",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(controlApi.list).not.toHaveBeenCalledWith(
       "repositories",
-      expect.objectContaining({ sort: "artifact_count" }),
-      expect.any(AbortSignal),
+      expect.objectContaining({ sort: "artifact_count" }) as unknown,
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "选择 api" }));
+    await user.click(screen.getByRole("checkbox", { name: "选择 api" }));
     const deleteButton = screen.getByRole("button", { name: "删除仓库" });
     expect(deleteButton).toBeEnabled();
-    fireEvent.click(deleteButton);
+    await user.click(deleteButton);
     expect(deleteRepositories).toHaveBeenCalledWith("platform", [
       repositories[0],
     ]);
 
-    fireEvent.click(screen.getByRole("button", { name: "按拉取次数降序排序" }));
+    await user.click(
+      screen.getByRole("button", { name: "按拉取次数降序排序" }),
+    );
     expect(navigate).toHaveBeenCalledWith(
       "projects/platform/repositories?sort=-pull_count",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "推送镜像" }));
+    await user.click(screen.getByRole("button", { name: "推送镜像" }));
     expect(showPushCommand).toHaveBeenCalledWith("platform");
 
-    fireEvent.click(screen.getByText("api"));
-    await waitFor(() =>
+    await user.click(screen.getByText("api"));
+    await waitFor(() => {
       expect(navigate).toHaveBeenCalledWith(
         "projects/platform/repositories/platform%2Fapi/artifacts",
-      ),
-    );
+      );
+    });
   });
 
   it("sorts derived repository counts in both directions without remounting", async () => {
@@ -332,15 +329,15 @@ describe("ProjectDetailPage", () => {
       onRetentionAction: vi.fn(),
     };
     const { rerender } = render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectDetailPage
           {...props}
-          route={parseHashRoute(
+          route={parseConsoleRoute(
             "#/projects/platform/repositories?sort=-artifact_count",
           )}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     await waitFor(() => {
@@ -351,15 +348,15 @@ describe("ProjectDetailPage", () => {
     const table = screen.getByRole("table");
 
     rerender(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectDetailPage
           {...props}
-          route={parseHashRoute(
+          route={parseConsoleRoute(
             "#/projects/platform/repositories?sort=artifact_count",
           )}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     await waitFor(() => {
@@ -370,12 +367,13 @@ describe("ProjectDetailPage", () => {
     expect(screen.getByRole("table")).toBe(table);
     expect(list.mock.calls).not.toContainEqual([
       "repositories",
-      expect.objectContaining({ sort: "artifact_count" }),
-      expect.any(AbortSignal),
+      expect.objectContaining({ sort: "artifact_count" }) as unknown,
+      expect.any(AbortSignal) as unknown,
     ]);
   });
 
   it("preserves project member search, pagination, and row actions", async () => {
+    const user = setupUser();
     const members: ProjectMember[] = [
       {
         id: 7,
@@ -411,10 +409,10 @@ describe("ProjectDetailPage", () => {
     const deleteMember = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectDetailPage
-          route={parseHashRoute("#/projects/platform/members")}
+          route={parseConsoleRoute("#/projects/platform/members")}
           session={session}
           isSystemAdmin={true}
           refreshing={false}
@@ -441,12 +439,12 @@ describe("ProjectDetailPage", () => {
           onDeleteProjectLabel={vi.fn()}
           onRetentionAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("release-team")).toBeVisible();
     expect(screen.getByText("用户组")).toBeVisible();
-    expect(screen.getByText("维护者")).toHaveClass("badge-blue");
+    expect(screen.getByText("维护者")).toHaveClass("hc_8b938f52_badgeBlue");
     expect(controlApi.list).toHaveBeenCalledWith(
       "project-members",
       {
@@ -455,34 +453,29 @@ describe("ProjectDetailPage", () => {
         page_size: 50,
         entityname: "",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.change(
+    await replaceText(
+      user,
       screen.getByRole("searchbox", { name: "按成员名称搜索" }),
-      {
-        target: { value: "release" },
-      },
+      "release",
     );
-    const searchForm = screen
-      .getByRole("searchbox", { name: "按成员名称搜索" })
-      .closest("form");
-    expect(searchForm).not.toBeNull();
-    if (!searchForm) throw new Error("member search form is missing");
-    fireEvent.submit(searchForm);
+    await user.keyboard("{Enter}");
     expect(navigate).toHaveBeenCalledWith(
       "projects/platform/members?q=release",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "添加成员" }));
+    await user.click(screen.getByRole("button", { name: "添加成员" }));
     expect(addMember).toHaveBeenCalledWith("platform", members);
-    fireEvent.click(screen.getByRole("button", { name: "修改角色" }));
+    await user.click(screen.getByRole("button", { name: "修改角色" }));
     expect(editMember).toHaveBeenCalledWith("platform", members[0]);
-    fireEvent.click(screen.getByRole("button", { name: "删除成员" }));
+    await user.click(screen.getByRole("button", { name: "删除成员" }));
     expect(deleteMember).toHaveBeenCalledWith("platform", members[0]);
   });
 
   it("loads webhook policies and preserves row actions", async () => {
+    const user = setupUser();
     const webhooks: ProjectWebhook[] = [
       {
         id: 41,
@@ -526,10 +519,10 @@ describe("ProjectDetailPage", () => {
     const deleteWebhook = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectDetailPage
-          route={parseHashRoute("#/projects/platform/webhooks")}
+          route={parseConsoleRoute("#/projects/platform/webhooks")}
           session={session}
           isSystemAdmin={true}
           refreshing={false}
@@ -556,7 +549,7 @@ describe("ProjectDetailPage", () => {
           onDeleteProjectLabel={vi.fn()}
           onRetentionAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("deploy-events")).toBeVisible();
@@ -570,31 +563,32 @@ describe("ProjectDetailPage", () => {
         page_size: 50,
         sort: "name",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(controlApi.data).toHaveBeenCalledWith(
       "webhook-events",
       { project: "platform" },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "新建 Webhook" }));
+    await user.click(screen.getByRole("button", { name: "新建 Webhook" }));
     expect(createWebhook).toHaveBeenCalledWith("platform", eventMetadata);
-    fireEvent.click(
+    await user.click(
       screen.getByRole("button", { name: "查看 Webhook 执行历史" }),
     );
     expect(showWebhookHistory).toHaveBeenCalledWith("platform", webhooks[0]);
-    fireEvent.click(screen.getByRole("button", { name: "编辑 Webhook" }));
+    await user.click(screen.getByRole("button", { name: "编辑 Webhook" }));
     expect(editWebhook).toHaveBeenCalledWith(
       "platform",
       webhooks[0],
       eventMetadata,
     );
-    fireEvent.click(screen.getByRole("button", { name: "删除 Webhook" }));
+    await user.click(screen.getByRole("button", { name: "删除 Webhook" }));
     expect(deleteWebhook).toHaveBeenCalledWith("platform", webhooks[0]);
   });
 
   it("loads immutable rules and project labels with exact actions", async () => {
+    const user = setupUser();
     const rules: ImmutableTagRule[] = [
       {
         id: 31,
@@ -673,10 +667,10 @@ describe("ProjectDetailPage", () => {
     const deleteLabel = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectDetailPage
-          route={parseHashRoute("#/projects/platform/rules")}
+          route={parseConsoleRoute("#/projects/platform/rules")}
           session={session}
           isSystemAdmin={true}
           refreshing={false}
@@ -703,7 +697,7 @@ describe("ProjectDetailPage", () => {
           onDeleteProjectLabel={deleteLabel}
           onRetentionAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("release-*")).toBeVisible();
@@ -716,7 +710,7 @@ describe("ProjectDetailPage", () => {
         page_size: 100,
         sort: "priority",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(list).toHaveBeenCalledWith(
       "labels",
@@ -727,28 +721,29 @@ describe("ProjectDetailPage", () => {
         page_size: 100,
         sort: "name",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "新建规则" }));
+    await user.click(screen.getByRole("button", { name: "新建规则" }));
     expect(createRule).toHaveBeenCalledWith("platform", retentionMetadata);
-    fireEvent.click(screen.getByRole("button", { name: "编辑规则" }));
+    await user.click(screen.getByRole("button", { name: "编辑规则" }));
     expect(editRule).toHaveBeenCalledWith(
       "platform",
       rules[0],
       retentionMetadata,
     );
-    fireEvent.click(screen.getByRole("button", { name: "删除规则" }));
+    await user.click(screen.getByRole("button", { name: "删除规则" }));
     expect(deleteRule).toHaveBeenCalledWith("platform", rules[0]);
-    fireEvent.click(screen.getByRole("button", { name: "新建标签" }));
+    await user.click(screen.getByRole("button", { name: "新建标签" }));
     expect(createLabel).toHaveBeenCalledWith("platform", 1);
-    fireEvent.click(screen.getByRole("button", { name: "编辑标签" }));
+    await user.click(screen.getByRole("button", { name: "编辑标签" }));
     expect(editLabel).toHaveBeenCalledWith("platform", 1, labels[0]);
-    fireEvent.click(screen.getByRole("button", { name: "删除标签" }));
+    await user.click(screen.getByRole("button", { name: "删除标签" }));
     expect(deleteLabel).toHaveBeenCalledWith(labels[0]);
   });
 
   it("loads tag retention policy, executions, and exact row actions", async () => {
+    const user = setupUser();
     const retentionProject: ProjectSummary = {
       ...project,
       metadata: { ...project.metadata, retention_id: "31" },
@@ -832,10 +827,10 @@ describe("ProjectDetailPage", () => {
     const retentionAction = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectDetailPage
-          route={parseHashRoute("#/projects/platform/retention")}
+          route={parseConsoleRoute("#/projects/platform/retention")}
           session={session}
           isSystemAdmin={true}
           refreshing={false}
@@ -862,7 +857,7 @@ describe("ProjectDetailPage", () => {
           onDeleteProjectLabel={vi.fn()}
           onRetentionAction={retentionAction}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("sandbox/**")).toBeVisible();
@@ -871,29 +866,29 @@ describe("ProjectDetailPage", () => {
     expect(list).toHaveBeenCalledWith(
       "retention-executions",
       { id: 31, page: 1, page_size: 20 },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(controlApi.data).toHaveBeenCalledWith(
       "retention",
       { id: 31 },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "仅演练" }));
+    await user.click(screen.getByRole("button", { name: "仅演练" }));
     expect(retentionAction).toHaveBeenCalledWith({
       kind: "run",
       policy: retentionPolicy,
       dryRun: true,
     });
-    fireEvent.click(screen.getByRole("button", { name: "编辑保留规则" }));
+    await user.click(screen.getByRole("button", { name: "编辑保留规则" }));
     expect(retentionAction).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "edit-rule",
         policy: retentionPolicy,
         ruleIndex: 0,
-      }),
+      }) as unknown,
     );
-    fireEvent.click(screen.getByRole("button", { name: "查看 Tag 保留任务" }));
+    await user.click(screen.getByRole("button", { name: "查看 Tag 保留任务" }));
     expect(retentionAction).toHaveBeenCalledWith({
       kind: "view-execution",
       project: "platform",
@@ -937,10 +932,10 @@ describe("ProjectDetailPage", () => {
     );
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectDetailPage
-          route={parseHashRoute(
+          route={parseConsoleRoute(
             "#/projects/platform/audit?page=2&page_size=20&q=gateway&sort=-id",
           )}
           session={session}
@@ -969,7 +964,7 @@ describe("ProjectDetailPage", () => {
           onDeleteProjectLabel={vi.fn()}
           onRetentionAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("platform/gateway:v3.18.4")).toBeVisible();
@@ -982,7 +977,7 @@ describe("ProjectDetailPage", () => {
         sort: "-id",
         q: "resource=~gateway",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
   });
 
@@ -1009,10 +1004,10 @@ describe("ProjectDetailPage", () => {
     );
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectDetailPage
-          route={parseHashRoute("#/projects/platform/members")}
+          route={parseConsoleRoute("#/projects/platform/members")}
           session={session}
           isSystemAdmin={false}
           refreshing={false}
@@ -1039,7 +1034,7 @@ describe("ProjectDetailPage", () => {
           onDeleteProjectLabel={vi.fn()}
           onRetentionAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("没有访问此项目页面的权限")).toBeVisible();
@@ -1048,8 +1043,8 @@ describe("ProjectDetailPage", () => {
     ).not.toBeInTheDocument();
     expect(list).not.toHaveBeenCalledWith(
       "project-members",
-      expect.anything(),
-      expect.anything(),
+      expect.anything() as unknown,
+      expect.anything() as unknown,
     );
   });
 });

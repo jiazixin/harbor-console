@@ -1,9 +1,12 @@
-import { useMemo } from "react";
-
-import { formatNumber } from "../app/formatters";
+import { UserInputError } from "../app/errors";
 import { useLocale } from "../app/locale-context";
 import type { HarborPermission, RobotAccess } from "../app/models";
-import { Icon } from "./icons";
+import { createClassNames } from "../lib/css/class-names";
+import { formatNumber } from "../lib/format/formatters";
+import { FormInput } from "./form-input";
+import { Icon } from "./icon";
+import uiStyles1 from "./robot-permission-matrix.module.css";
+import uiStyles0 from "./shared-ui.module.css";
 
 // Labels for every resource Harbor 2.15 reports from GET /permissions.
 const resourceLabels: Record<string, string> = {
@@ -88,7 +91,7 @@ export function validateRobotAccess(
     const message = scopeLabel
       ? `${scopeLabel}：${translate("请至少选择一项权限")}`
       : translate("请至少选择一项权限");
-    throw new Error(message);
+    throw new UserInputError(message);
   }
   const hasPush = access.some(
     (item) => item.resource === "repository" && item.action === "push",
@@ -97,9 +100,17 @@ export function validateRobotAccess(
     (item) => item.resource === "repository" && item.action === "pull",
   );
   if (hasPush && !hasPull) {
-    throw new Error(translate("仓库推送权限必须同时包含仓库拉取权限"));
+    throw new UserInputError(translate("仓库推送权限必须同时包含仓库拉取权限"));
   }
 }
+
+type RobotPermissionMatrixProps = {
+  candidates: HarborPermission[];
+  selected: Set<string>;
+  legend: string;
+  compact?: boolean;
+  onChange: (selected: Set<string>) => void;
+};
 
 export function RobotPermissionMatrix({
   candidates,
@@ -107,15 +118,9 @@ export function RobotPermissionMatrix({
   legend,
   compact = false,
   onChange,
-}: {
-  candidates: HarborPermission[];
-  selected: Set<string>;
-  legend: string;
-  compact?: boolean;
-  onChange: (selected: Set<string>) => void;
-}) {
+}: RobotPermissionMatrixProps) {
   const { locale, t } = useLocale();
-  const groups = useMemo(() => {
+  const groups = (() => {
     const result = new Map<string, string[]>();
     candidates.forEach((permission) => {
       if (!permission.resource || !permission.action) return;
@@ -124,11 +129,11 @@ export function RobotPermissionMatrix({
       result.set(permission.resource, actions);
     });
     return Array.from(result.entries());
-  }, [candidates]);
+  })();
 
   if (!groups.length) {
     return (
-      <div className="notice notice-warning">
+      <div className={resolveClasses("notice notice-warning")}>
         <Icon name="alert" />
         <span>{t("Harbor 未返回可分配的权限元数据。")}</span>
       </div>
@@ -137,15 +142,17 @@ export function RobotPermissionMatrix({
 
   return (
     <fieldset
-      className={`permission-matrix${compact ? " permission-matrix-compact" : ""}`}
+      className={resolveClasses(
+        `permission-matrix${compact ? " permission-matrix-compact" : ""}`,
+      )}
     >
       <legend>{t(legend)}</legend>
-      <div className="permission-matrix-toolbar">
+      <div className={resolveClasses("permission-matrix-toolbar")}>
         <span>
           {formatNumber(candidates.length, locale)} {t("项官方权限")}
         </span>
         <button
-          className="button button-small"
+          className={resolveClasses("button button-small")}
           type="button"
           onClick={() => {
             const all = candidates.map(robotPermissionKey).filter(Boolean);
@@ -157,9 +164,12 @@ export function RobotPermissionMatrix({
           {t("全选 / 清空")}
         </button>
       </div>
-      <div className="permission-resource-list">
+      <div className={resolveClasses("permission-resource-list")}>
         {groups.map(([resource, actions]) => (
-          <section className="permission-resource" key={resource}>
+          <section
+            className={resolveClasses("permission-resource")}
+            key={resource}
+          >
             <header>
               <strong>{t(resourceLabels[resource] ?? resource)}</strong>
               <code>{resource}</code>
@@ -169,7 +179,7 @@ export function RobotPermissionMatrix({
                 const key = `${resource}|${action}`;
                 return (
                   <label key={key}>
-                    <input
+                    <FormInput
                       type="checkbox"
                       checked={selected.has(key)}
                       onChange={(event) => {
@@ -196,3 +206,29 @@ export function RobotPermissionMatrix({
     </fieldset>
   );
 }
+
+const resolveClasses = createClassNames({
+  icon: uiStyles0.icon,
+  notice: uiStyles0.notice,
+  "notice-warning": uiStyles0.noticeWarning,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+  "permission-matrix": uiStyles1.permissionMatrix,
+  "permission-matrix-compact": uiStyles1.permissionMatrixCompact,
+  "permission-matrix-toolbar": uiStyles1.permissionMatrixToolbar,
+  "permission-resource-list": uiStyles1.permissionResourceList,
+  "permission-resource": uiStyles1.permissionResource,
+});

@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
-
+import { useState } from "react";
 import { controlApi } from "../../app/api-client";
-import { formatDate, formatDuration, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type {
   ControlPagination,
@@ -9,20 +7,31 @@ import type {
   WebhookExecution,
   WebhookTask,
 } from "../../app/models";
+import { displayTimeZone } from "../../app/preferences";
+import { useLoadedQuery } from "../../app/use-loaded-query";
 import { ControlDialog } from "../../components/control-dialog";
+import { DialogLoading } from "../../components/dialog-loading";
 import { EmptyState } from "../../components/empty-state";
-import {
-  DialogLoading,
-  ExecutionSection,
-  ExecutionSummary,
-} from "../../components/execution-summary";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
-import { PanelTitle } from "../../components/page-elements";
-import { StatusBadge, triggerLabel } from "../../components/status-badge";
-import { TaskLogPanel, useTaskLog } from "../../components/task-log-panel";
+import { ErrorView } from "../../components/error-view";
+import { ExecutionSection } from "../../components/execution-section";
+import { ExecutionSummary } from "../../components/execution-summary";
+import { Icon } from "../../components/icon";
+import { PanelTitle } from "../../components/panel-title";
+import uiStyles0 from "../../components/shared-ui.module.css";
+import { StatusBadge } from "../../components/status-badge";
+import { triggerLabel } from "../../components/status-badge-support";
+import { TaskLogPanel } from "../../components/task-log-panel";
 import { UnifiedSelect } from "../../components/unified-select";
+import { useTaskLog } from "../../components/use-task-log";
+import { createClassNames } from "../../lib/css/class-names";
+import {
+  formatDate,
+  formatDuration,
+  formatNumber,
+} from "../../lib/format/formatters";
 import { DialogPagination } from "./dialog-pagination";
+import { projectKeys } from "./project-keys";
+import styles from "./projects.module.css";
 
 const historyPageSize = 20;
 
@@ -43,37 +52,18 @@ function displayText(value: string | undefined): string {
   return value?.trim() ? value : "-";
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError";
-}
-
 /** Loads the webhook's executions, or the tasks of the selected execution. */
 function useWebhookHistory(project: string, webhookId: number) {
   const [status, setStatus] = useState("");
   const [executionPage, setExecutionPage] = useState(1);
-  const [executions, setExecutions] = useState<WebhookExecution[]>([]);
-  const [executionPagination, setExecutionPagination] =
-    useState(emptyPagination);
   const [selectedExecution, setSelectedExecution] =
     useState<WebhookExecution>();
   const [taskPage, setTaskPage] = useState(1);
-  const [tasks, setTasks] = useState<WebhookTask[]>([]);
-  const [taskPagination, setTaskPagination] = useState(emptyPagination);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const selectedExecutionId = selectedExecution?.id;
-
-  useEffect(() => {
-    if (selectedExecutionId !== undefined) return;
-    const controller = new AbortController();
-    setLoading(true);
-    setError("");
-    void controlApi
-      .list<WebhookExecution>(
+  const executionsQuery = useLoadedQuery(
+    projectKeys.webhookHistory({ project, webhookId, status, executionPage }),
+    (signal) =>
+      controlApi.list<WebhookExecution>(
         "webhook-executions",
         {
           project,
@@ -83,51 +73,35 @@ function useWebhookHistory(project: string, webhookId: number) {
           sort: "-start_time",
           q: status ? `status=${status}` : "",
         },
-        controller.signal,
-      )
-      .then((collection) => {
-        setExecutions(collection.items);
-        setExecutionPagination(collection.pagination);
-      })
-      .catch((loadError: unknown) => {
-        if (!isAbortError(loadError)) setError(errorText(loadError));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [executionPage, project, selectedExecutionId, status, webhookId]);
-
-  useEffect(() => {
-    if (selectedExecutionId === undefined) return;
-    const controller = new AbortController();
-    setLoading(true);
-    setError("");
-    void controlApi
-      .list<WebhookTask>(
+        signal,
+      ),
+    { enabled: selectedExecutionId === undefined },
+  );
+  const tasksQuery = useLoadedQuery(
+    projectKeys.webhookHistory({
+      project,
+      webhookId,
+      execution: selectedExecutionId,
+      taskPage,
+    }),
+    (signal) =>
+      controlApi.list<WebhookTask>(
         "webhook-tasks",
         {
           project,
           id: webhookId,
-          execution: selectedExecutionId,
+          // Enabled only with a selection, so the fallback is never sent.
+          execution: selectedExecutionId ?? 0,
           page: taskPage,
           page_size: historyPageSize,
           sort: "-start_time",
         },
-        controller.signal,
-      )
-      .then((collection) => {
-        setTasks(collection.items);
-        setTaskPagination(collection.pagination);
-      })
-      .catch((loadError: unknown) => {
-        if (!isAbortError(loadError)) setError(errorText(loadError));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [project, selectedExecutionId, taskPage, webhookId]);
+        signal,
+      ),
+    { enabled: selectedExecutionId !== undefined },
+  );
+  const activeQuery =
+    selectedExecutionId === undefined ? executionsQuery : tasksQuery;
 
   return {
     status,
@@ -135,29 +109,28 @@ function useWebhookHistory(project: string, webhookId: number) {
       setStatus(next);
       setExecutionPage(1);
     },
-    executions,
-    executionPagination,
+    executions: executionsQuery.data?.items ?? [],
+    executionPagination: executionsQuery.data?.pagination ?? emptyPagination(),
     setExecutionPage,
     selectedExecution,
     selectExecution: (execution: WebhookExecution | undefined) => {
       setTaskPage(1);
       setSelectedExecution(execution);
     },
-    tasks,
-    taskPagination,
+    tasks: tasksQuery.data?.items ?? [],
+    taskPagination: tasksQuery.data?.pagination ?? emptyPagination(),
     setTaskPage,
-    loading,
-    error,
+    loading: activeQuery.loading,
+    error: activeQuery.error,
   };
 }
 
-function WebhookTaskTable({
-  tasks,
-  onShowLog,
-}: {
+type WebhookTaskTableProps = {
   tasks: WebhookTask[];
   onShowLog: (task: WebhookTask) => void;
-}) {
+};
+
+function WebhookTaskTable({ tasks, onShowLog }: WebhookTaskTableProps) {
   const { locale, t } = useLocale();
   if (!tasks.length) {
     return (
@@ -172,41 +145,46 @@ function WebhookTaskTable({
     <table>
       <thead>
         <tr>
-          <th className="id-column">{t("任务")}</th>
+          <th className={resolveClasses("id-column")}>{t("任务")}</th>
           <th>{t("事件")}</th>
           <th>{t("资源")}</th>
           <th>{t("目标")}</th>
           <th>{t("尝试次数")}</th>
           <th>{t("状态")}</th>
-          <th className="table-cell-time">{t("开始时间")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("开始时间")}</th>
           <th>{t("日志")}</th>
         </tr>
       </thead>
       <tbody>
         {tasks.map((task) => (
           <tr key={task.id}>
-            <td className="id-cell">#{task.id}</td>
+            <td className={resolveClasses("id-cell")}>#{task.id}</td>
             <td>{displayText(task.extra_attrs?.event_type)}</td>
-            <td className="truncate-cell mono">
+            <td className={resolveClasses("truncate-cell mono")}>
               {displayText(task.extra_attrs?.resource)}
             </td>
-            <td className="truncate-cell mono">
+            <td className={resolveClasses("truncate-cell mono")}>
               {displayText(task.extra_attrs?.destination)}
             </td>
             <td>{formatNumber(task.run_count, locale)}</td>
             <td>
               <StatusBadge status={task.status} />
             </td>
-            <td className="table-cell-time">
-              {formatDate(task.start_time, locale)}
+            <td className={resolveClasses("table-cell-time")}>
+              {formatDate(task.start_time, {
+                locale: locale,
+                timeZone: displayTimeZone(),
+              })}
             </td>
             <td>
               <button
-                className="icon-button"
+                className={resolveClasses("icon-button")}
                 type="button"
                 title={t("查看日志")}
                 aria-label={t("查看 Webhook 任务日志")}
-                onClick={() => onShowLog(task)}
+                onClick={() => {
+                  onShowLog(task);
+                }}
               >
                 <Icon name="history" />
               </button>
@@ -218,13 +196,15 @@ function WebhookTaskTable({
   );
 }
 
+type WebhookExecutionTableProps = {
+  executions: WebhookExecution[];
+  onSelect: (execution: WebhookExecution) => void;
+};
+
 function WebhookExecutionTable({
   executions,
   onSelect,
-}: {
-  executions: WebhookExecution[];
-  onSelect: (execution: WebhookExecution) => void;
-}) {
+}: WebhookExecutionTableProps) {
   const { locale, t } = useLocale();
   if (!executions.length) {
     return (
@@ -239,22 +219,22 @@ function WebhookExecutionTable({
     <table>
       <thead>
         <tr>
-          <th className="id-column">{t("执行")}</th>
+          <th className={resolveClasses("id-column")}>{t("执行")}</th>
           <th>{t("事件")}</th>
           <th>{t("触发方式")}</th>
           <th>{t("任务")}</th>
           <th>{t("状态")}</th>
-          <th className="table-cell-time">{t("开始时间")}</th>
-          <th className="table-cell-time">{t("耗时")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("开始时间")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("耗时")}</th>
           <th />
         </tr>
       </thead>
       <tbody>
         {executions.map((execution) => (
           <tr key={execution.id}>
-            <td className="id-cell">#{execution.id}</td>
+            <td className={resolveClasses("id-cell")}>#{execution.id}</td>
             <td>
-              <span className="badge badge-blue">
+              <span className={resolveClasses("badge badge-blue")}>
                 {executionEvent(execution)}
               </span>
             </td>
@@ -263,19 +243,24 @@ function WebhookExecutionTable({
             <td>
               <StatusBadge status={execution.status} />
             </td>
-            <td className="table-cell-time">
-              {formatDate(execution.start_time, locale)}
+            <td className={resolveClasses("table-cell-time")}>
+              {formatDate(execution.start_time, {
+                locale: locale,
+                timeZone: displayTimeZone(),
+              })}
             </td>
-            <td className="table-cell-time">
+            <td className={resolveClasses("table-cell-time")}>
               {formatDuration(execution.start_time, execution.end_time, locale)}
             </td>
             <td>
               <button
-                className="icon-button"
+                className={resolveClasses("icon-button")}
                 type="button"
                 title={t("查看任务")}
                 aria-label={t("查看 Webhook 执行任务")}
-                onClick={() => onSelect(execution)}
+                onClick={() => {
+                  onSelect(execution);
+                }}
               >
                 <Icon name="external" />
               </button>
@@ -296,33 +281,31 @@ const statusFilters = [
   { value: "Stopped", label: "已停止" },
 ] as const;
 
+type WebhookHistoryDialogProps = {
+  project: string;
+  webhook: ProjectWebhook;
+  onClose: () => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
+
 export function WebhookHistoryDialog({
   project,
   webhook,
   onClose,
   onNotice,
-}: {
-  project: string;
-  webhook: ProjectWebhook;
-  onClose: () => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: WebhookHistoryDialogProps) {
   const { locale, t } = useLocale();
   const history = useWebhookHistory(project, webhook.id);
   const selected = history.selectedExecution;
-  const taskLog = useTaskLog<WebhookTask>((task, signal) =>
-    controlApi.data<string>(
-      "webhook-task-log",
-      { project, id: webhook.id, execution: selected?.id, task: task.id },
-      signal,
-    ),
+  const taskLog = useTaskLog<WebhookTask>(
+    (task, signal) =>
+      controlApi.data<string>(
+        "webhook-task-log",
+        { project, id: webhook.id, execution: selected?.id, task: task.id },
+        signal,
+      ),
+    projectKeys.taskLog("webhook-log", [project, webhook.id, selected?.id]),
   );
-  const { close: closeTaskLog } = taskLog;
-
-  // A log belongs to one execution; selecting another execution closes it.
-  useEffect(() => {
-    closeTaskLog();
-  }, [closeTaskLog, selected?.id]);
 
   function renderContent() {
     if (history.loading) {
@@ -346,11 +329,11 @@ export function WebhookHistoryDialog({
     }
     if (!selected) {
       return (
-        <section className="dialog-table-section">
-          <div className="table-toolbar">
+        <section className={resolveClasses("dialog-table-section")}>
+          <div className={resolveClasses("table-toolbar")}>
             <PanelTitle title="执行记录" />
-            <div className="toolbar-spacer" />
-            <label className="compact-field">
+            <div className={resolveClasses("toolbar-spacer")} />
+            <label className={resolveClasses(styles.compactField)}>
               <span>{t("状态")}</span>
               <UnifiedSelect
                 ariaLabel={t("状态")}
@@ -363,7 +346,7 @@ export function WebhookHistoryDialog({
               />
             </label>
           </div>
-          <div className="table-scroll">
+          <div className={resolveClasses("table-scroll")}>
             <WebhookExecutionTable
               executions={history.executions}
               onSelect={history.selectExecution}
@@ -384,9 +367,11 @@ export function WebhookHistoryDialog({
           status={selected.status}
           leading={
             <button
-              className="button button-small"
+              className={resolveClasses("button button-small")}
               type="button"
-              onClick={() => history.selectExecution(undefined)}
+              onClick={() => {
+                history.selectExecution(undefined);
+              }}
             >
               <Icon name="chevron-left" />
               <span>{t("执行历史")}</span>
@@ -394,7 +379,10 @@ export function WebhookHistoryDialog({
           }
           details={[
             executionEvent(selected),
-            formatDate(selected.start_time, locale),
+            formatDate(selected.start_time, {
+              locale: locale,
+              timeZone: displayTimeZone(),
+            }),
           ]}
           stats={[
             { label: "总任务", value: metrics?.task_count ?? taskTotal },
@@ -419,7 +407,9 @@ export function WebhookHistoryDialog({
               : `共 ${formatNumber(taskTotal, locale)} 项`
           }
         >
-          <div className="table-scroll replication-task-table">
+          <div
+            className={resolveClasses("table-scroll replication-task-table")}
+          >
             <WebhookTaskTable
               tasks={history.tasks}
               onShowLog={(task) => void taskLog.open(task)}
@@ -456,12 +446,51 @@ export function WebhookHistoryDialog({
       submitLabel="关闭"
       submitIcon="x"
       showCancel={false}
-      dialogClass="control-dialog-wide"
+      dialogClass={resolveClasses("control-dialog-wide")}
       initialFocusSelector={null}
       onClose={onClose}
-      onSubmit={() => Promise.resolve(onClose())}
+      onSubmit={onClose}
     >
       {renderContent()}
     </ControlDialog>
   );
 }
+
+const resolveClasses = createClassNames({
+  "control-dialog": uiStyles0.controlDialog,
+  "dialog-loading": uiStyles0.dialogLoading,
+  "empty-state": uiStyles0.emptyState,
+  "execution-summary": uiStyles0.executionSummary,
+  icon: uiStyles0.icon,
+  "panel-title": uiStyles0.panelTitle,
+  "status-badge": uiStyles0.statusBadge,
+  "unified-select": uiStyles0.unifiedSelect,
+  "id-column": uiStyles0.idColumn,
+  "table-cell-time": uiStyles0.tableCellTime,
+  "id-cell": uiStyles0.idCell,
+  "truncate-cell": uiStyles0.truncateCell,
+  mono: uiStyles0.mono,
+  "icon-button": uiStyles0.iconButton,
+  button: uiStyles0.button,
+  badge: uiStyles0.badge,
+  "badge-blue": uiStyles0.badgeBlue,
+  "table-toolbar": uiStyles0.tableToolbar,
+  "toolbar-spacer": uiStyles0.toolbarSpacer,
+  "table-scroll": uiStyles0.tableScroll,
+  "button-small": uiStyles0.buttonSmall,
+  "replication-task-table": uiStyles0.replicationTaskTable,
+  "control-dialog-wide": uiStyles0.controlDialogWide,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

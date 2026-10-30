@@ -2837,6 +2837,18 @@ export const englishMessages: ReadonlyMap<string, string> = new Map<
  * names and counts. See message-templates.ts for the %s and %d syntax.
  */
 export const englishTemplates: readonly MessageEntry[] = [
+  ["%d 字符", "%d characters"],
+  ["已载入 %d 个字符", "%d characters loaded"],
+  ["任务 #%d", "Task #%d"],
+  ["%d 个项目", "%d projects"],
+  ["多架构 · %d 个平台", "Multi-architecture · %d platforms"],
+  [" · 另 %d 个", " · %d more"],
+  [" · %d 个 Tag", " · %d tags"],
+  ["（默认）", "(default)"],
+  ["预热执行 #%d", "Preheat execution #%d"],
+  ["预热策略 %d", "Preheat policy %d"],
+  ["%d 次执行", "%d executions"],
+  ["%d · %d 个任务", "%d · %d tasks"],
   ["%s 个项目已删除", "%s projects deleted"],
   ["%s 个仓库已删除", "%s repositories deleted"],
   ["%s 个制品已删除", "%s artifacts deleted"],

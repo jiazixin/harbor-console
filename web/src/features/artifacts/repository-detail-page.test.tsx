@@ -1,15 +1,7 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { parseHashRoute } from "../../app/hash-router";
-import { LocaleProvider } from "../../app/locale-context";
+import { parseConsoleRoute } from "../../app/console-route";
 import type {
   HarborArtifact,
   ProjectLabel,
@@ -17,7 +9,9 @@ import type {
   RepositorySummary,
   Session,
 } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
 import { RepositoryDetailPage } from "./repository-detail-page";
 
 const session: Session = {
@@ -71,6 +65,7 @@ afterEach(() => {
 
 describe("RepositoryDetailPage", () => {
   it("loads the exact artifact contract and preserves filtering, selection, and navigation", async () => {
+    const user = setupUser();
     const data = vi
       .spyOn(controlApi, "data")
       .mockImplementation((operation) =>
@@ -95,10 +90,10 @@ describe("RepositoryDetailPage", () => {
     const artifactAction = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <RepositoryDetailPage
-          route={parseHashRoute(
+          route={parseConsoleRoute(
             "#/projects/platform/repositories/platform%2Fgateway/artifacts",
           )}
           session={session}
@@ -111,18 +106,18 @@ describe("RepositoryDetailPage", () => {
           onArtifactAction={artifactAction}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(
       await screen.findByRole("heading", { name: "gateway" }),
     ).toBeVisible();
-    expect(screen.getByText("v1.0.0")).toBeVisible();
+    expect(await screen.findByText("v1.0.0")).toBeVisible();
     expect(screen.getByText("linux/amd64")).toBeVisible();
     expect(data).toHaveBeenCalledWith(
       "repository",
       { project: "platform", repository: "platform/gateway" },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(list).toHaveBeenCalledWith(
       "artifacts",
@@ -140,25 +135,26 @@ describe("RepositoryDetailPage", () => {
         with_immutable_status: true,
         with_accessory: true,
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.change(
+    await replaceText(
+      user,
       screen.getByRole("searchbox", { name: "按 Tag 搜索制品" }),
-      {
-        target: { value: "release" },
-      },
+      "release",
     );
-    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
+    await user.click(screen.getByRole("button", { name: "筛选" }));
     expect(navigate).toHaveBeenCalledWith(
       "projects/platform/repositories/platform%2Fgateway/artifacts?q=release",
     );
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "选择 v1.0.0" }));
+    await user.click(screen.getByRole("checkbox", { name: "选择 v1.0.0" }));
     expect(
-      screen.getByText("1", { selector: ".artifact-batch-toolbar strong" }),
+      screen.getByText("1", {
+        selector: ".hc_8b938f52_artifactBatchToolbar strong",
+      }),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "复制制品" }));
+    await user.click(screen.getByRole("button", { name: "复制制品" }));
     expect(artifactAction).toHaveBeenCalledWith({
       kind: "copy",
       project: "platform",
@@ -166,7 +162,7 @@ describe("RepositoryDetailPage", () => {
       artifact,
     });
 
-    fireEvent.click(screen.getByText("v1.0.0"));
+    await user.click(screen.getByText("v1.0.0"));
     expect(navigate).toHaveBeenCalledWith(
       `projects/platform/repositories/platform%2Fgateway/artifacts/${encodeURIComponent(artifact.digest)}`,
     );
@@ -197,9 +193,9 @@ describe("RepositoryDetailPage", () => {
     );
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <RepositoryDetailPage
-          route={parseHashRoute(
+          route={parseConsoleRoute(
             "#/projects/platform/repositories/platform%2Fgateway/artifacts?scan=error",
           )}
           session={session}
@@ -212,17 +208,17 @@ describe("RepositoryDetailPage", () => {
           onArtifactAction={vi.fn()}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("failed")).toBeVisible();
     expect(screen.queryByText("v1.0.0")).not.toBeInTheDocument();
-    await waitFor(() =>
+    await waitFor(() => {
       expect(list).toHaveBeenCalledWith(
         "artifacts",
-        expect.objectContaining({ page: 1, page_size: 100 }),
-        expect.any(AbortSignal),
-      ),
-    );
+        expect.objectContaining({ page: 1, page_size: 100 }) as unknown,
+        expect.any(AbortSignal) as unknown,
+      );
+    });
   });
 });

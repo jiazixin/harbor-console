@@ -1,0 +1,14 @@
+@layer ui-feedback {
+  .severityMedium,
+  :global(.hc_5a7f97b4_statusStopped) {
+    background: var(--amber-soft);
+    color: var(--amber);
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.severityCritical {
+}
+.severityHigh {
+}
+.severityMedium {
+}

@@ -11,6 +11,8 @@ import (
 	"harbor-console/internal/config"
 )
 
+// NewLogger returns a JSON or logfmt logger writing to output at the configured
+// level.
 func NewLogger(output io.Writer, settings config.Logging) (*slog.Logger, error) {
 	level, err := parseLogLevel(settings.Level)
 	if err != nil {
@@ -23,7 +25,7 @@ func NewLogger(output io.Writer, settings config.Logging) (*slog.Logger, error) 
 	case "logfmt":
 		return slog.New(slog.NewTextHandler(output, options)), nil
 	default:
-		return nil, &configurationError{Field: "logging.format", Message: "必须是 json 或 logfmt"}
+		return nil, &configurationError{Field: "logging.format", Message: "must be json or logfmt"}
 	}
 }
 
@@ -38,7 +40,7 @@ func parseLogLevel(value string) (slog.Level, error) {
 	case "error":
 		return slog.LevelError, nil
 	default:
-		return 0, &configurationError{Field: "logging.level", Message: "必须是 debug、info、warn 或 error"}
+		return 0, &configurationError{Field: "logging.level", Message: "must be debug, info, warn or error"}
 	}
 }
 
@@ -48,7 +50,7 @@ type configurationError struct {
 }
 
 func (e *configurationError) Error() string {
-	return e.Field + " " + e.Message
+	return e.Field + ": " + e.Message
 }
 
 type responseMetricsWriter struct {
@@ -78,43 +80,49 @@ func (w *responseMetricsWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
-func AccessLog(next http.Handler, logger *slog.Logger, settings config.Logging, healthPaths ...string) http.Handler {
-	if !settings.AccessLog || logger == nil {
-		return next
-	}
-	healthSet := make(map[string]struct{}, len(healthPaths))
-	for _, healthPath := range healthPaths {
-		healthSet[healthPath] = struct{}{}
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		started := time.Now()
-		metrics := &responseMetricsWriter{ResponseWriter: w}
-		next.ServeHTTP(metrics, r)
-		if metrics.status == 0 {
-			metrics.status = http.StatusOK
+// AccessLog wraps next to log each request at a level chosen by its status. It
+// returns next unchanged when access logging is disabled, and skips requests to
+// healthPaths unless health check logging is enabled.
+func AccessLog(options AccessLogOptions) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		logger, settings, healthPaths := options.Logger, options.Settings, options.HealthPaths
+		if !settings.AccessLog || logger == nil {
+			return next
 		}
-		if !settings.LogHealthChecks {
-			if _, healthRequest := healthSet[r.URL.Path]; healthRequest {
-				return
+		healthSet := make(map[string]struct{}, len(healthPaths))
+		for _, healthPath := range healthPaths {
+			healthSet[healthPath] = struct{}{}
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			started := time.Now()
+			metrics := &responseMetricsWriter{ResponseWriter: w}
+			next.ServeHTTP(metrics, r)
+			if metrics.status == 0 {
+				metrics.status = http.StatusOK
 			}
-		}
-		attributes := []any{
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", metrics.status,
-			"duration_ms", float64(time.Since(started).Microseconds()) / 1000,
-			"bytes", metrics.bytes,
-			"remote_addr", clientIP(r),
-		}
-		switch {
-		case metrics.status >= http.StatusInternalServerError:
-			logger.Error("http_request", attributes...)
-		case metrics.status >= http.StatusBadRequest:
-			logger.Warn("http_request", attributes...)
-		default:
-			logger.Info("http_request", attributes...)
-		}
-	})
+			if !settings.LogHealthChecks {
+				if _, healthRequest := healthSet[r.URL.Path]; healthRequest {
+					return
+				}
+			}
+			attributes := []any{
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", metrics.status,
+				"duration_ms", float64(time.Since(started).Microseconds()) / 1000,
+				"bytes", metrics.bytes,
+				"remote_addr", clientIP(r),
+			}
+			switch {
+			case metrics.status >= http.StatusInternalServerError:
+				logger.Error("http_request", attributes...)
+			case metrics.status >= http.StatusBadRequest:
+				logger.Warn("http_request", attributes...)
+			default:
+				logger.Info("http_request", attributes...)
+			}
+		})
+	}
 }
 
 func clientIP(r *http.Request) string {
@@ -126,4 +134,11 @@ func clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return "unknown"
+}
+
+// AccessLogOptions selects the logger, access-log policy and health paths.
+type AccessLogOptions struct {
+	Logger      *slog.Logger
+	Settings    config.Logging
+	HealthPaths []string
 }

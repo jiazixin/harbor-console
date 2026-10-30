@@ -1,17 +1,11 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { parseHashRoute } from "../../app/hash-router";
-import { LocaleProvider } from "../../app/locale-context";
+import { parseConsoleRoute } from "../../app/console-route";
 import type { ProjectSummary } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { setupUser } from "../../test/user";
 import { SecurityPage } from "./security-page";
 
 const projects: ProjectSummary[] = [
@@ -21,10 +15,10 @@ const projects: ProjectSummary[] = [
 
 function renderPage(hash: string, onAction = vi.fn(), navigate = vi.fn()) {
   return render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       <SecurityPage
-        route={parseHashRoute(hash)}
+        route={parseConsoleRoute(hash)}
         projects={projects}
         totalArtifacts={42}
         demo
@@ -34,7 +28,7 @@ function renderPage(hash: string, onAction = vi.fn(), navigate = vi.fn()) {
         onAction={onAction}
         onNotice={vi.fn()}
       />
-    </LocaleProvider>,
+    </TestProviders>,
   );
 }
 
@@ -63,7 +57,7 @@ describe("security page", () => {
     expect(data).toHaveBeenCalledWith(
       "security-summary",
       { with_dangerous_cve: true, with_dangerous_artifact: true },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
   });
 
@@ -77,7 +71,9 @@ describe("security page", () => {
       "#/security/vulnerabilities?page=2&page_size=50&project=platform&severity=Critical&cve=CVE-2026-1842",
     );
 
-    await waitFor(() => expect(list).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledOnce();
+    });
     expect(list).toHaveBeenCalledWith(
       "security-vulnerabilities",
       {
@@ -87,7 +83,7 @@ describe("security page", () => {
         tune_count: true,
         with_tag: true,
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
     expect(
@@ -97,6 +93,7 @@ describe("security page", () => {
   });
 
   it("changes vulnerability page size from the shared pagination footer", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [],
       pagination: { page: 1, page_size: 50, total: 0 },
@@ -108,14 +105,15 @@ describe("security page", () => {
       navigate,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "每页条数" }));
-    fireEvent.click(screen.getByRole("option", { name: "每页 20 条" }));
+    await user.click(await screen.findByRole("button", { name: "每页条数" }));
+    await user.click(screen.getByRole("option", { name: "每页 20 条" }));
     expect(navigate).toHaveBeenCalledWith(
       "security/vulnerabilities?project=platform&severity=Critical&page=1&page_size=20",
     );
   });
 
   it("opens the shared scanner registration dialog action", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [
         {
@@ -129,7 +127,7 @@ describe("security page", () => {
     const onAction = vi.fn();
     renderPage("#/security/scanners", onAction);
 
-    fireEvent.click(await screen.findByRole("button", { name: "注册扫描器" }));
+    await user.click(await screen.findByRole("button", { name: "注册扫描器" }));
     expect(onAction).toHaveBeenCalledWith({
       kind: "create-scanner",
       canDisable: true,
@@ -141,14 +139,15 @@ describe("security page", () => {
   });
 
   it("refreshes scanners once when the dashboard returns a new project collection", async () => {
+    const user = setupUser();
     const list = vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [{ uuid: "scanner-1", name: "Trivy", url: "http://scanner:8080" }],
       pagination: { page: 1, page_size: 50, total: 1 },
     });
     const draw = (visibleProjects: ProjectSummary[]) => (
-      <LocaleProvider>
+      <TestProviders>
         <SecurityPage
-          route={parseHashRoute("#/security/scanners")}
+          route={parseConsoleRoute("#/security/scanners")}
           projects={visibleProjects}
           totalArtifacts={42}
           demo
@@ -158,12 +157,14 @@ describe("security page", () => {
           onAction={vi.fn()}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>
+      </TestProviders>
     );
     const { rerender } = render(draw(projects));
     await screen.findByText("scanner-1");
-    fireEvent.click(screen.getByRole("button", { name: "刷新" }));
-    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledTimes(2);
+    });
     rerender(draw(projects.map((project) => ({ ...project }))));
     await screen.findByText("scanner-1");
     expect(list).toHaveBeenCalledTimes(2);
@@ -175,9 +176,11 @@ describe("security page", () => {
       pagination: { page: 1, page_size: 50, total: 0 },
     });
     const draw = (visibleProjects: ProjectSummary[]) => (
-      <LocaleProvider>
+      <TestProviders>
         <SecurityPage
-          route={parseHashRoute("#/security/vulnerabilities?project=platform")}
+          route={parseConsoleRoute(
+            "#/security/vulnerabilities?project=platform",
+          )}
           projects={visibleProjects}
           totalArtifacts={42}
           demo
@@ -187,18 +190,22 @@ describe("security page", () => {
           onAction={vi.fn()}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>
+      </TestProviders>
     );
     const { rerender } = render(draw(projects));
-    await waitFor(() => expect(list).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledOnce();
+    });
     rerender(draw(projects.map((project) => ({ ...project }))));
     expect(list).toHaveBeenCalledOnce();
     rerender(draw([{ project_id: 77, name: "platform" }]));
-    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledTimes(2);
+    });
     expect(list).toHaveBeenLastCalledWith(
       "security-vulnerabilities",
-      expect.objectContaining({ q: "project_id=77" }),
-      expect.any(AbortSignal),
+      expect.objectContaining({ q: "project_id=77" }) as unknown,
+      expect.any(AbortSignal) as unknown,
     );
   });
 });

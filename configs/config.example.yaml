@@ -8,9 +8,6 @@ server:
   idle_timeout: 90s
   shutdown_timeout: 10s
 
-health:
-  uri: /health
-
 logging:
   # Supported levels: debug, info, warn, error.
   level: info

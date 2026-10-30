@@ -1,30 +1,22 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
 import type {
   RetentionExecution,
   RetentionMetadata,
   RetentionPolicy,
   RetentionTask,
 } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import {
-  CreateRetentionPolicyDialog,
-  DeleteRetentionRuleDialog,
-  RetentionExecutionDialog,
-  RetentionRuleDialog,
-  RetentionScheduleDialog,
-  RunRetentionDialog,
-  StopRetentionExecutionDialog,
-} from "./project-retention-dialogs";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { CreateRetentionPolicyDialog } from "./create-retention-policy-dialog";
+import { DeleteRetentionRuleDialog } from "./delete-retention-rule-dialog";
+import { RetentionExecutionDialog } from "./retention-execution-dialog";
+import { RetentionRuleDialog } from "./retention-rule-dialog";
+import { RetentionScheduleDialog } from "./retention-schedule-dialog";
+import { RunRetentionDialog } from "./run-retention-dialog";
+import { StopRetentionExecutionDialog } from "./stop-retention-execution-dialog";
 
 const metadata: RetentionMetadata = {
   templates: [
@@ -86,10 +78,10 @@ const execution: RetentionExecution = {
 
 function renderDialog(content: React.ReactNode) {
   return render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       {content}
-    </LocaleProvider>,
+    </TestProviders>,
   );
 }
 
@@ -115,6 +107,7 @@ describe("project retention dialogs", () => {
   });
 
   it("creates a policy with one normalized rule and no response fields", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -129,54 +122,72 @@ describe("project retention dialogs", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("spinbutton", { name: "数量或天数" }), {
-      target: { value: "12" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "仓库匹配" }), {
-      target: { value: " release/** " },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "Tag 匹配" }), {
-      target: { value: " v* " },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: /^执行计划 Cron/ }), {
-      target: { value: " 0 0 3 * * * " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "创建策略" }));
+    await replaceText(
+      user,
+      screen.getByRole("spinbutton", { name: "数量或天数" }),
+      "12",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "仓库匹配" }),
+      " release/** ",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "Tag 匹配" }),
+      " v* ",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: /^执行计划 Cron/ }),
+      " 0 0 3 * * * ",
+    );
+    await user.click(screen.getByRole("button", { name: "创建策略" }));
 
-    await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith("retentions", {}, "POST", {
-      algorithm: "or",
-      rules: [
-        {
-          priority: 1,
-          disabled: false,
-          action: "retain",
-          template: "latestPushedK",
-          params: { latestPushedK: 12 },
-          tag_selectors: [
-            {
-              kind: "doublestar",
-              decoration: "matches",
-              pattern: "v*",
-            },
-          ],
-          scope_selectors: {
-            repository: [
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "retentions",
+      parameters: {},
+      method: "POST",
+      payload: {
+        algorithm: "or",
+        rules: [
+          {
+            priority: 1,
+            disabled: false,
+            action: "retain",
+            template: "latestPushedK",
+            params: { latestPushedK: 12 },
+            tag_selectors: [
               {
                 kind: "doublestar",
-                decoration: "repoMatches",
-                pattern: "release/**",
+                decoration: "matches",
+                pattern: "v*",
               },
             ],
+            scope_selectors: {
+              repository: [
+                {
+                  kind: "doublestar",
+                  decoration: "repoMatches",
+                  pattern: "release/**",
+                },
+              ],
+            },
           },
-        },
-      ],
-      trigger: { kind: "Schedule", settings: { cron: "0 0 3 * * *" } },
-      scope: { level: "project", ref: 1 },
+        ],
+        trigger: { kind: "Schedule", settings: { cron: "0 0 3 * * *" } },
+        scope: { level: "project", ref: 1 },
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
     });
   });
 
   it("updates a rule while preserving Harbor future fields", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -192,35 +203,47 @@ describe("project retention dialogs", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("spinbutton", { name: "数量或天数" }), {
-      target: { value: "15" },
-    });
-    fireEvent.click(screen.getByRole("checkbox", { name: /暂时停用规则/ }));
-    fireEvent.click(screen.getByRole("button", { name: "保存规则" }));
+    await replaceText(
+      user,
+      screen.getByRole("spinbutton", { name: "数量或天数" }),
+      "15",
+    );
+    await user.click(screen.getByRole("checkbox", { name: /暂时停用规则/ }));
+    await user.click(screen.getByRole("button", { name: "保存规则" }));
 
-    await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith("retention", { id: 31 }, "PUT", {
-      algorithm: "or",
-      rules: [
-        expect.objectContaining({
-          id: 1,
-          priority: 1,
-          disabled: true,
-          future_field: "preserve-me",
-          params: { latestPushedK: 15 },
-          tag_selectors: [
-            expect.objectContaining({
-              extras: '{"untagged":true,"future_extra":"preserve-me"}',
-            }),
-          ],
-        }),
-      ],
-      trigger: { kind: "Schedule", settings: { cron: "0 0 2 * * *" } },
-      scope: { level: "project", ref: 1 },
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "retention",
+      parameters: { id: 31 },
+      method: "PUT",
+      payload: {
+        algorithm: "or",
+        rules: [
+          expect.objectContaining({
+            id: 1,
+            priority: 1,
+            disabled: true,
+            future_field: "preserve-me",
+            params: { latestPushedK: 15 },
+            tag_selectors: [
+              expect.objectContaining({
+                extras: '{"untagged":true,"future_extra":"preserve-me"}',
+              }),
+            ],
+          }) as unknown,
+        ],
+        trigger: { kind: "Schedule", settings: { cron: "0 0 2 * * *" } },
+        scope: { level: "project", ref: 1 },
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
     });
   });
 
   it("updates the policy schedule and algorithm with a minimal payload", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -234,27 +257,34 @@ describe("project retention dialogs", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "规则组合方式" }));
-    fireEvent.click(screen.getByRole("option", { name: "同时匹配全部规则" }));
-    fireEvent.change(screen.getByRole("textbox", { name: /^执行计划 Cron/ }), {
-      target: { value: "" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "保存计划" }));
+    await user.click(screen.getByRole("button", { name: "规则组合方式" }));
+    await user.click(screen.getByRole("option", { name: "同时匹配全部规则" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: /^执行计划 Cron/ }),
+      "",
+    );
+    await user.click(screen.getByRole("button", { name: "保存计划" }));
 
-    await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "retention",
-      { id: 31 },
-      "PUT",
-      expect.objectContaining({
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "retention",
+      parameters: { id: 31 },
+      method: "PUT",
+      payload: expect.objectContaining({
         algorithm: "and",
         trigger: { kind: "Schedule", settings: { cron: "" } },
         scope: { level: "project", ref: 1 },
-      }),
-    );
+      }) as unknown,
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 
   it("deletes and reindexes a rule without deleting the policy", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -292,20 +322,25 @@ describe("project retention dialogs", () => {
         onDeleted={onDeleted}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "删除规则" }));
+    await user.click(screen.getByRole("button", { name: "删除规则" }));
 
-    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "retention",
-      { id: 31 },
-      "PUT",
-      expect.objectContaining({
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "retention",
+      parameters: { id: 31 },
+      method: "PUT",
+      payload: expect.objectContaining({
         rules: [expect.objectContaining({ template: "always", priority: 1 })],
-      }),
-    );
+      }) as unknown,
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 
   it("starts and stops retention executions with exact action payloads", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -318,14 +353,18 @@ describe("project retention dialogs", () => {
         onStarted={started}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "开始演练" }));
-    await waitFor(() => expect(started).toHaveBeenCalled());
-    expect(mutation).toHaveBeenLastCalledWith(
-      "retention-executions",
-      { id: 31 },
-      "POST",
-      { dry_run: true },
-    );
+    await user.click(screen.getByRole("button", { name: "开始演练" }));
+    await waitFor(() => {
+      expect(started).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenLastCalledWith({
+      operation: "retention-executions",
+      parameters: { id: 31 },
+      method: "POST",
+      payload: { dry_run: true },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
+    });
 
     first.unmount();
     const stopped = vi.fn();
@@ -337,17 +376,22 @@ describe("project retention dialogs", () => {
         onStopped={stopped}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "停止执行" }));
-    await waitFor(() => expect(stopped).toHaveBeenCalled());
-    expect(mutation).toHaveBeenLastCalledWith(
-      "retention-execution",
-      { id: 31, eid: 71 },
-      "PATCH",
-      { action: "stop" },
-    );
+    await user.click(screen.getByRole("button", { name: "停止执行" }));
+    await waitFor(() => {
+      expect(stopped).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenLastCalledWith({
+      operation: "retention-execution",
+      parameters: { id: 31, eid: 71 },
+      method: "PATCH",
+      payload: { action: "stop" },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 
   it("loads repository tasks and structured logs for an execution", async () => {
+    const user = setupUser();
     const task: RetentionTask = {
       id: 171,
       execution_id: 71,
@@ -382,9 +426,9 @@ describe("project retention dialogs", () => {
     expect(list).toHaveBeenCalledWith(
       "retention-tasks",
       { id: 31, eid: 71, page: 1, page_size: 20 },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
-    fireEvent.click(
+    await user.click(
       screen.getByRole("button", { name: "查看 Tag 保留任务日志" }),
     );
     expect(await screen.findByText("matched tags")).toBeVisible();
@@ -392,7 +436,7 @@ describe("project retention dialogs", () => {
     expect(data).toHaveBeenCalledWith(
       "retention-task-log",
       { id: 31, eid: 71, tid: 171 },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
   });
 });

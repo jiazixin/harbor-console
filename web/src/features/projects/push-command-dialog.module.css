@@ -1,0 +1,43 @@
+@layer ui-page {
+  .commandList {
+    display: grid;
+    gap: 0;
+  }
+}
+
+@layer ui-page {
+  .commandList :global(.hc_8b938f52_commandRow) {
+    margin: 0;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+  }
+}
+
+@layer ui-page {
+  .commandList :global(.hc_8b938f52_commandRow):last-child {
+    border-bottom: 0;
+  }
+}
+
+@layer ui-page {
+  @media (max-width: 620px) {
+    .commandList :global(.hc_8b938f52_commandRow) {
+      grid-template-columns: 20px minmax(0, 1fr) 34px;
+      align-items: start;
+    }
+  }
+}
+
+@layer ui-page {
+  @media (max-width: 620px) {
+    .commandList :global(.hc_8b938f52_commandRow) code {
+      padding-top: 3px;
+      overflow: visible;
+      overflow-wrap: anywhere;
+      text-overflow: clip;
+      white-space: normal;
+    }
+  }
+}

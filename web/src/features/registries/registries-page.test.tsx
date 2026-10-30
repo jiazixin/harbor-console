@@ -1,15 +1,9 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { setupUser } from "../../test/user";
 import { RegistriesPage } from "./registries-page";
 
 afterEach(() => {
@@ -20,6 +14,7 @@ afterEach(() => {
 
 describe("registries page", () => {
   it("loads registry capabilities and supports real list sorting and card switching", async () => {
+    const user = setupUser();
     const list = vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [
         { id: 2, name: "edge", type: "docker-hub", status: "healthy" },
@@ -33,7 +28,7 @@ describe("registries page", () => {
         Promise.resolve(operation === "registry-adapters" ? ["harbor"] : {}),
       );
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <RegistriesPage
           demo
@@ -42,24 +37,26 @@ describe("registries page", () => {
           onAction={vi.fn()}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    await waitFor(() => expect(list).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      expect(list).toHaveBeenCalledOnce();
+    });
     expect(list).toHaveBeenCalledWith(
       "registries",
       { page: 1, page_size: 100, sort: "name" },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     const rows = await screen.findAllByRole("row");
     expect(rows[1]).toHaveTextContent("edge");
     expect(rows[2]).toHaveTextContent("prod");
-    fireEvent.click(screen.getByRole("button", { name: "按名称降序排序" }));
+    await user.click(screen.getByRole("button", { name: "按名称降序排序" }));
     const sortedRows = screen.getAllByRole("row");
     expect(sortedRows[1]).toHaveTextContent("prod");
     expect(sortedRows[2]).toHaveTextContent("edge");
 
-    fireEvent.click(screen.getByRole("button", { name: "卡片视图" }));
+    await user.click(screen.getByRole("button", { name: "卡片视图" }));
     const cards = await screen.findAllByRole("article");
     expect(cards[0]).toHaveTextContent("prod");
     expect(cards[0]).toHaveTextContent("#1");
@@ -71,16 +68,17 @@ describe("registries page", () => {
     expect(data).toHaveBeenCalledWith(
       "registry-adapters",
       {},
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(data).toHaveBeenCalledWith(
       "registry-adapter-infos",
       {},
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
   });
 
   it("opens a typed create action with loaded adapter metadata", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [],
       pagination: { page: 1, page_size: 100, total: 0 },
@@ -94,7 +92,7 @@ describe("registries page", () => {
     );
     const onAction = vi.fn();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <RegistriesPage
           demo
@@ -103,10 +101,11 @@ describe("registries page", () => {
           onAction={onAction}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "新建连接" }));
+    await screen.findByText("暂无远端仓库");
+    await user.click(screen.getByRole("button", { name: "新建连接" }));
     expect(onAction).toHaveBeenCalledWith({
       kind: "create",
       adapters: ["harbor"],

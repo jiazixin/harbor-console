@@ -1,25 +1,35 @@
-import { ContentTransition } from "../../components/content-transition";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
+import { useState } from "react";
 import { controlApi, loadAllControlItems } from "../../app/api-client";
-import { formatDate } from "../../app/formatters";
+import { errorText } from "../../app/errors";
 import { useLocale } from "../../app/locale-context";
 import type { Registry, RegistryAdapterInfo } from "../../app/models";
-import { loadPreferences, savePreferences } from "../../app/preferences";
+import { optionalData } from "../../app/optional-data";
 import {
-  SortableHeader,
-  StableTableColumns,
-} from "../../components/data-table";
+  displayTimeZone,
+  loadPreferences,
+  savePreferences,
+} from "../../app/preferences";
 import {
-  DemoBanner,
-  PageHeader,
-  RefreshButton,
-} from "../../components/page-elements";
-import { StatusBadge } from "../../components/status-badge";
+  type ControlMutate,
+  useControlMutation,
+} from "../../app/use-control-mutation";
+import { useLoadedQuery } from "../../app/use-loaded-query";
+import { ContentTransition } from "../../components/content-transition";
+import { DemoBanner } from "../../components/demo-banner";
 import { EmptyState } from "../../components/empty-state";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
+import { ErrorView } from "../../components/error-view";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { RefreshButton } from "../../components/refresh-button";
+import uiStyles0 from "../../components/shared-ui.module.css";
+import { SortableHeader } from "../../components/sortable-header";
+import { StableTableColumns } from "../../components/stable-table-columns";
+import { StatusBadge } from "../../components/status-badge";
 import { ViewModeToggle } from "../../components/view-mode-toggle";
+import { createClassNames } from "../../lib/css/class-names";
+import { formatDate } from "../../lib/format/formatters";
+import styles from "./registries.module.css";
+import { registryKeys } from "./registry-keys";
 
 export type RegistryAction =
   | {
@@ -74,12 +84,17 @@ function timestamp(value: string | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function compareRegistries(
-  left: Registry,
-  right: Registry,
-  sort: string,
-  locale: string,
-): number {
+function compareRegistries({
+  left,
+  right,
+  sort,
+  locale,
+}: {
+  left: Registry;
+  right: Registry;
+  sort: string;
+  locale: string;
+}): number {
   const descending = sort.startsWith("-");
   const field = sort.replace(/^-/, "");
   const comparison =
@@ -93,81 +108,48 @@ function compareRegistries(
   return (left.id ?? 0) - (right.id ?? 0);
 }
 
+type RegistriesPageProps = {
+  demo: boolean;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onAction: (action: RegistryAction) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
+
 export function RegistriesPage({
   demo,
   refreshing,
   onRefresh,
   onAction,
   onNotice,
-}: {
-  demo: boolean;
-  refreshing: boolean;
-  onRefresh: () => void;
-  onAction: (action: RegistryAction) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: RegistriesPageProps) {
+  const mutate = useControlMutation([]);
   const { locale, t } = useLocale();
-  const [registries, setRegistries] = useState<Registry[]>();
-  const [adapters, setAdapters] = useState<string[]>([]);
-  const [adapterInfos, setAdapterInfos] = useState<
-    Partial<Record<string, RegistryAdapterInfo>>
-  >({});
-  const [error, setError] = useState("");
-  const [version, setVersion] = useState(0);
+  const registriesQuery = useRegistriesData();
+  const [registries, adapterItems, info] = registriesQuery.data ?? [];
+  const adapters = adapterItems?.data ?? [];
+  const adapterInfos: Partial<Record<string, RegistryAdapterInfo>> =
+    info?.data ?? {};
+  const error = [registriesQuery.error, adapterItems?.error, info?.error]
+    .filter(Boolean)
+    .join("；");
+  const reload = registriesQuery.reload;
   const [sort, setSort] = useState("name");
   const [preferences, setPreferences] = useState(loadPreferences);
-  const requestVersion = useRef(0);
-  const reload = useCallback(() => setVersion((current) => current + 1), []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const current = requestVersion.current + 1;
-    requestVersion.current = current;
-    setError("");
-    void Promise.all([
-      loadAllRegistries(controller.signal),
-      controlApi
-        .data<string[]>("registry-adapters", {}, controller.signal)
-        .catch(() => []),
-      controlApi
-        .data<Record<string, RegistryAdapterInfo>>(
-          "registry-adapter-infos",
-          {},
-          controller.signal,
-        )
-        .catch(() => ({})),
-    ])
-      .then(([registryItems, adapterItems, info]) => {
-        if (requestVersion.current !== current) return;
-        setRegistries(registryItems);
-        setAdapters(adapterItems ?? []);
-        setAdapterInfos(info ?? {});
-      })
-      .catch((loadError: unknown) => {
-        if (
-          loadError instanceof DOMException &&
-          loadError.name === "AbortError"
-        )
-          return;
-        if (requestVersion.current === current)
-          setError(
-            loadError instanceof Error ? loadError.message : String(loadError),
-          );
-      });
-    return () => controller.abort();
-  }, [version]);
 
   function editAction(registry: Registry): RegistryAction {
     return { kind: "edit", registry, adapters, adapterInfos };
   }
 
-  const sortedRegistries = useMemo(
-    () =>
-      [...(registries ?? [])].sort((left, right) =>
-        compareRegistries(left, right, sort, locale),
-      ),
-    [locale, registries, sort],
-  );
+  const sortedRegistries = (() =>
+    [...(registries ?? [])].sort((left, right) =>
+      compareRegistries({
+        left: left,
+        right: right,
+        sort: sort,
+        locale: locale,
+      }),
+    ))();
 
   function setViewMode(mode: "card" | "list") {
     const next = { ...preferences, registryView: mode };
@@ -190,11 +172,11 @@ export function RegistriesPage({
               }}
             />
             <button
-              className="button button-small button-primary"
+              className={resolveClasses("button button-small button-primary")}
               type="button"
-              onClick={() =>
-                onAction({ kind: "create", adapters, adapterInfos })
-              }
+              onClick={() => {
+                onAction({ kind: "create", adapters, adapterInfos });
+              }}
             >
               <Icon name="plus" />
               <span>{t("新建连接")}</span>
@@ -207,16 +189,16 @@ export function RegistriesPage({
         <ErrorView title="远端仓库载入失败" message={error} retry={reload} />
       ) : null}
       {!registries && !error ? (
-        <section className="table-shell">
-          <div className="loading-state">
+        <section className={resolveClasses("table-shell")}>
+          <div className={resolveClasses("loading-state")}>
             <div>
-              <span className="spinner" />
+              <span className={resolveClasses("spinner")} />
             </div>
           </div>
         </section>
       ) : null}
       {registries && !registries.length ? (
-        <section className="panel">
+        <section className={resolveClasses("panel")}>
           <EmptyState
             title="暂无远端仓库"
             description="添加连接后可用于复制和代理缓存。"
@@ -225,9 +207,15 @@ export function RegistriesPage({
         </section>
       ) : null}
       {registries?.length ? (
-        <section className="table-shell registry-list-shell">
-          <div className="table-toolbar registry-list-toolbar">
-            <div className="toolbar-spacer" />
+        <section
+          className={resolveClasses(`table-shell ${styles.registryListShell}`)}
+        >
+          <div
+            className={resolveClasses(
+              `table-toolbar ${styles.registryListToolbar}`,
+            )}
+          >
+            <div className={resolveClasses("toolbar-spacer")} />
             <ViewModeToggle
               value={preferences.registryView}
               ariaLabel={t("远端仓库展示方式")}
@@ -238,20 +226,32 @@ export function RegistriesPage({
           </div>
           <ContentTransition mode={preferences.registryView}>
             {preferences.registryView === "card" ? (
-              <div className="registry-grid control-registry-grid">
+              <div
+                className={resolveClasses(
+                  `${styles.registryGrid} ${styles.controlRegistryGrid}`,
+                )}
+              >
                 {sortedRegistries.map((registry) => (
                   <RegistryCard
                     key={registry.id}
                     registry={registry}
-                    onEdit={() => onAction(editAction(registry))}
-                    onDelete={() => onAction({ kind: "delete", registry })}
+                    onEdit={() => {
+                      onAction(editAction(registry));
+                    }}
+                    onDelete={() => {
+                      onAction({ kind: "delete", registry });
+                    }}
                     onNotice={onNotice}
                   />
                 ))}
               </div>
             ) : (
-              <div className="table-scroll">
-                <table className="data-table-stable registry-list-table">
+              <div className={resolveClasses("table-scroll")}>
+                <table
+                  className={resolveClasses(
+                    `data-table-stable ${styles.registryListTable}`,
+                  )}
+                >
                   <StableTableColumns
                     widths={["22%", "16%", "32%", "12%", "14%", "96px"]}
                   />
@@ -273,14 +273,14 @@ export function RegistriesPage({
                       <SortableHeader
                         label="状态"
                         field="status"
-                        className="table-cell-center"
+                        className={resolveClasses("table-cell-center")}
                         currentSort={sort}
                         onSort={setSort}
                       />
                       <SortableHeader
                         label="创建时间"
                         field="creation_time"
-                        className="table-cell-time"
+                        className={resolveClasses("table-cell-time")}
                         descendingFirst
                         currentSort={sort}
                         onSort={setSort}
@@ -296,46 +296,56 @@ export function RegistriesPage({
                         </td>
                         <td>{t(registryTypeLabel(registry.type))}</td>
                         <td>
-                          <span className="registry-url" title={registry.url}>
+                          <span
+                            className={resolveClasses(styles.registryUrl)}
+                            title={registry.url}
+                          >
                             {registry.url ?? t("未配置地址")}
                           </span>
                         </td>
-                        <td className="table-cell-center">
+                        <td className={resolveClasses("table-cell-center")}>
                           <StatusBadge status={registry.status ?? "unknown"} />
                         </td>
-                        <td className="table-cell-time">
-                          {formatDate(registry.creation_time, locale)}
+                        <td className={resolveClasses("table-cell-time")}>
+                          {formatDate(registry.creation_time, {
+                            locale: locale,
+                            timeZone: displayTimeZone(),
+                          })}
                         </td>
                         <td>
-                          <div className="row-actions">
+                          <div className={resolveClasses("row-actions")}>
                             <button
-                              className="icon-button"
+                              className={resolveClasses("icon-button")}
                               type="button"
                               title={t("测试连接")}
                               aria-label={t("测试连接")}
                               onClick={() =>
-                                void pingRegistry(registry, onNotice)
+                                void pingRegistry(registry, onNotice, mutate)
                               }
                             >
                               <Icon name="refresh" />
                             </button>
                             <button
-                              className="icon-button"
+                              className={resolveClasses("icon-button")}
                               type="button"
                               title={t("编辑")}
                               aria-label={t("编辑")}
-                              onClick={() => onAction(editAction(registry))}
+                              onClick={() => {
+                                onAction(editAction(registry));
+                              }}
                             >
                               <Icon name="edit" />
                             </button>
                             <button
-                              className="icon-button danger-icon"
+                              className={resolveClasses(
+                                "icon-button danger-icon",
+                              )}
                               type="button"
                               title={t("删除")}
                               aria-label={t("删除")}
-                              onClick={() =>
-                                onAction({ kind: "delete", registry })
-                              }
+                              onClick={() => {
+                                onAction({ kind: "delete", registry });
+                              }}
                             >
                               <Icon name="trash" />
                             </button>
@@ -357,58 +367,64 @@ export function RegistriesPage({
 async function pingRegistry(
   registry: Registry,
   onNotice: (message: string, error?: boolean) => void,
+  mutate: ControlMutate,
 ) {
   try {
-    await controlApi.mutate("registry-ping", {}, "POST", { id: registry.id });
+    await mutate({
+      operation: "registry-ping",
+      parameters: {},
+      method: "POST",
+      payload: { id: registry.id },
+    });
     onNotice("远端仓库连接正常");
   } catch (pingError: unknown) {
-    onNotice(
-      pingError instanceof Error ? pingError.message : String(pingError),
-      true,
-    );
+    onNotice(errorText(pingError), true);
   }
 }
+
+type RegistryCardProps = {
+  registry: Registry;
+  onEdit: () => void;
+  onDelete: () => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
 
 function RegistryCard({
   registry,
   onEdit,
   onDelete,
   onNotice,
-}: {
-  registry: Registry;
-  onEdit: () => void;
-  onDelete: () => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: RegistryCardProps) {
+  const mutate = useControlMutation([]);
   const { t } = useLocale();
   return (
-    <article className="registry-item">
-      <div className="registry-top">
-        <span className="registry-icon">
+    <article className={resolveClasses(styles.registryItem)}>
+      <div className={resolveClasses(styles.registryTop)}>
+        <span className={resolveClasses(styles.registryIcon)}>
           <Icon name="database" />
         </span>
         <StatusBadge status={registry.status ?? "unknown"} />
       </div>
       <h3>{registry.name ?? t("未命名仓库")}</h3>
-      <span className="registry-url" title={registry.url}>
+      <span className={resolveClasses(styles.registryUrl)} title={registry.url}>
         {registry.url ?? t("未配置地址")}
       </span>
-      <div className="registry-meta">
+      <div className={resolveClasses(styles.registryMeta)}>
         <span>{t(registryTypeLabel(registry.type))}</span>
         <span>#{registry.id ?? "-"}</span>
       </div>
-      <div className="registry-actions">
+      <div className={resolveClasses(styles.registryActions)}>
         <button
-          className="button button-small"
+          className={resolveClasses("button button-small")}
           type="button"
-          onClick={() => void pingRegistry(registry, onNotice)}
+          onClick={() => void pingRegistry(registry, onNotice, mutate)}
         >
           <Icon name="refresh" />
           <span>{t("测试连接")}</span>
         </button>
-        <div className="row-actions">
+        <div className={resolveClasses("row-actions")}>
           <button
-            className="icon-button"
+            className={resolveClasses("icon-button")}
             type="button"
             title={t("编辑")}
             aria-label={t("编辑")}
@@ -417,7 +433,7 @@ function RegistryCard({
             <Icon name="edit" />
           </button>
           <button
-            className="icon-button danger-icon"
+            className={resolveClasses("icon-button danger-icon")}
             type="button"
             title={t("删除")}
             aria-label={t("删除")}
@@ -428,5 +444,59 @@ function RegistryCard({
         </div>
       </div>
     </article>
+  );
+}
+
+const resolveClasses = createClassNames({
+  "empty-state": uiStyles0.emptyState,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  "status-badge": uiStyles0.statusBadge,
+  "view-mode-toggle": uiStyles0.viewModeToggle,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "button-primary": uiStyles0.buttonPrimary,
+  "table-shell": uiStyles0.tableShell,
+  "loading-state": uiStyles0.loadingState,
+  spinner: uiStyles0.spinner,
+  panel: uiStyles0.panel,
+  "table-toolbar": uiStyles0.tableToolbar,
+  "toolbar-spacer": uiStyles0.toolbarSpacer,
+  "table-scroll": uiStyles0.tableScroll,
+  "data-table-stable": uiStyles0.dataTableStable,
+  "table-cell-center": uiStyles0.tableCellCenter,
+  "table-cell-time": uiStyles0.tableCellTime,
+  "row-actions": uiStyles0.rowActions,
+  "icon-button": uiStyles0.iconButton,
+  "danger-icon": uiStyles0.dangerIcon,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});
+
+function useRegistriesData() {
+  return useLoadedQuery(registryKeys.page, (signal) =>
+    Promise.all([
+      loadAllRegistries(signal),
+      optionalData(controlApi.data<string[]>("registry-adapters", {}, signal)),
+      optionalData(
+        controlApi.data<Record<string, RegistryAdapterInfo>>(
+          "registry-adapter-infos",
+          {},
+          signal,
+        ),
+      ),
+    ]),
   );
 }

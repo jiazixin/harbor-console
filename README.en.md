@@ -83,7 +83,7 @@ CGO_ENABLED=0 go build -trimpath -o bin/harbor-console ./cmd/harbor-console
 
 ## Configuration
 
-Configuration file selection follows `-c` / `--config` > `CONFIG_FILE` > the optional `configs/config.local.yaml` under the working directory. Field precedence remains environment variables > YAML file > built-in defaults. An explicitly empty or missing path is an error, as are conflicting repeated configuration paths. Relative paths resolve against the process working directory, so use absolute paths in deployments.
+Configuration file selection follows `-c` / `--config` > `CONFIG_FILE` > the optional `configs/config.local.yaml` under the working directory. Field precedence remains environment variables > YAML file > built-in defaults. An explicitly empty or missing path is an error (a `CONFIG_FILE` that is set but empty or blank reports `CONFIG_FILE is set but empty`), as are conflicting repeated configuration paths. Relative paths resolve against the process working directory, so use absolute paths in deployments.
 
 ```sh
 cp configs/config.example.yaml configs/config.local.yaml
@@ -97,23 +97,34 @@ CONFIG_FILE="$PWD/configs/config.local.yaml" ./bin/harbor-console
 ./bin/harbor-console --version   # Show version and commit, e.g. harbor-console v1.2.0 (revision=0123456789ab)
 ```
 
-Help (in English) and version output go to stdout; neither reads configuration or starts the server. Starting without arguments retains the selection order above; a missing default file uses built-in defaults. Exit codes are 2 for argument errors, 1 for configuration or startup failures, and 0 for successful help/version output. Errors before the logger is ready are written to stderr as plain text `harbor-console: <error>`; argument errors add `Run 'harbor-console --help' for usage.`.
+Help (in English) and version output go to stdout; neither reads environment variables or configuration, nor starts the server, and `--help` wins when both are given. Starting without arguments retains the selection order above; a missing default file uses built-in defaults.
+
+| Case | Output | Exit code |
+| --- | --- | --- |
+| `-h` / `--help`, `--version` | stdout | 0 |
+| Argument error | stderr: `harbor-console: <error>`, then `Run 'harbor-console --help' for usage.` | 2 |
+| Failure before the logger is ready (selecting, loading or validating configuration) | one stderr line: `harbor-console: config: <error>`, e.g. `harbor-console: config: server.port: must be between 1 and 65535` | 1 |
+| Failure after the logger is ready (e.g. port in use) | logged as `service_failed` only, nothing extra on stderr | 1 |
+| Clean shutdown after SIGINT / SIGTERM | logs | 0 |
+
+All error messages are in English. The service logs `service_starting` (with `version` and `revision`), `service_listening` (with `listen`), `service_stopping` and `service_stopped`. The first signal starts a graceful shutdown bounded by `server.shutdown_timeout`; a second signal terminates the process immediately.
 
 | Environment variable | Purpose | Default |
 | --- | --- | --- |
 | `CONFIG_FILE` | YAML configuration path | `configs/config.local.yaml` when present |
-| `LISTEN` | Listener address | `127.0.0.1` |
-| `PORT` | Listener port | `8080` |
-| `HEALTH_URI` | Health endpoint | `/health` |
-| `LOG_LEVEL` | `debug`, `info`, `warn` or `error` | `info` |
-| `LOG_FORMAT` | `json` or `logfmt` | `json` |
-| `ACCESS_LOG` | Enable request logs | `true` |
-| `LOG_HEALTH_CHECKS` | Include health requests in access logs | `false` |
-| `READ_HEADER_TIMEOUT` | Header read timeout | `5s` |
-| `READ_TIMEOUT` | Request read timeout | `20s` |
-| `WRITE_TIMEOUT` | Response write timeout | `30s` |
-| `IDLE_TIMEOUT` | Keep-alive idle timeout | `90s` |
-| `SHUTDOWN_TIMEOUT` | Graceful shutdown deadline | `10s` |
+| `HARBOR_CONSOLE_SERVER__LISTEN` | Listener address | `127.0.0.1` |
+| `HARBOR_CONSOLE_SERVER__PORT` | Listener port | `8080` |
+| `HARBOR_CONSOLE_LOGGING__LEVEL` | `debug`, `info`, `warn` or `error` | `info` |
+| `HARBOR_CONSOLE_LOGGING__FORMAT` | `json` or `logfmt` | `json` |
+| `HARBOR_CONSOLE_LOGGING__ACCESS_LOG` | Enable request logs | `true` |
+| `HARBOR_CONSOLE_LOGGING__LOG_HEALTH_CHECKS` | Log health check requests | `false` |
+| `HARBOR_CONSOLE_SERVER__READ_HEADER_TIMEOUT` | Header read timeout | `5s` |
+| `HARBOR_CONSOLE_SERVER__READ_TIMEOUT` | Request read timeout | `20s` |
+| `HARBOR_CONSOLE_SERVER__WRITE_TIMEOUT` | Response write timeout | `30s` |
+| `HARBOR_CONSOLE_SERVER__IDLE_TIMEOUT` | Keep-alive idle timeout | `90s` |
+| `HARBOR_CONSOLE_SERVER__SHUTDOWN_TIMEOUT` | Graceful shutdown deadline | `10s` |
+
+The health check is always the unauthenticated `GET /healthz`, which returns `{"status":"ok"}`; `GET /api/info` returns the version and capabilities.
 
 See [configs/config.example.yaml](configs/config.example.yaml) for the complete file.
 
@@ -167,12 +178,14 @@ Design details are in [docs/DESIGN.md](docs/DESIGN.md).
 
 ```sh
 npm --prefix web run dev      # Vite dev server with a proxy to the Go backend
-npm --prefix web run check    # Prettier, ESLint, TypeScript
+npm --prefix web run format:check   # Prettier
+npm --prefix web run lint     # ESLint, Stylelint
+npm --prefix web run typecheck  # TypeScript
 npm --prefix web run build    # web/dist; required before any Go command
 npm --prefix web test         # contract and component tests
-go vet ./cmd/... ./internal/... ./web
-go test -race ./cmd/... ./internal/... ./web -count=1
-npm --prefix web run test:browser   # Playwright route matrix
+go vet ./...
+CGO_ENABLED=1 go test -race -count=1 ./...
+npm --prefix web run test:e2e   # Playwright route matrix
 ```
 
 Browser engines, coverage, vulnerability audits and where to change what are covered in [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md). On pushes to `main` and on pull requests, [CI](.github/workflows/ci.yml) runs web and Go checks and tests, a dependency vulnerability audit, the Chromium / Firefox / WebKit route matrix, a container build and smoke test, and a GoReleaser snapshot build of every release target. Dependencies are updated manually; Actions and Docker base images are pinned by commit SHA and digest, which `scripts/check-deployment-pins.mjs` enforces.
@@ -181,7 +194,7 @@ Browser engines, coverage, vulnerability audits and where to change what are cov
 
 - Releases are tagged `vMAJOR.MINOR.PATCH` (pre-releases such as `v1.2.0-rc.1` are marked as such automatically).
 - Pushing a tag triggers the [Release workflow](.github/workflows/release.yml): it tests the tagged commit, checks that the built binary reports exactly that version and commit, then uses GoReleaser to publish archives and `checksums.txt` for linux / darwin / windows on amd64 and arm64.
-- The version, commit and build date come from the tag or pseudo-version, commit and commit time that Go embeds from git; startup copies them into `internal/buildinfo`. They appear in `--version`, the `server_started` log line and on the About page. GoReleaser no longer injects anything. Builds without `.git` (such as Docker) can only set the version with `-ldflags "-X main.version=..."` (`--build-arg VERSION=...` for Docker); otherwise they report `dev`.
+- The version, commit and build date come from the tag or pseudo-version, commit and commit time that Go embeds from git; `cmd/harbor-console` passes them to the application as parameters. They appear in `--version`, the `service_starting` log line (`version` and `revision` fields) and on the About page. GoReleaser no longer injects anything. Builds without `.git` (such as Docker) can only set the version with `-ldflags "-X main.version=..."` (`--build-arg VERSION=...` for Docker); otherwise they report `dev`.
 
 Local dry run (nothing is published; output goes to the ignored `bin/release/`):
 
@@ -208,7 +221,6 @@ cmd/harbor-console/      executable entry point
 internal/app/            HTTP application, sessions, gateway and demo
 internal/config/         YAML and environment configuration
 internal/observability/  structured and access logging
-internal/buildinfo/      build version metadata
 web/                     the only npm / Vite boundary: React source, tests, E2E, embed.go
 configs/                 configuration example; local instances are ignored
 scripts/                 repository checks used by CI

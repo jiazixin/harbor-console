@@ -1,0 +1,38 @@
+@layer ui-shell {
+  .harborBanner {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px clamp(20px, 3vw, 44px);
+    border-bottom: 1px solid var(--line);
+    background: var(--amber-soft);
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 650;
+  }
+}
+@layer ui-shell {
+  .harborBanner > span:nth-child(2) {
+    min-width: 0;
+    flex: 1;
+    overflow-wrap: anywhere;
+  }
+}
+@layer ui-shell {
+  .harborBannerIcon,
+  .harborBanner :global(.hc_8b938f52_iconButton) {
+    flex: 0 0 auto;
+  }
+}
+@layer ui-shell {
+  .harborBannerIcon :global(.hc_8b938f52_icon) {
+    width: 16px;
+    height: 16px;
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.harborBanner {
+}
+.harborBannerIcon {
+}

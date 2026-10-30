@@ -1,24 +1,16 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
 import type { HarborArtifact, ProjectLabel } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import {
-  AddArtifactTagDialog,
-  ArtifactScanDialog,
-  ArtifactScanLogDialog,
-  AttachArtifactLabelDialog,
-  DeleteAccessoryArtifactDialog,
-  DeleteArtifactDialog,
-} from "./artifact-detail-dialogs";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { AddArtifactTagDialog } from "./add-artifact-tag-dialog";
+import { ArtifactScanDialog } from "./artifact-scan-dialog";
+import { ArtifactScanLogDialog } from "./artifact-scan-log-dialog";
+import { AttachArtifactLabelDialog } from "./attach-artifact-label-dialog";
+import { DeleteAccessoryArtifactDialog } from "./delete-accessory-artifact-dialog";
+import { DeleteArtifactDialog } from "./delete-artifact-dialog";
 
 const artifact: HarborArtifact = {
   digest:
@@ -33,10 +25,10 @@ const context = {
 
 function renderDialog(node: React.ReactNode) {
   return render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       {node}
-    </LocaleProvider>,
+    </TestProviders>,
   );
 }
 
@@ -47,6 +39,7 @@ afterEach(() => {
 
 describe("artifact detail dialogs", () => {
   it("submits the selected Harbor scan type", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const submitted = vi.fn();
     renderDialog(
@@ -57,24 +50,27 @@ describe("artifact detail dialogs", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("radio", { name: /生成 SBOM/ }));
-    fireEvent.click(screen.getByRole("button", { name: "提交任务" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith(
-        "artifact-scan",
-        {
+    await user.click(screen.getByRole("radio", { name: /生成 SBOM/ }));
+    await user.click(screen.getByRole("button", { name: "提交任务" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "artifact-scan",
+        parameters: {
           project: "platform",
           repository: "platform/gateway",
           reference: artifact.digest,
         },
-        "POST",
-        { scan_type: "sbom" },
-      ),
-    );
+        method: "POST",
+        payload: { scan_type: "sbom" },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: expect.any(String) as unknown,
+      });
+    });
     expect(submitted).toHaveBeenCalledWith("sbom");
   });
 
   it("creates a tag with the legacy validation pattern", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const created = vi.fn();
     renderDialog(
@@ -85,26 +81,31 @@ describe("artifact detail dialogs", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Tag 名称" }), {
-      target: { value: "release-2026" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "创建 Tag" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith(
-        "artifact-tags",
-        {
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "Tag 名称" }),
+      "release-2026",
+    );
+    await user.click(screen.getByRole("button", { name: "创建 Tag" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "artifact-tags",
+        parameters: {
           project: "platform",
           repository: "platform/gateway",
           reference: artifact.digest,
         },
-        "POST",
-        { name: "release-2026" },
-      ),
-    );
+        method: "POST",
+        payload: { name: "release-2026" },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: expect.any(String) as unknown,
+      });
+    });
     expect(created).toHaveBeenCalledWith("release-2026");
   });
 
   it("attaches the selected project or global label", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const label: ProjectLabel = {
       id: 41,
@@ -121,23 +122,26 @@ describe("artifact detail dialogs", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "绑定标签" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith(
-        "artifact-labels",
-        {
+    await user.click(screen.getByRole("button", { name: "绑定标签" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "artifact-labels",
+        parameters: {
           project: "platform",
           repository: "platform/gateway",
           reference: artifact.digest,
         },
-        "POST",
-        { id: 41 },
-      ),
-    );
+        method: "POST",
+        payload: { id: 41 },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: expect.any(String) as unknown,
+      });
+    });
     expect(attached).toHaveBeenCalledWith(label);
   });
 
   it("requires the exact digest before deleting one artifact", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const deleted = vi.fn();
     renderDialog(
@@ -148,28 +152,30 @@ describe("artifact detail dialogs", () => {
       />,
     );
 
-    fireEvent.change(
+    await replaceText(
+      user,
       screen.getByRole("textbox", { name: "输入资源名称确认" }),
-      {
-        target: { value: artifact.digest },
-      },
+      artifact.digest,
     );
-    fireEvent.click(screen.getByRole("button", { name: "删除制品" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith(
-        "artifact",
-        {
+    await user.click(screen.getByRole("button", { name: "删除制品" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "artifact",
+        parameters: {
           project: "platform",
           repository: "platform/gateway",
           reference: artifact.digest,
         },
-        "DELETE",
-      ),
-    );
+        method: "DELETE",
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: undefined,
+      });
+    });
     expect(deleted).toHaveBeenCalledOnce();
   });
 
   it("deletes an accessory through the artifact endpoint", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const deleted = vi.fn();
     const accessory = {
@@ -185,24 +191,25 @@ describe("artifact detail dialogs", () => {
       />,
     );
 
-    fireEvent.change(
+    await replaceText(
+      user,
       screen.getByRole("textbox", { name: "输入资源名称确认" }),
-      {
-        target: { value: accessory.digest },
-      },
+      accessory.digest,
     );
-    fireEvent.click(screen.getByRole("button", { name: "删除关联制品" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith(
-        "artifact",
-        {
+    await user.click(screen.getByRole("button", { name: "删除关联制品" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "artifact",
+        parameters: {
           project: "platform",
           repository: "platform/gateway",
           reference: accessory.digest,
         },
-        "DELETE",
-      ),
-    );
+        method: "DELETE",
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: undefined,
+      });
+    });
     expect(deleted).toHaveBeenCalledOnce();
   });
 
@@ -228,11 +235,12 @@ describe("artifact detail dialogs", () => {
         reference: artifact.digest,
         report: "demo-report",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
   });
 
   it("cancels the previous scan log request on refresh and unmount", async () => {
+    const user = setupUser();
     const data = vi
       .spyOn(controlApi, "data")
       .mockImplementation(() => new Promise(() => undefined));
@@ -245,12 +253,16 @@ describe("artifact detail dialogs", () => {
       />,
     );
 
-    await waitFor(() => expect(data).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(data).toHaveBeenCalledTimes(1);
+    });
     const firstSignal = data.mock.calls[0]?.[2];
     expect(firstSignal).toBeInstanceOf(AbortSignal);
 
-    fireEvent.click(screen.getByRole("button", { name: "刷新日志" }));
-    await waitFor(() => expect(data).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole("button", { name: "刷新日志" }));
+    await waitFor(() => {
+      expect(data).toHaveBeenCalledTimes(2);
+    });
     const secondSignal = data.mock.calls[1]?.[2];
     expect(firstSignal?.aborted).toBe(true);
     expect(secondSignal?.aborted).toBe(false);

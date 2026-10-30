@@ -1,21 +1,13 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
 import type { HarborArtifact, ProjectLabel } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import {
-  ArtifactLabelDialog,
-  CopyArtifactDialog,
-  DeleteArtifactsDialog,
-} from "./artifact-dialogs";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { ArtifactLabelDialog } from "./artifact-label-dialog";
+import { CopyArtifactDialog } from "./copy-artifact-dialog";
+import { DeleteArtifactsDialog } from "./delete-artifacts-dialog";
 
 const label: ProjectLabel = {
   id: 41,
@@ -36,11 +28,12 @@ afterEach(() => {
 
 describe("artifact dialogs", () => {
   it("attaches labels with the exact Harbor artifact label contract", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const completed = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ArtifactLabelDialog
           mode="attach"
@@ -51,31 +44,34 @@ describe("artifact dialogs", () => {
           onClose={vi.fn()}
           onCompleted={completed}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "添加标签" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith(
-        "artifact-labels",
-        {
+    await user.click(screen.getByRole("button", { name: "添加标签" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "artifact-labels",
+        parameters: {
           project: "platform",
           repository: "platform/gateway",
           reference: artifact.digest,
         },
-        "POST",
-        { id: 41 },
-      ),
-    );
+        method: "POST",
+        payload: { id: 41 },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: expect.any(String) as unknown,
+      });
+    });
     expect(completed).toHaveBeenCalledWith(0);
   });
 
   it("copies one artifact from its immutable digest reference", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const copied = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <CopyArtifactDialog
           project="platform"
@@ -84,38 +80,45 @@ describe("artifact dialogs", () => {
           onClose={vi.fn()}
           onCopied={copied}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "目标项目" }), {
-      target: { value: "release" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "目标仓库" }), {
-      target: { value: "gateway-copy" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "开始复制" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "目标项目" }),
+      "release",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "目标仓库" }),
+      "gateway-copy",
+    );
+    await user.click(screen.getByRole("button", { name: "开始复制" }));
 
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith(
-        "artifact-copy",
-        {
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "artifact-copy",
+        parameters: {
           project: "release",
           repository: "gateway-copy",
           from: `platform/gateway@${artifact.digest}`,
         },
-        "POST",
-      ),
-    );
+        method: "POST",
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: expect.any(String) as unknown,
+      });
+    });
     expect(copied).toHaveBeenCalledWith("release", "gateway-copy");
   });
 
   it("requires the legacy DELETE count before batch deletion", async () => {
+    const user = setupUser();
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const deleted = vi.fn();
     const second = { ...artifact, digest: "sha256:second" };
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <DeleteArtifactsDialog
           project="platform"
@@ -124,24 +127,30 @@ describe("artifact dialogs", () => {
           onClose={vi.fn()}
           onDeleted={deleted}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "确认文本" }), {
-      target: { value: "DELETE 2" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "确认文本" }),
+      "DELETE 2",
+    );
+    await user.click(screen.getByRole("button", { name: "永久删除" }));
 
-    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(2));
-    expect(mutate).toHaveBeenCalledWith(
-      "artifact",
-      {
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledTimes(2);
+    });
+    expect(mutate).toHaveBeenCalledWith({
+      operation: "artifact",
+      parameters: {
         project: "platform",
         repository: "platform/gateway",
         reference: artifact.digest,
       },
-      "DELETE",
-    );
+      method: "DELETE",
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
     expect(deleted).toHaveBeenCalledWith(0);
   });
 });

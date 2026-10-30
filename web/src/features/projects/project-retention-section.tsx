@@ -1,4 +1,3 @@
-import { formatDate, formatNumber, formatCount } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type {
   ControlPagination,
@@ -7,12 +6,21 @@ import type {
   RetentionPolicy,
   RetentionRule,
 } from "../../app/models";
-import { Pagination } from "../../components/data-table";
+import { displayTimeZone } from "../../app/preferences";
 import { EmptyState } from "../../components/empty-state";
-import { PanelTitle } from "../../components/page-elements";
-import { Icon } from "../../components/icons";
+import { Icon } from "../../components/icon";
 import { OverflowText } from "../../components/overflow-text";
+import { Pagination } from "../../components/pagination";
+import { PanelTitle } from "../../components/panel-title";
+import uiStyles0 from "../../components/shared-ui.module.css";
 import { StatusBadge } from "../../components/status-badge";
+import { createClassNames } from "../../lib/css/class-names";
+import {
+  formatCount,
+  formatDate,
+  formatNumber,
+} from "../../lib/format/formatters";
+import styles from "./projects.module.css";
 import { retentionTemplateSummary } from "./rule-labels";
 
 export type ProjectRetentionAction =
@@ -96,6 +104,17 @@ function canStopExecution(status: string | undefined): boolean {
   );
 }
 
+type ProjectRetentionSectionProps = {
+  project: string;
+  projectId: number;
+  policy?: RetentionPolicy;
+  executions: RetentionExecution[];
+  pagination: ControlPagination;
+  metadata: RetentionMetadata;
+  onPageChange: (page: number) => void;
+  onAction: (action: ProjectRetentionAction) => void;
+};
+
 export function ProjectRetentionSection({
   project,
   projectId,
@@ -105,16 +124,7 @@ export function ProjectRetentionSection({
   metadata,
   onPageChange,
   onAction,
-}: {
-  project: string;
-  projectId: number;
-  policy?: RetentionPolicy;
-  executions: RetentionExecution[];
-  pagination: ControlPagination;
-  metadata: RetentionMetadata;
-  onPageChange: (page: number) => void;
-  onAction: (action: ProjectRetentionAction) => void;
-}) {
+}: ProjectRetentionSectionProps) {
   const { locale, t } = useLocale();
   const metadataAvailable =
     !metadata.load_error &&
@@ -130,29 +140,33 @@ export function ProjectRetentionSection({
 
   if (!policy) {
     return (
-      <section className="table-shell retention-empty">
-        <div className="table-toolbar">
+      <section
+        className={resolveClasses(`table-shell ${styles.retentionEmpty}`)}
+      >
+        <div className={resolveClasses("table-toolbar")}>
           <PanelTitle title="Tag 保留策略" />
-          <div className="toolbar-spacer" />
+          <div className={resolveClasses("toolbar-spacer")} />
           <button
-            className="button button-small button-primary"
+            className={resolveClasses("button button-small button-primary")}
             type="button"
             disabled={!metadataAvailable}
-            onClick={() =>
+            onClick={() => {
               onAction({
                 kind: "create-policy",
                 project,
                 projectId,
                 metadata,
-              })
-            }
+              });
+            }}
           >
             <Icon name="plus" />
             <span>{t("创建策略")}</span>
           </button>
         </div>
         {metadataNotice ? (
-          <p className="notice notice-warning">{metadataNotice}</p>
+          <p className={resolveClasses("notice notice-warning")}>
+            {metadataNotice}
+          </p>
         ) : null}
         <EmptyState
           title="尚未配置 Tag 保留"
@@ -166,11 +180,11 @@ export function ProjectRetentionSection({
   const rules = policy.rules ?? [];
   const cron = policy.trigger?.settings?.cron?.trim() ?? "";
   return (
-    <div className="retention-layout">
-      <section className="retention-summary">
-        <div className="retention-summary-head">
+    <div className={resolveClasses(styles.retentionLayout)}>
+      <section className={resolveClasses(styles.retentionSummary)}>
+        <div className={resolveClasses(styles.retentionSummaryHead)}>
           <div>
-            <span className="eyebrow">
+            <span className={resolveClasses("eyebrow")}>
               {t("策略")} #{policy.id}
             </span>
             <h2>{t("Tag 保留策略")}</h2>
@@ -182,52 +196,58 @@ export function ProjectRetentionSection({
               )}
             </p>
           </div>
-          <div className="page-actions">
+          <div className={resolveClasses("page-actions")}>
             <button
-              className="button button-small"
+              className={resolveClasses("button button-small")}
               type="button"
-              onClick={() => onAction({ kind: "run", policy, dryRun: true })}
+              onClick={() => {
+                onAction({ kind: "run", policy, dryRun: true });
+              }}
             >
               <Icon name="play" />
               <span>{t("仅演练")}</span>
             </button>
             <button
-              className="button button-small button-primary"
+              className={resolveClasses("button button-small button-primary")}
               type="button"
-              onClick={() => onAction({ kind: "run", policy, dryRun: false })}
+              onClick={() => {
+                onAction({ kind: "run", policy, dryRun: false });
+              }}
             >
               <Icon name="play" />
               <span>{t("正式执行")}</span>
             </button>
             <button
-              className="icon-button"
+              className={resolveClasses("icon-button")}
               type="button"
               disabled={!metadataAvailable}
               title={t("编辑执行计划")}
               aria-label={t("编辑执行计划")}
-              onClick={() =>
+              onClick={() => {
                 onAction({
                   kind: "edit-schedule",
                   project,
                   projectId,
                   policy,
-                })
-              }
+                });
+              }}
             >
               <Icon name="settings" />
             </button>
             <button
-              className="icon-button danger-icon"
+              className={resolveClasses("icon-button danger-icon")}
               type="button"
               title={t("删除 Tag 保留策略")}
               aria-label={t("删除 Tag 保留策略")}
-              onClick={() => onAction({ kind: "delete-policy", policy })}
+              onClick={() => {
+                onAction({ kind: "delete-policy", policy });
+              }}
             >
               <Icon name="trash" />
             </button>
           </div>
         </div>
-        <dl className="retention-facts">
+        <dl className={resolveClasses(styles.retentionFacts)}>
           <div>
             <dt>{t("规则数量")}</dt>
             <dd>
@@ -240,43 +260,48 @@ export function ProjectRetentionSection({
           </div>
           <div>
             <dt>Cron</dt>
-            <dd className="mono">{cron || t("未配置")}</dd>
+            <dd className={resolveClasses("mono")}>{cron || t("未配置")}</dd>
           </div>
           <div>
             <dt>{t("最近更新")}</dt>
             <dd>
-              {formatDate(policy.update_time ?? policy.creation_time, locale)}
+              {formatDate(policy.update_time ?? policy.creation_time, {
+                locale: locale,
+                timeZone: displayTimeZone(),
+              })}
             </dd>
           </div>
         </dl>
       </section>
 
-      <section className="table-shell">
-        <div className="table-toolbar">
+      <section className={resolveClasses("table-shell")}>
+        <div className={resolveClasses("table-toolbar")}>
           <PanelTitle title="保留规则" />
-          <div className="toolbar-spacer" />
+          <div className={resolveClasses("toolbar-spacer")} />
           <button
-            className="button button-small button-primary"
+            className={resolveClasses("button button-small button-primary")}
             type="button"
             disabled={!metadataAvailable}
-            onClick={() =>
+            onClick={() => {
               onAction({
                 kind: "add-rule",
                 project,
                 projectId,
                 policy,
                 metadata,
-              })
-            }
+              });
+            }}
           >
             <Icon name="plus" />
             <span>{t("添加规则")}</span>
           </button>
         </div>
         {metadataNotice ? (
-          <p className="notice notice-warning">{metadataNotice}</p>
+          <p className={resolveClasses("notice notice-warning")}>
+            {metadataNotice}
+          </p>
         ) : null}
-        <div className="table-scroll">
+        <div className={resolveClasses("table-scroll")}>
           {!rules.length ? (
             <EmptyState
               title="暂无保留规则"
@@ -298,7 +323,7 @@ export function ProjectRetentionSection({
                 {rules.map((rule, ruleIndex) => (
                   <tr key={`${String(rule.id ?? "new")}-${String(ruleIndex)}`}>
                     <td>
-                      <div className="cell-stack">
+                      <div className={resolveClasses("cell-stack")}>
                         <strong>
                           {t(retentionTemplateSummary(rule.template))}
                         </strong>
@@ -317,20 +342,22 @@ export function ProjectRetentionSection({
                     </td>
                     <td>
                       <span
-                        className={`badge ${rule.disabled ? "" : "badge-green"}`.trim()}
+                        className={resolveClasses(
+                          `badge ${rule.disabled ? "" : "badge-green"}`.trim(),
+                        )}
                       >
                         {t(rule.disabled ? "已停用" : "已启用")}
                       </span>
                     </td>
                     <td>
-                      <div className="row-actions">
+                      <div className={resolveClasses("row-actions")}>
                         <button
-                          className="icon-button"
+                          className={resolveClasses("icon-button")}
                           type="button"
                           disabled={!metadataAvailable}
                           title={t("编辑保留规则")}
                           aria-label={t("编辑保留规则")}
-                          onClick={() =>
+                          onClick={() => {
                             onAction({
                               kind: "edit-rule",
                               project,
@@ -338,25 +365,25 @@ export function ProjectRetentionSection({
                               policy,
                               metadata,
                               ruleIndex,
-                            })
-                          }
+                            });
+                          }}
                         >
                           <Icon name="edit" />
                         </button>
                         <button
-                          className="icon-button danger-icon"
+                          className={resolveClasses("icon-button danger-icon")}
                           type="button"
                           disabled={!metadataAvailable}
                           title={t("删除保留规则")}
                           aria-label={t("删除保留规则")}
-                          onClick={() =>
+                          onClick={() => {
                             onAction({
                               kind: "delete-rule",
                               projectId,
                               policy,
                               ruleIndex,
-                            })
-                          }
+                            });
+                          }}
                         >
                           <Icon name="trash" />
                         </button>
@@ -370,19 +397,19 @@ export function ProjectRetentionSection({
         </div>
       </section>
 
-      <section className="table-shell">
-        <div className="table-toolbar">
+      <section className={resolveClasses("table-shell")}>
+        <div className={resolveClasses("table-toolbar")}>
           <PanelTitle
             title="执行历史"
-            count={formatCount(
-              pagination.total,
-              locale,
-              "次执行",
-              "executions",
-            )}
+            count={formatCount({
+              total: pagination.total,
+              locale: locale,
+              chineseUnit: "次执行",
+              englishUnit: "executions",
+            })}
           />
         </div>
-        <div className="table-scroll">
+        <div className={resolveClasses("table-scroll")}>
           {!executions.length ? (
             <EmptyState
               title="暂无执行记录"
@@ -393,21 +420,31 @@ export function ProjectRetentionSection({
             <table>
               <thead>
                 <tr>
-                  <th className="id-column">{t("执行编号")}</th>
+                  <th className={resolveClasses("id-column")}>
+                    {t("执行编号")}
+                  </th>
                   <th>{t("模式")}</th>
                   <th>{t("状态")}</th>
-                  <th className="table-cell-time">{t("开始时间")}</th>
-                  <th className="table-cell-time">{t("结束时间")}</th>
+                  <th className={resolveClasses("table-cell-time")}>
+                    {t("开始时间")}
+                  </th>
+                  <th className={resolveClasses("table-cell-time")}>
+                    {t("结束时间")}
+                  </th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {executions.map((execution) => (
                   <tr key={execution.id}>
-                    <td className="id-cell">#{execution.id}</td>
+                    <td className={resolveClasses("id-cell")}>
+                      #{execution.id}
+                    </td>
                     <td>
                       <span
-                        className={`badge ${execution.dry_run ? "badge-blue" : "badge-orange"}`}
+                        className={resolveClasses(
+                          `badge ${execution.dry_run ? "badge-blue" : "badge-orange"}`,
+                        )}
                       >
                         {t(execution.dry_run ? "仅演练" : "正式执行")}
                       </span>
@@ -415,43 +452,51 @@ export function ProjectRetentionSection({
                     <td>
                       <StatusBadge status={execution.status} />
                     </td>
-                    <td className="table-cell-time">
-                      {formatDate(execution.start_time, locale)}
+                    <td className={resolveClasses("table-cell-time")}>
+                      {formatDate(execution.start_time, {
+                        locale: locale,
+                        timeZone: displayTimeZone(),
+                      })}
                     </td>
-                    <td className="table-cell-time">
-                      {formatDate(execution.end_time, locale)}
+                    <td className={resolveClasses("table-cell-time")}>
+                      {formatDate(execution.end_time, {
+                        locale: locale,
+                        timeZone: displayTimeZone(),
+                      })}
                     </td>
                     <td>
-                      <div className="row-actions">
+                      <div className={resolveClasses("row-actions")}>
                         <button
-                          className="icon-button"
+                          className={resolveClasses("icon-button")}
                           type="button"
                           title={t("查看任务")}
                           aria-label={t("查看 Tag 保留任务")}
-                          onClick={() =>
+                          onClick={() => {
                             onAction({
                               kind: "view-execution",
                               project,
                               policy,
                               execution,
-                            })
-                          }
+                            });
+                          }}
                         >
                           <Icon name="history" />
                         </button>
                         {canStopExecution(execution.status) ? (
                           <button
-                            className="icon-button danger-icon"
+                            className={resolveClasses(
+                              "icon-button danger-icon",
+                            )}
                             type="button"
                             title={t("停止执行")}
                             aria-label={t("停止执行")}
-                            onClick={() =>
+                            onClick={() => {
                               onAction({
                                 kind: "stop-execution",
                                 policy,
                                 execution,
-                              })
-                            }
+                              });
+                            }}
                           >
                             <Icon name="x" />
                           </button>
@@ -469,3 +514,47 @@ export function ProjectRetentionSection({
     </div>
   );
 }
+
+const resolveClasses = createClassNames({
+  "empty-state": uiStyles0.emptyState,
+  icon: uiStyles0.icon,
+  "overflow-text": uiStyles0.overflowText,
+  "panel-title": uiStyles0.panelTitle,
+  "status-badge": uiStyles0.statusBadge,
+  "table-shell": uiStyles0.tableShell,
+  "table-toolbar": uiStyles0.tableToolbar,
+  "toolbar-spacer": uiStyles0.toolbarSpacer,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "button-primary": uiStyles0.buttonPrimary,
+  notice: uiStyles0.notice,
+  "notice-warning": uiStyles0.noticeWarning,
+  eyebrow: uiStyles0.eyebrow,
+  "page-actions": uiStyles0.pageActions,
+  "icon-button": uiStyles0.iconButton,
+  "danger-icon": uiStyles0.dangerIcon,
+  mono: uiStyles0.mono,
+  "table-scroll": uiStyles0.tableScroll,
+  "cell-stack": uiStyles0.cellStack,
+  badge: uiStyles0.badge,
+  "badge-green": uiStyles0.badgeGreen,
+  "row-actions": uiStyles0.rowActions,
+  "id-column": uiStyles0.idColumn,
+  "table-cell-time": uiStyles0.tableCellTime,
+  "id-cell": uiStyles0.idCell,
+  "badge-blue": uiStyles0.badgeBlue,
+  "badge-orange": uiStyles0.badgeOrange,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

@@ -1,16 +1,10 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { parseHashRoute } from "../../app/hash-router";
-import { LocaleProvider } from "../../app/locale-context";
-import { IconSprite } from "../../components/icons";
+import { parseConsoleRoute } from "../../app/console-route";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { setupUser } from "../../test/user";
 import { ReplicationPage } from "./replication-page";
 
 afterEach(() => {
@@ -20,6 +14,7 @@ afterEach(() => {
 
 describe("replication page", () => {
   it("loads policy metadata and opens a typed create action", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "list").mockImplementation((operation) => {
       if (operation === "replication-policies") {
         return Promise.resolve({
@@ -48,21 +43,24 @@ describe("replication page", () => {
     const navigate = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ReplicationPage
-          route={parseHashRoute("#/replication")}
+          route={parseConsoleRoute("#/replication")}
           demo
           refreshing={false}
           navigate={navigate}
           onRefresh={vi.fn()}
           onAction={onAction}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "新建策略" }));
-    await waitFor(() => expect(onAction).toHaveBeenCalledOnce());
+    await screen.findByRole("cell", { name: "release策略 #7" });
+    await user.click(screen.getByRole("button", { name: "新建策略" }));
+    await waitFor(() => {
+      expect(onAction).toHaveBeenCalledOnce();
+    });
     expect(onAction).toHaveBeenCalledWith({
       kind: "create",
       registries: [{ id: 3, name: "production", type: "harbor" }],
@@ -76,14 +74,15 @@ describe("replication page", () => {
       "aria-sort",
       "none",
     );
-    fireEvent.click(screen.getByRole("button", { name: "按策略升序排序" }));
+    await user.click(screen.getByRole("button", { name: "按策略升序排序" }));
     expect(navigate).toHaveBeenCalledWith("replication?sort=name");
-    fireEvent.click(screen.getByRole("button", { name: "每页条数" }));
-    fireEvent.click(screen.getByRole("option", { name: "每页 20 条" }));
+    await user.click(screen.getByRole("button", { name: "每页条数" }));
+    await user.click(screen.getByRole("option", { name: "每页 20 条" }));
     expect(navigate).toHaveBeenCalledWith("replication?page_size=20");
   });
 
   it("translates execution statuses and exposes sortable execution headers", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "list").mockImplementation((operation) => {
       if (operation === "replication-policies") {
         return Promise.resolve({
@@ -115,29 +114,29 @@ describe("replication page", () => {
     const navigate = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ReplicationPage
-          route={parseHashRoute("#/replication?tab=executions")}
+          route={parseConsoleRoute("#/replication?tab=executions")}
           demo
           refreshing={false}
           navigate={navigate}
           onRefresh={vi.fn()}
           onAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "状态" }));
+    await user.click(await screen.findByRole("button", { name: "状态" }));
     expect(screen.getByRole("option", { name: "进行中" })).toBeVisible();
     expect(screen.getByRole("option", { name: "成功" })).toBeVisible();
     expect(screen.getByRole("option", { name: "失败" })).toBeVisible();
     expect(screen.getByRole("option", { name: "已停止" })).toBeVisible();
-    fireEvent.keyDown(screen.getByRole("listbox", { name: "状态" }), {
-      key: "Escape",
-    });
+    await user.keyboard("{Escape}");
 
-    fireEvent.click(screen.getByRole("button", { name: "按任务统计降序排序" }));
+    await user.click(
+      screen.getByRole("button", { name: "按任务统计降序排序" }),
+    );
     expect(navigate).toHaveBeenCalledWith(
       "replication?tab=executions&sort=-tasks",
     );
@@ -180,10 +179,10 @@ describe("replication page", () => {
     vi.spyOn(controlApi, "data").mockResolvedValue(undefined);
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ReplicationPage
-          route={parseHashRoute(
+          route={parseConsoleRoute(
             "#/replication?tab=executions&page=2&sort=-tasks",
           )}
           demo
@@ -192,7 +191,7 @@ describe("replication page", () => {
           onRefresh={vi.fn()}
           onAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByRole("cell", { name: "#70" })).toBeVisible();
@@ -200,7 +199,7 @@ describe("replication page", () => {
     expect(list).toHaveBeenCalledWith(
       "replication-executions",
       { page: 2, page_size: 100 },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(screen.getByText("第 51-100 项，共 120 项")).toBeVisible();
   });

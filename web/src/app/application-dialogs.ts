@@ -6,7 +6,7 @@ import type { ProjectRetentionAction } from "../features/projects/project-retent
 import type { RegistryAction } from "../features/registries/registries-page";
 import type { ReplicationAction } from "../features/replication/replication-page";
 import type { SecurityAction } from "../features/security/security-page";
-import type { ConsoleRoute } from "./hash-router";
+import type { ConsoleRoute } from "./console-route";
 import type {
   HarborPermission,
   ImmutableTagRule,
@@ -21,7 +21,7 @@ import type {
   Session,
   WebhookEventMetadata,
 } from "./models";
-import type { ReloadablePage } from "./page-versions";
+import type { ReloadablePage } from "./page-refresh";
 
 /** Every dialog the application can show; only one is open at a time. */
 export type ApplicationDialog =

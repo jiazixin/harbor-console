@@ -1,19 +1,26 @@
 import { type SubmitEvent, useRef, useState } from "react";
-
-import { ApiError, sessionApi } from "../../app/api-client";
+import { errorText } from "../../app/errors";
 import { useLocale } from "../../app/locale-context";
-import type { Session } from "../../app/models";
+import type { PublicCatalogState, Session } from "../../app/models";
+import { formErrors, FormErrorsContext } from "../../components/form-errors";
+import { FormInput } from "../../components/form-input";
 import { HarborBrand } from "../../components/harbor-brand";
-import { Icon } from "../../components/icons";
+import { Icon } from "../../components/icon";
 import { LanguageSwitch } from "../../components/language-switch";
+import {
+  default as sharedPrimitiveStyles,
+  default as uiStyles0,
+} from "../../components/shared-ui.module.css";
 import { UnifiedSelect } from "../../components/unified-select";
+import { createClassNames } from "../../lib/css/class-names";
+import styles from "./auth.module.css";
 import {
   createPublicCatalogState,
   openPublicCatalogHistory,
   PublicCatalogView,
   restorePublicCatalogState,
 } from "./public-catalog-view";
-import type { PublicCatalogState } from "../../app/models";
+import { useAuthentication } from "./use-authentication";
 
 type Protocol = "https" | "http";
 
@@ -25,8 +32,25 @@ function formString(data: FormData, name: string): string {
 function normalizedAddress(address: string, protocol: Protocol): string {
   const value = address.trim();
   if (!value) return "";
-  if (/^https?:\/\//i.test(value)) return value;
-  return `${protocol}://${value.replace(/^\/+/, "")}`;
+  try {
+    const url = new URL(
+      /^https?:\/\//i.test(value) ? value : `${protocol}://${value}`,
+    );
+    if (
+      !url.hostname ||
+      !["http:", "https:"].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      (url.pathname && url.pathname !== "/")
+    )
+      return "";
+    return url.origin;
+  } catch {
+    // Invalid addresses never enter the public-catalog history or browser storage.
+    return "";
+  }
 }
 
 function addressParts(url: string | undefined): {
@@ -44,14 +68,15 @@ function addressParts(url: string | undefined): {
   }
 }
 
-export function LoginPage({
-  onAuthenticated,
-  onNotice,
-}: {
+type LoginPageProps = {
   onAuthenticated: (session: Session) => void;
   onNotice: (message: string, error?: boolean) => void;
-}) {
+};
+
+export function LoginPage({ onAuthenticated, onNotice }: LoginPageProps) {
   const { t } = useLocale();
+  const authentication = useAuthentication();
+  const [fields, setFields] = useState<Record<string, string>>({});
   const [initialCatalog] = useState(restorePublicCatalogState);
   const initialAddress = addressParts(initialCatalog?.url);
   const [catalog, setCatalog] = useState<PublicCatalogState | undefined>(
@@ -78,9 +103,10 @@ export function LoginPage({
     }
     setBusy("connect");
     setError("");
+    setFields({});
     try {
       onAuthenticated(
-        await sessionApi.connect({
+        await authentication.mutateAsync({
           url,
           username,
           password,
@@ -88,11 +114,8 @@ export function LoginPage({
         }),
       );
     } catch (requestError) {
-      setError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : String(requestError),
-      );
+      setFields(formErrors(requestError));
+      setError(errorText(requestError));
     } finally {
       setBusy(null);
     }
@@ -101,14 +124,12 @@ export function LoginPage({
   async function enterDemo() {
     setBusy("demo");
     setError("");
+    setFields({});
     try {
-      onAuthenticated(await sessionApi.demo());
+      onAuthenticated(await authentication.mutateAsync(undefined));
     } catch (requestError) {
-      setError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : String(requestError),
-      );
+      setFields(formErrors(requestError));
+      setError(errorText(requestError));
     } finally {
       setBusy(null);
     }
@@ -117,8 +138,9 @@ export function LoginPage({
   function updateAddress(value: string) {
     const match = /^(https?):\/\/(.*)$/i.exec(value.trimStart());
     if (match) {
-      setProtocol(match[1].toLowerCase() as Protocol);
-      setAddress(match[2]);
+      const [, protocol = "", address = ""] = match;
+      setProtocol(protocol.toLowerCase() === "http" ? "http" : "https");
+      setAddress(address);
       return;
     }
     setAddress(value);
@@ -132,6 +154,7 @@ export function LoginPage({
     }
     const next = createPublicCatalogState(url, skipTlsVerify);
     setError("");
+    setFields({});
     openPublicCatalogHistory(next);
     setCatalog(next);
   }
@@ -156,18 +179,25 @@ export function LoginPage({
   }
 
   return (
-    <div id="login-view" className="connect-view">
-      <header className="connect-header">
+    <div id="login-view" className={resolveClasses("connect-view")}>
+      <header className={resolveClasses(styles.connectHeader)}>
         <HarborBrand href="#" />
-        <div className="connect-header-actions">
-          <span className="product-note">{t("统一镜像资产与供应链安全")}</span>
+        <div className={resolveClasses(styles.connectHeaderActions)}>
+          <span className={resolveClasses(styles.productNote)}>
+            {t("统一镜像资产与供应链安全")}
+          </span>
           <LanguageSwitch />
         </div>
       </header>
 
-      <main className="connect-main">
-        <section className="connect-copy" aria-labelledby="connect-title">
-          <span className="eyebrow">{t("容器镜像控制面板")}</span>
+      <main className={resolveClasses(styles.connectMain)}>
+        <section
+          className={resolveClasses(styles.connectCopy)}
+          aria-labelledby="connect-title"
+        >
+          <span className={resolveClasses("eyebrow")}>
+            {t("容器镜像控制面板")}
+          </span>
           <h1 id="connect-title" aria-label={t("连接你的 Harbor 实例")}>
             {t("连接你的")}
             <br />
@@ -178,7 +208,7 @@ export function LoginPage({
               "集中查看项目、仓库、漏洞扫描与复制任务。连接信息仅保存在当前服务进程的临时会话中。",
             )}
           </p>
-          <dl className="connection-facts">
+          <dl className={resolveClasses(styles.connectionFacts)}>
             <div>
               <dt>API</dt>
               <dd>Harbor v2</dd>
@@ -194,112 +224,127 @@ export function LoginPage({
           </dl>
         </section>
 
-        <section className="connect-panel" aria-label={t("连接 Harbor")}>
-          <div className="panel-heading">
+        <section
+          className={resolveClasses(styles.connectPanel)}
+          aria-label={t("连接 Harbor")}
+        >
+          <div className={resolveClasses(styles.panelHeading)}>
             <div>
-              <span className="section-index">01</span>
+              <span className={resolveClasses(styles.sectionIndex)}>01</span>
               <h2>{t("实例登录")}</h2>
             </div>
-            <span className="secure-label">
+            <span className={resolveClasses(styles.secureLabel)}>
               <Icon name="shield" />
               {t("服务端连接")}
             </span>
           </div>
-          <form
-            id="connect-form"
-            noValidate
-            onSubmit={(event) => void submit(event)}
-          >
-            <label htmlFor="instance-address">{t("Harbor 地址")}</label>
-            <div className="url-input-group connect-url-group">
-              <UnifiedSelect
-                ariaLabel={t("连接协议")}
-                name="protocol"
-                options={[
-                  { value: "https", label: "https://" },
-                  { value: "http", label: "http://" },
-                ]}
-                value={protocol}
-                onChange={setProtocol}
-              />
-              <input
-                ref={addressInputRef}
-                id="instance-address"
-                name="address"
-                type="text"
-                inputMode="url"
-                placeholder="harbor.example.com"
-                autoComplete="url"
-                value={address}
-                onChange={(event) => updateAddress(event.target.value)}
-                required
-              />
-            </div>
-            <div className="field-grid">
-              <div>
-                <label htmlFor="username">{t("用户名")}</label>
-                <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  placeholder="admin"
-                  autoComplete="username"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="password">{t("密码")}</label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder={t("输入密码")}
-                  autoComplete="current-password"
-                  required
-                />
-              </div>
-            </div>
-            <label className="check-row" htmlFor="skip-tls">
-              <input
-                id="skip-tls"
-                name="skip_tls_verify"
-                type="checkbox"
-                checked={skipTlsVerify}
-                onChange={(event) =>
-                  setSkipTlsVerify(event.currentTarget.checked)
-                }
-              />
-              <span>
-                <b>{t("允许自签名证书")}</b>
-                <small>{t("仅在内网测试环境中启用")}</small>
-              </span>
-            </label>
-            {error ? (
-              <div id="connect-error" className="form-error" role="alert">
-                {error}
-              </div>
-            ) : null}
-            <button
-              id="connect-submit"
-              className="button button-primary button-wide"
-              type="submit"
-              disabled={busy !== null}
+          <FormErrorsContext value={fields}>
+            <form
+              id="connect-form"
+              noValidate
+              onSubmit={(event) => void submit(event)}
             >
-              <span>
-                {busy === "connect" ? t("正在验证连接...") : t("连接实例")}
-              </span>
-              {busy === "connect" ? (
-                <span className="spinner button-spinner" />
-              ) : (
-                <Icon name="arrow-right" />
-              )}
-            </button>
-          </form>
-          <div className="demo-row">
+              <label htmlFor="instance-address">{t("Harbor 地址")}</label>
+              <div
+                className={resolveClasses(
+                  `url-input-group ${styles.connectUrlGroup}`,
+                )}
+              >
+                <UnifiedSelect
+                  ariaLabel={t("连接协议")}
+                  name="protocol"
+                  options={[
+                    { value: "https", label: "https://" },
+                    { value: "http", label: "http://" },
+                  ]}
+                  value={protocol}
+                  onChange={setProtocol}
+                />
+                <FormInput
+                  ref={addressInputRef}
+                  id="instance-address"
+                  name="address"
+                  type="text"
+                  inputMode="url"
+                  placeholder="harbor.example.com"
+                  autoComplete="url"
+                  value={address}
+                  onChange={(event) => {
+                    updateAddress(event.target.value);
+                  }}
+                  required
+                />
+              </div>
+              <div className={resolveClasses(styles.fieldGrid)}>
+                <div>
+                  <label htmlFor="username">{t("用户名")}</label>
+                  <FormInput
+                    id="username"
+                    name="username"
+                    type="text"
+                    placeholder="admin"
+                    autoComplete="username"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="password">{t("密码")}</label>
+                  <FormInput
+                    id="password"
+                    name="password"
+                    type="password"
+                    placeholder={t("输入密码")}
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+              </div>
+              <label className={resolveClasses("check-row")} htmlFor="skip-tls">
+                <FormInput
+                  id="skip-tls"
+                  name="skip_tls_verify"
+                  type="checkbox"
+                  checked={skipTlsVerify}
+                  onChange={(event) => {
+                    setSkipTlsVerify(event.currentTarget.checked);
+                  }}
+                />
+                <span>
+                  <b>{t("允许自签名证书")}</b>
+                  <small>{t("仅在内网测试环境中启用")}</small>
+                </span>
+              </label>
+              {error ? (
+                <div
+                  id="connect-error"
+                  className={resolveClasses(styles.formError)}
+                  role="alert"
+                >
+                  {error}
+                </div>
+              ) : null}
+              <button
+                id="connect-submit"
+                className={resolveClasses("button button-primary button-wide")}
+                type="submit"
+                disabled={busy !== null}
+              >
+                <span>
+                  {busy === "connect" ? t("正在验证连接...") : t("连接实例")}
+                </span>
+                {busy === "connect" ? (
+                  <span className={resolveClasses("spinner button-spinner")} />
+                ) : (
+                  <Icon name="arrow-right" />
+                )}
+              </button>
+            </form>
+          </FormErrorsContext>
+          <div className={resolveClasses(styles.demoRow)}>
             <span>{t("还没有可用实例？")}</span>
             <button
               id="demo-button"
-              className="text-button"
+              className={resolveClasses(styles.textButton)}
               type="button"
               disabled={busy !== null}
               onClick={() => void enterDemo()}
@@ -309,7 +354,7 @@ export function LoginPage({
           </div>
           <button
             id="public-catalog-button"
-            className="public-catalog-entry"
+            className={resolveClasses(styles.publicCatalogEntry)}
             type="button"
             disabled={busy !== null}
             onClick={openPublicCatalog}
@@ -323,7 +368,7 @@ export function LoginPage({
           </button>
         </section>
       </main>
-      <footer className="connect-footer">
+      <footer className={resolveClasses(styles.connectFooter)}>
         <span>Harbor API v2</span>
         <span>{t("凭据不写入磁盘")}</span>
         <span>{t("适配桌面与移动设备")}</span>
@@ -331,3 +376,31 @@ export function LoginPage({
     </div>
   );
 }
+
+const resolveClasses = createClassNames({
+  "connect-view": sharedPrimitiveStyles.connectView,
+  icon: uiStyles0.icon,
+  "language-switch": uiStyles0.languageSwitch,
+  "unified-select": uiStyles0.unifiedSelect,
+  eyebrow: uiStyles0.eyebrow,
+  "url-input-group": uiStyles0.urlInputGroup,
+  "check-row": uiStyles0.checkRow,
+  button: uiStyles0.button,
+  "button-primary": uiStyles0.buttonPrimary,
+  "button-wide": uiStyles0.buttonWide,
+  spinner: uiStyles0.spinner,
+  "button-spinner": uiStyles0.buttonSpinner,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

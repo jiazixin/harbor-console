@@ -1,0 +1,147 @@
+@layer ui-logs {
+  .executionSummaryHead {
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@layer ui-logs {
+  .executionSummaryHead > div {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-logs {
+  .executionStats {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    margin: 0;
+    padding: 14px 0;
+  }
+}
+
+@layer ui-logs {
+  .executionStats > div {
+    min-width: 0;
+    padding: 0 12px;
+    border-left: 1px solid var(--line);
+  }
+}
+
+@layer ui-logs {
+  .executionStats > div:first-child {
+    border-left: 0;
+  }
+}
+
+@layer ui-logs {
+  .executionStats dt {
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-logs {
+  .executionStats dd {
+    margin: 4px 0 0;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 750;
+  }
+}
+
+@layer ui-logs {
+  .executionStats dd:global(.hc_8b938f52_successText) {
+    color: var(--green);
+  }
+}
+
+@layer ui-logs {
+  .executionStats dd:global(.hc_8b938f52_dangerText) {
+    color: var(--red);
+  }
+}
+
+@layer ui-logs {
+  .executionStatusText {
+    margin: 0;
+    padding: 12px 16px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+
+@layer ui-logs {
+  @media (max-width: 900px) {
+    .executionStats {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px 0;
+    }
+  }
+}
+
+@layer ui-logs {
+  @media (max-width: 900px) {
+    .executionStats > div:nth-child(4) {
+      border-left: 0;
+    }
+  }
+}
+
+@layer ui-logs {
+  @media (max-width: 620px) {
+    .executionStats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+}
+
+@layer ui-logs {
+  @media (max-width: 620px) {
+    .executionStats > div:nth-child(odd) {
+      border-left: 0;
+    }
+  }
+}
+
+@layer ui-logs {
+  @media (max-width: 620px) {
+    .executionStats > div:nth-child(4) {
+      border-left: 1px solid var(--line);
+    }
+  }
+}
+
+@layer ui-logs {
+  @media (max-width: 620px) {
+    .executionSummaryHead,
+    :global(.hc_8b938f52_compactHeading),
+    :global(.hc_8b938f52_registryDialogActions) {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.executionSummaryHead {
+}
+.executionStats {
+}
+.executionStatusText {
+}

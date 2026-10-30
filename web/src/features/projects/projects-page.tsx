@@ -1,18 +1,18 @@
-import { useMemo, useState } from "react";
-
-import { formatNumber } from "../../app/formatters";
-import type { ConsoleRoute } from "../../app/hash-router";
+import { useState } from "react";
+import type { ConsoleRoute } from "../../app/console-route";
 import { useLocale } from "../../app/locale-context";
 import type { ProjectSummary, Session } from "../../app/models";
-import { Pagination } from "../../components/data-table";
+import { DemoBanner } from "../../components/demo-banner";
 import { EmptyState } from "../../components/empty-state";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
-import {
-  DemoBanner,
-  PageHeader,
-  RefreshButton,
-} from "../../components/page-elements";
+import { ErrorView } from "../../components/error-view";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { Pagination } from "../../components/pagination";
+import { RefreshButton } from "../../components/refresh-button";
+import uiStyles0 from "../../components/shared-ui.module.css";
+import { createClassNames } from "../../lib/css/class-names";
+import { formatNumber } from "../../lib/format/formatters";
+import { ProjectFilterForm } from "./project-filter-form";
 import {
   pageSizeOptions,
   parseProjectRoute,
@@ -21,11 +21,20 @@ import {
   type ProjectRouteState,
   useProjectList,
 } from "./project-list-data";
-import {
-  ProjectFilterForm,
-  ProjectOverviewStats,
-  ProjectTable,
-} from "./project-list-views";
+import { ProjectOverviewStats } from "./project-overview-stats";
+import { ProjectTable } from "./project-table";
+import uiStyles1 from "./projects-page.module.css";
+
+type ProjectsPageProps = {
+  route: ConsoleRoute;
+  session: Session;
+  refreshing: boolean;
+  navigate: (path: string) => void;
+  onRefresh: () => Promise<void>;
+  onCreateProject: () => void;
+  onDeleteProjects: (projects: ProjectSummary[]) => void;
+  onExportProjectCve: (project: ProjectSummary) => void;
+};
 
 export function ProjectsPage({
   route,
@@ -36,20 +45,11 @@ export function ProjectsPage({
   onCreateProject,
   onDeleteProjects,
   onExportProjectCve,
-}: {
-  route: ConsoleRoute;
-  session: Session;
-  refreshing: boolean;
-  navigate: (path: string) => void;
-  onRefresh: () => Promise<void>;
-  onCreateProject: () => void;
-  onDeleteProjects: (projects: ProjectSummary[]) => void;
-  onExportProjectCve: (project: ProjectSummary) => void;
-}) {
+}: ProjectsPageProps) {
   const { locale, t } = useLocale();
   const routeKey = route.query.toString();
   // The query string captures every route field, so parsing reruns only on navigation.
-  const routeState = useMemo(() => parseProjectRoute(route), [routeKey]);
+  const routeState = (() => parseProjectRoute(route))();
   const list = useProjectList(routeState, locale);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<number>>(
     new Set(),
@@ -64,9 +64,10 @@ export function ProjectsPage({
   const selectedProjects = projects.filter((project) =>
     selectedIds.has(projectNumber(project.project_id)),
   );
-  const updateRoute = (updates: Partial<ProjectRouteState>) =>
+  const updateRoute = (updates: Partial<ProjectRouteState>) => {
     navigate(projectPath({ ...routeState, ...updates }));
-  const selectProject = (project: ProjectSummary, selected: boolean) =>
+  };
+  const selectProject = (project: ProjectSummary, selected: boolean) => {
     setSelectedIds((current) => {
       const next = new Set(current);
       const id = projectNumber(project.project_id);
@@ -74,6 +75,7 @@ export function ProjectsPage({
       else next.delete(id);
       return next;
     });
+  };
 
   return (
     <>
@@ -89,7 +91,7 @@ export function ProjectsPage({
               }}
             />
             <button
-              className="button button-small button-primary"
+              className={resolveClasses("button button-small button-primary")}
               type="button"
               onClick={onCreateProject}
             >
@@ -105,26 +107,32 @@ export function ProjectsPage({
         error={list.overviewError}
       />
       {list.overviewError ? (
-        <div className="notice notice-warning" role="status">
+        <div className={resolveClasses("notice notice-warning")} role="status">
           <Icon name="alert" />
           <span>
             {t("项目概览统计载入失败")}：{list.overviewError}
           </span>
         </div>
       ) : null}
-      <section className="table-shell">
+      <section className={resolveClasses("table-shell")}>
         <ProjectFilterForm
           filters={routeState}
-          onApply={(filters) => updateRoute({ page: 1, ...filters })}
+          onApply={(filters) => {
+            updateRoute({ page: 1, ...filters });
+          }}
         />
-        <div className="artifact-batch-toolbar project-batch-toolbar">
+        <div
+          className={resolveClasses(
+            "artifact-batch-toolbar project-batch-toolbar",
+          )}
+        >
           <span>
             <strong>{formatNumber(selectedProjects.length, locale)}</strong>{" "}
             {t("个已选择")}
           </span>
           <div>
             <button
-              className="button button-small"
+              className={resolveClasses("button button-small")}
               type="button"
               disabled={selectedProjects.length !== 1}
               onClick={() => {
@@ -136,10 +144,12 @@ export function ProjectsPage({
               <span>{t("导出 CVE")}</span>
             </button>
             <button
-              className="button button-small button-danger"
+              className={resolveClasses("button button-small button-danger")}
               type="button"
               disabled={!selectedProjects.length}
-              onClick={() => onDeleteProjects(selectedProjects)}
+              onClick={() => {
+                onDeleteProjects(selectedProjects);
+              }}
             >
               <Icon name="trash" />
               <span>{t("删除项目")}</span>
@@ -149,11 +159,14 @@ export function ProjectsPage({
         <div aria-busy={list.tableLoading}>
           {list.tableLoading && !list.table ? (
             <div
-              className="route-loading"
+              className={resolveClasses("route-loading")}
               role="status"
               aria-label={t("正在载入")}
             >
-              <span className="spinner spinner-small" aria-hidden="true" />
+              <span
+                className={resolveClasses("spinner spinner-small")}
+                aria-hidden="true"
+              />
             </div>
           ) : null}
           {list.tableError ? (
@@ -175,9 +188,11 @@ export function ProjectsPage({
               projects={projects}
               selectedIds={selectedIds}
               sort={routeState.sort}
-              onSort={(sort) => updateRoute({ page: 1, sort })}
+              onSort={(sort) => {
+                updateRoute({ page: 1, sort });
+              }}
               onSelect={selectProject}
-              onSelectAll={(selected) =>
+              onSelectAll={(selected) => {
                 setSelectedIds(
                   selected
                     ? new Set(
@@ -186,23 +201,59 @@ export function ProjectsPage({
                         ),
                       )
                     : new Set(),
-                )
-              }
-              onOpen={(project) =>
-                navigate(`projects/${encodeURIComponent(project.name)}`)
-              }
+                );
+              }}
+              onOpen={(project) => {
+                navigate(`projects/${encodeURIComponent(project.name)}`);
+              }}
             />
           ) : null}
         </div>
         {!list.tableError && list.table ? (
           <Pagination
             pagination={list.table.pagination}
-            onPageChange={(page) => updateRoute({ page })}
+            onPageChange={(page) => {
+              updateRoute({ page });
+            }}
             pageSizeOptions={pageSizeOptions}
-            onPageSizeChange={(pageSize) => updateRoute({ page: 1, pageSize })}
+            onPageSizeChange={(pageSize) => {
+              updateRoute({ page: 1, pageSize });
+            }}
           />
         ) : null}
       </section>
     </>
   );
 }
+
+const resolveClasses = createClassNames({
+  "empty-state": uiStyles0.emptyState,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "button-primary": uiStyles0.buttonPrimary,
+  notice: uiStyles0.notice,
+  "notice-warning": uiStyles0.noticeWarning,
+  "table-shell": uiStyles0.tableShell,
+  "artifact-batch-toolbar": uiStyles0.artifactBatchToolbar,
+  "button-danger": uiStyles0.buttonDanger,
+  "route-loading": uiStyles0.routeLoading,
+  spinner: uiStyles0.spinner,
+  "spinner-small": uiStyles0.spinnerSmall,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+  "project-batch-toolbar": uiStyles1.projectBatchToolbar,
+});

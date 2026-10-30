@@ -1,24 +1,27 @@
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
-import { request } from "../../app/api-client";
-import { formatBytes, formatDate, formatNumber } from "../../app/formatters";
+import { type ReactNode } from "react";
+import { api } from "../../app/api-client";
+import { describeDashboardWarning } from "../../app/api-errors";
 import { useLocale } from "../../app/locale-context";
 import type { Dashboard, Session, SystemVolumes } from "../../app/models";
+import { displayTimeZone } from "../../app/preferences";
+import { useLoadedQuery } from "../../app/use-loaded-query";
 import { DefinitionList } from "../../components/definition-list";
+import { DemoBanner } from "../../components/demo-banner";
 import { EmptyState } from "../../components/empty-state";
-import { Icon } from "../../components/icons";
-import {
-  DemoBanner,
-  PageHeader,
-  RefreshButton,
-} from "../../components/page-elements";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { RefreshButton } from "../../components/refresh-button";
+import uiStyles0 from "../../components/shared-ui.module.css";
 import { StatusBadge } from "../../components/status-badge";
+import { createClassNames } from "../../lib/css/class-names";
+import {
+  formatBytes,
+  formatDate,
+  formatDecimal,
+  formatNumber,
+} from "../../lib/format/formatters";
+import { systemKeys } from "./system-keys";
+import styles from "./system.module.css";
 
 function authModeLabel(value: string | undefined): string {
   return (
@@ -49,18 +52,16 @@ function componentLabel(value: string | undefined): string {
   );
 }
 
-function PanelHeader({
-  title,
-  subtitle,
-  action,
-}: {
+type PanelHeaderProps = {
   title: string;
   subtitle: string;
   action?: ReactNode;
-}) {
+};
+
+function PanelHeader({ title, subtitle, action }: PanelHeaderProps) {
   const { t } = useLocale();
   return (
-    <div className="panel-head">
+    <div className={resolveClasses("panel-head")}>
       <div>
         <h2>{t(title)}</h2>
         <p>{t(subtitle)}</p>
@@ -70,45 +71,27 @@ function PanelHeader({
   );
 }
 
+type SystemPageProps = {
+  session: Session;
+  dashboard: Dashboard;
+  refreshing: boolean;
+  onRefresh: () => void;
+};
+
 export function SystemPage({
   session,
   dashboard,
   refreshing,
   onRefresh,
-}: {
-  session: Session;
-  dashboard: Dashboard;
-  refreshing: boolean;
-  onRefresh: () => void;
-}) {
+}: SystemPageProps) {
   const { locale, t } = useLocale();
-  const [volumes, setVolumes] = useState<SystemVolumes>();
-  const [volumeError, setVolumeError] = useState("");
-  const [version, setVersion] = useState(0);
-  const requestVersion = useRef(0);
-  const reload = useCallback(() => setVersion((current) => current + 1), []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const current = requestVersion.current + 1;
-    requestVersion.current = current;
-    setVolumes(undefined);
-    setVolumeError("");
-    void request<SystemVolumes>("/api/resources/volumes", {
-      signal: controller.signal,
-    })
-      .then((data) => {
-        if (!controller.signal.aborted && requestVersion.current === current)
-          setVolumes(data);
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted || requestVersion.current !== current)
-          return;
-        setVolumeError(error instanceof Error ? error.message : String(error));
-        setVolumes({});
-      });
-    return () => controller.abort();
-  }, [version]);
+  const volumesQuery = useSystemData();
+  // A failed load shows the error beside empty storage, not a spinner.
+  const volumes: SystemVolumes | undefined = volumesQuery.error
+    ? {}
+    : volumesQuery.data;
+  const volumeError = volumesQuery.error;
+  const reload = volumesQuery.reload;
 
   const system = dashboard.systeminfo ?? {};
   const health = dashboard.health ?? {};
@@ -142,13 +125,16 @@ export function SystemPage({
       />
       {session.demo ? <DemoBanner /> : null}
       {(dashboard.warnings ?? []).map((warning) => (
-        <div className="notice notice-warning" key={warning}>
+        <div
+          className={resolveClasses("notice notice-warning")}
+          key={`${warning.source}:${warning.code}`}
+        >
           <Icon name="alert" />
-          <span>{warning}</span>
+          <span>{describeDashboardWarning(warning, locale)}</span>
         </div>
       ))}
-      <div className="system-grid">
-        <section className="panel">
+      <div className={resolveClasses(styles.systemGrid)}>
+        <section className={resolveClasses("panel")}>
           <PanelHeader
             title="实例信息"
             subtitle="Harbor 运行配置"
@@ -187,7 +173,7 @@ export function SystemPage({
             ]}
           />
         </section>
-        <section className="panel">
+        <section className={resolveClasses("panel")}>
           <PanelHeader
             title="核心组件"
             subtitle={
@@ -196,11 +182,11 @@ export function SystemPage({
                 : `${formatNumber(components.length, locale)} 个服务`
             }
           />
-          <div className="component-list">
+          <div className={resolveClasses(styles.componentList)}>
             {components.length ? (
               components.map((component, index) => (
                 <div
-                  className="component-row"
+                  className={resolveClasses(styles.componentRow)}
                   key={`${component.name ?? "component"}-${String(index)}`}
                 >
                   <span>{t(componentLabel(component.name))}</span>
@@ -216,53 +202,72 @@ export function SystemPage({
             )}
           </div>
         </section>
-        <section className="panel">
+        <section className={resolveClasses("panel")}>
           <PanelHeader title="存储容量" subtitle="制品存储后端" />
-          {volumeError ? (
-            <div className="notice notice-warning notice-inset">
-              <Icon name="alert" />
-              <span>{volumeError}</span>
-            </div>
-          ) : total > 0 ? (
-            <div className="volume-meter">
-              <div className="volume-value">
-                <strong>{formatBytes(used, locale)}</strong>
-                <span>
-                  {t("总容量")} {formatBytes(total, locale)}
-                </span>
+          {(() => {
+            if (volumeError) {
+              return (
+                <div
+                  className={resolveClasses(
+                    `notice notice-warning ${styles.noticeInset}`,
+                  )}
+                >
+                  <Icon name="alert" />
+                  <span>{volumeError}</span>
+                </div>
+              );
+            }
+            if (total > 0) {
+              return (
+                <div className={resolveClasses(styles.volumeMeter)}>
+                  <div className={resolveClasses(styles.volumeValue)}>
+                    <strong>{formatBytes(used, locale)}</strong>
+                    <span>
+                      {t("总容量")} {formatBytes(total, locale)}
+                    </span>
+                  </div>
+                  <progress
+                    className={resolveClasses(styles.volumeTrack)}
+                    max={100}
+                    value={percent}
+                    aria-label={`${t("存储空间已使用")} ${formatDecimal(percent)}%`}
+                  />
+                  <p className={resolveClasses("muted")}>
+                    {locale === "en-US"
+                      ? `${formatDecimal(percent)}% used, ${formatBytes(free, locale)} remaining`
+                      : `已使用 ${formatDecimal(percent)}%，剩余 ${formatBytes(free, locale)}`}
+                  </p>
+                </div>
+              );
+            }
+            if (volumes) {
+              return (
+                <div
+                  className={resolveClasses(
+                    `notice notice-warning ${styles.noticeInset}`,
+                  )}
+                >
+                  <Icon name="alert" />
+                  <span>
+                    {t(
+                      "Harbor 未返回本地存储容量；使用外部对象存储时属于正常情况。",
+                    )}
+                  </span>
+                </div>
+              );
+            }
+            return (
+              <div
+                className={resolveClasses("route-loading")}
+                role="status"
+                aria-label={t("正在载入")}
+              >
+                <span className={resolveClasses("spinner spinner-small")} />
               </div>
-              <progress
-                className="volume-track"
-                max={100}
-                value={percent}
-                aria-label={`${t("存储空间已使用")} ${percent.toFixed(1)}%`}
-              />
-              <p className="muted">
-                {locale === "en-US"
-                  ? `${percent.toFixed(1)}% used, ${formatBytes(free, locale)} remaining`
-                  : `已使用 ${percent.toFixed(1)}%，剩余 ${formatBytes(free, locale)}`}
-              </p>
-            </div>
-          ) : volumes ? (
-            <div className="notice notice-warning notice-inset">
-              <Icon name="alert" />
-              <span>
-                {t(
-                  "Harbor 未返回本地存储容量；使用外部对象存储时属于正常情况。",
-                )}
-              </span>
-            </div>
-          ) : (
-            <div
-              className="route-loading"
-              role="status"
-              aria-label={t("正在载入")}
-            >
-              <span className="spinner spinner-small" />
-            </div>
-          )}
+            );
+          })()}
         </section>
-        <section className="panel">
+        <section className={resolveClasses("panel")}>
           <PanelHeader title="连接会话" subtitle="控制台本地会话信息" />
           <DefinitionList
             rows={[
@@ -278,12 +283,53 @@ export function SystemPage({
               },
               {
                 label: t("会话到期"),
-                value: formatDate(session.expires_at, locale),
+                value: formatDate(session.expires_at, {
+                  locale: locale,
+                  timeZone: displayTimeZone(),
+                }),
               },
             ]}
           />
         </section>
       </div>
     </>
+  );
+}
+
+const resolveClasses = createClassNames({
+  "definition-list": uiStyles0.definitionList,
+  "empty-state": uiStyles0.emptyState,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  "status-badge": uiStyles0.statusBadge,
+  "panel-head": uiStyles0.panelHead,
+  notice: uiStyles0.notice,
+  "notice-warning": uiStyles0.noticeWarning,
+  panel: uiStyles0.panel,
+  muted: uiStyles0.muted,
+  "route-loading": uiStyles0.routeLoading,
+  spinner: uiStyles0.spinner,
+  "spinner-small": uiStyles0.spinnerSmall,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});
+
+function useSystemData() {
+  return useLoadedQuery(
+    systemKeys.volumes,
+    (signal) => api<SystemVolumes>("/api/resources/volumes", { signal }),
+    { keepPrevious: false },
   );
 }

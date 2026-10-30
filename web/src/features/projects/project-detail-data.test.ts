@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
 import { loadProjectPage } from "./project-detail-data";
 import type { ProjectDetailRoute } from "./project-detail-routing";
@@ -41,15 +40,15 @@ afterEach(() => vi.restoreAllMocks());
 describe("project section loading", () => {
   it("keeps policies visible when preheat provider discovery fails", async () => {
     mockProjectRequests(new Error("provider unavailable"));
-    const result = await loadProjectPage(
-      route,
-      new AbortController().signal,
-      true,
-      "en-US",
-    );
+    const result = await loadProjectPage({
+      route: route,
+      signal: new AbortController().signal,
+      isSystemAdmin: true,
+      locale: "en-US",
+    });
     expect(result.preheatPolicies).toEqual([{ id: 7, name: "warm-cache" }]);
     expect(result.preheatProviders).toEqual([]);
-    expect(result.preheatErrors).toEqual(["provider unavailable"]);
+    expect(result.preheatErrors).toEqual(["请求失败"]);
     expect(result.preheatPagination.total).toBe(1);
   });
 
@@ -57,18 +56,23 @@ describe("project section loading", () => {
     const cancellation = new DOMException("cancelled", "AbortError");
     mockProjectRequests(cancellation);
     await expect(
-      loadProjectPage(route, new AbortController().signal, true, "en-US"),
+      loadProjectPage({
+        route: route,
+        signal: new AbortController().signal,
+        isSystemAdmin: true,
+        locale: "en-US",
+      }),
     ).rejects.toBe(cancellation);
   });
 
   it("does not request section data without the required permission", async () => {
     const list = mockProjectRequests(new Error("must not request providers"));
-    const result = await loadProjectPage(
-      route,
-      new AbortController().signal,
-      false,
-      "en-US",
-    );
+    const result = await loadProjectPage({
+      route: route,
+      signal: new AbortController().signal,
+      isSystemAdmin: false,
+      locale: "en-US",
+    });
     expect(result.permissionDenied).toBe(true);
     expect(list.mock.calls.map(([operation]) => operation)).toEqual([
       "repositories",
@@ -76,8 +80,8 @@ describe("project section loading", () => {
     ]);
     expect(controlApi.data).not.toHaveBeenCalledWith(
       "project-preheat-providers",
-      expect.anything(),
-      expect.anything(),
+      expect.anything() as unknown,
+      expect.anything() as unknown,
     );
   });
 });

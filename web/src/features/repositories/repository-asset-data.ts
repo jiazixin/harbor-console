@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-
 import { loadAllControlItems } from "../../app/api-client";
-import type { ConsoleRoute } from "../../app/hash-router";
+import type { ConsoleRoute } from "../../app/console-route";
+import { errorText, UserInputError } from "../../app/errors";
 import type {
   ControlPagination,
   Locale,
   ProjectSummary,
   RepositorySummary,
 } from "../../app/models";
-import { createSortValues } from "../../components/data-table";
+import { useLoadedQuery } from "../../app/use-loaded-query";
+import { createSortValues } from "../../components/data-table-support";
+import { repositoryKeys } from "./repository-keys";
 import { compareRepositories } from "./repository-sorting";
 
 const defaultPageSize = 50;
@@ -100,10 +101,6 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 async function loadProjectRepositories(
   project: string,
   signal: AbortSignal,
@@ -136,6 +133,7 @@ async function loadRepositoryAssets(
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
       const project = projects[nextProjectIndex];
       nextProjectIndex += 1;
+      if (!project) break;
       try {
         repositories.push(
           ...(await loadProjectRepositories(project.name, signal)),
@@ -147,36 +145,17 @@ async function loadRepositoryAssets(
     }
   });
   await Promise.all(workers);
-  if (!repositories.length && failures.length) throw new Error(failures[0]);
+  const firstFailure = failures[0];
+  if (!repositories.length && firstFailure)
+    throw new UserInputError(firstFailure);
   return { repositories, failures };
 }
 
 export function useRepositoryAssets(projects: ProjectSummary[]) {
-  const [data, setData] = useState<RepositoryAssetData>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [reloadToken, setReloadToken] = useState(0);
-  const reload = useCallback(
-    () => setReloadToken((current) => current + 1),
-    [],
+  return useLoadedQuery(
+    repositoryKeys.assets(projects.map((project) => project.name)),
+    (signal) => loadRepositoryAssets(projects, signal),
   );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true);
-    setError("");
-    void loadRepositoryAssets(projects, controller.signal)
-      .then(setData)
-      .catch((loadError: unknown) => {
-        if (!isAbortError(loadError)) setError(errorText(loadError));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [projects, reloadToken]);
-
-  return { data, loading, error, reload };
 }
 
 /** Filters, sorts and pages the loaded repositories for the current route. */
@@ -185,7 +164,7 @@ export function useRepositoryAssetPage(
   route: RepositoryAssetRoute,
   locale: Locale,
 ): { visible: RepositoryAsset[]; pagination: ControlPagination } {
-  const matching = useMemo(() => {
+  const matching = (() => {
     const term = route.query.trim().toLocaleLowerCase(locale);
     const matchesTerm = (repository: RepositoryAsset) =>
       !term ||
@@ -198,9 +177,14 @@ export function useRepositoryAssetPage(
           matchesTerm(repository),
       )
       .toSorted((left, right) =>
-        compareRepositories(left, right, route.sort, locale),
+        compareRepositories({
+          left: left,
+          right: right,
+          sort: route.sort,
+          locale: locale,
+        }),
       );
-  }, [locale, repositories, route.project, route.query, route.sort]);
+  })();
 
   const totalPages = Math.max(1, Math.ceil(matching.length / route.pageSize));
   const page = Math.min(route.page, totalPages);

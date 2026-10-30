@@ -1,0 +1,2 @@
+go test fuzz v1
+string("http://localhost:8080/path")

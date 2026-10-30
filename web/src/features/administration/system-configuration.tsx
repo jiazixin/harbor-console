@@ -1,27 +1,37 @@
-import { type SubmitEvent, useMemo, useState } from "react";
-
-import { controlApi } from "../../app/api-client";
+import { type SubmitEvent, useState } from "react";
 import { globalAuditOperationLabel } from "../../app/audit-log";
+import { parseBanner } from "../../app/banner-schema";
+import { errorText } from "../../app/errors";
 import { useLocale } from "../../app/locale-context";
 import type { HarborConfiguration } from "../../app/models";
-import { Icon } from "../../components/icons";
+import { useControlMutation } from "../../app/use-control-mutation";
+import { formErrors, FormErrorsContext } from "../../components/form-errors";
+import { FormInput } from "../../components/form-input";
+import { FormTextarea } from "../../components/form-textarea";
+import { Icon } from "../../components/icon";
+import uiStyles0 from "../../components/shared-ui.module.css";
 import { ToggleSetting } from "../../components/toggle-setting";
 import { UnifiedSelect } from "../../components/unified-select";
+import { createClassNames } from "../../lib/css/class-names";
+import { administrationKeys } from "./administration-keys";
+import styles from "./administration.module.css";
 import {
   addEditable,
-  ConfigurationFormHeader,
-  ConfigurationGroup,
-  type ConfigurationPayload,
-  ConfigurationSaveButton,
   configurationBoolean,
   configurationEditable,
+  type ConfigurationPayload,
   configurationString,
-  ConfigurationTextField,
-  ConfigurationToggle,
   configurationValue,
-  errorMessage,
   formString,
-} from "./configuration-fields";
+} from "./configuration-fields-support";
+import { ConfigurationFormHeader } from "./configuration-form-header";
+import { ConfigurationGroup } from "./configuration-group";
+import { ConfigurationSaveButton } from "./configuration-save-button";
+import { ConfigurationTextField } from "./configuration-text-field";
+import { ConfigurationToggle } from "./configuration-toggle";
+
+// Queries that a write in this module can change.
+const affectedQueries = [administrationKeys.all];
 
 type BannerConfiguration = {
   message: string;
@@ -32,40 +42,18 @@ type BannerConfiguration = {
 };
 
 function bannerConfiguration(value: unknown): BannerConfiguration {
-  try {
-    const parsed: unknown = JSON.parse(typeof value === "string" ? value : "");
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-      throw new Error("Invalid banner configuration");
-    const record = parsed as Record<string, unknown>;
-    const type =
-      typeof record.type === "string" &&
-      ["danger", "info", "success", "warning"].includes(record.type)
-        ? (record.type as BannerConfiguration["type"])
-        : "warning";
-    return {
-      message: typeof record.message === "string" ? record.message : "",
-      type,
-      closable: Boolean(record.closable),
-      fromDate:
-        typeof record.fromDate === "string" ? record.fromDate.slice(0, 10) : "",
-      toDate:
-        typeof record.toDate === "string" ? record.toDate.slice(0, 10) : "",
-    };
-  } catch {
-    return {
-      message: "",
-      type: "warning",
-      closable: false,
-      fromDate: "",
-      toDate: "",
-    };
-  }
+  const banner = parseBanner(value);
+  return {
+    ...banner,
+    fromDate: banner.fromDate.slice(0, 10),
+    toDate: banner.toDate.slice(0, 10),
+  };
 }
 
 function storageGigabytes(value: unknown): number {
   const bytes = Number(value);
   if (bytes < 0) return -1;
-  return Number((bytes / 1024 ** 3).toFixed(2));
+  return Math.round((bytes / 1024 ** 3) * 100) / 100;
 }
 
 function systemToggles(configuration: HarborConfiguration) {
@@ -87,13 +75,15 @@ type SettingsGroupProps = {
   setToggle: (key: keyof SystemToggles, value: boolean) => void;
 };
 
+type AccountAndProjectSettingsProps = {
+  configuration: HarborConfiguration;
+  hasRootCertificate: boolean;
+};
+
 function AccountAndProjectSettings({
   configuration,
   hasRootCertificate,
-}: {
-  configuration: HarborConfiguration;
-  hasRootCertificate: boolean;
-}) {
+}: AccountAndProjectSettingsProps) {
   const { t } = useLocale();
   const [projectCreationRestriction, setProjectCreationRestriction] = useState(
     configurationString(
@@ -107,8 +97,8 @@ function AccountAndProjectSettings({
       title="账号与项目"
       description="全局账号期限和项目创建规则"
     >
-      <div className="form-grid two-columns">
-        <label className="field">
+      <div className={resolveClasses("form-grid two-columns")}>
+        <label className={resolveClasses("field")}>
           <span>{t("项目创建权限")}</span>
           <UnifiedSelect
             ariaLabel={t("项目创建权限")}
@@ -163,7 +153,7 @@ function AccountAndProjectSettings({
         />
       </div>
       {hasRootCertificate ? (
-        <div className="system-certificate-row">
+        <div className={resolveClasses(styles.systemCertificateRow)}>
           <Icon name="external" />
           <span>
             <strong>{t("Harbor 根证书")}</strong>
@@ -172,8 +162,8 @@ function AccountAndProjectSettings({
             </small>
           </span>
           <a
-            className="button button-small"
-            href="/api/control/system-root-certificate"
+            className={resolveClasses("button button-small")}
+            href="/api/operations/system-root-certificate"
             download
           >
             <Icon name="external" />
@@ -196,14 +186,16 @@ function RuntimePolicySettings({
       title="运行策略"
       description="写入、通知、扫描和默认配额"
     >
-      <div className="settings-grid">
+      <div className={resolveClasses("settings-grid")}>
         <ConfigurationToggle
           configuration={configuration}
           configKey="read_only"
           title="只读模式"
           description="阻止制品推送、删除和复制写入"
           checked={toggles.read_only}
-          onChange={(value) => setToggle("read_only", value)}
+          onChange={(value) => {
+            setToggle("read_only", value);
+          }}
         />
         <ConfigurationToggle
           configuration={configuration}
@@ -211,7 +203,9 @@ function RuntimePolicySettings({
           title="启用 Webhook 通知"
           description="允许 Harbor 发送事件通知"
           checked={toggles.notification_enable}
-          onChange={(value) => setToggle("notification_enable", value)}
+          onChange={(value) => {
+            setToggle("notification_enable", value);
+          }}
         />
         <ConfigurationToggle
           configuration={configuration}
@@ -219,7 +213,9 @@ function RuntimePolicySettings({
           title="扫描不更新拉取时间"
           description="扫描器拉取制品时不修改拉取时间"
           checked={toggles.scanner_skip_update_pulltime}
-          onChange={(value) => setToggle("scanner_skip_update_pulltime", value)}
+          onChange={(value) => {
+            setToggle("scanner_skip_update_pulltime", value);
+          }}
         />
         <ConfigurationToggle
           configuration={configuration}
@@ -227,13 +223,19 @@ function RuntimePolicySettings({
           title="启用项目配额"
           description="为新建项目应用默认存储限制"
           checked={toggles.quota_per_project_enable}
-          onChange={(value) => setToggle("quota_per_project_enable", value)}
+          onChange={(value) => {
+            setToggle("quota_per_project_enable", value);
+          }}
         />
       </div>
-      <div className="form-grid two-columns admin-config-fields">
-        <label className="field">
+      <div
+        className={resolveClasses(
+          `form-grid two-columns ${styles.adminConfigFields}`,
+        )}
+      >
+        <label className={resolveClasses("field")}>
           <span>{t("默认项目配额（GiB）")}</span>
-          <input
+          <FormInput
             name="storage_per_project_gb"
             type="number"
             min={-1}
@@ -245,7 +247,9 @@ function RuntimePolicySettings({
               !configurationEditable(configuration, "storage_per_project")
             }
           />
-          <small className="field-help">{t("输入 -1 表示不限制。")}</small>
+          <small className={resolveClasses("field-help")}>
+            {t("输入 -1 表示不限制。")}
+          </small>
         </label>
       </div>
     </ConfigurationGroup>
@@ -272,10 +276,10 @@ function AuditLogSettings({
   );
   return (
     <ConfigurationGroup title="审计日志" description="外部转发与数据库记录范围">
-      <div className="form-grid two-columns">
-        <label className="field">
+      <div className={resolveClasses("form-grid two-columns")}>
+        <label className={resolveClasses("field")}>
           <span>{t("审计日志转发地址")}</span>
-          <input
+          <FormInput
             name="audit_log_forward_endpoint"
             type="url"
             placeholder="https://audit.example.com/events"
@@ -301,67 +305,86 @@ function AuditLogSettings({
             description="仅使用外部审计转发时启用"
             checked={toggles.skip_audit_log_database}
             disabled={!auditEndpoint.trim()}
-            onChange={(value) => setToggle("skip_audit_log_database", value)}
+            onChange={(value) => {
+              setToggle("skip_audit_log_database", value);
+            }}
           />
         </div>
       </div>
-      {auditEventsError ? (
-        <div className="notice notice-warning settings-warning">
-          <Icon name="alert" />
-          <span>
-            {t("审计事件类型载入失败")}：{auditEventsError}
-          </span>
-        </div>
-      ) : auditEvents.length ? (
-        <fieldset
-          className="audit-event-config"
-          disabled={
-            !configurationEditable(
-              configuration,
-              "disabled_audit_log_event_types",
-            )
-          }
-        >
-          <legend>{t("写入数据库的事件类型")}</legend>
-          <div className="check-grid">
-            {auditEvents.map((eventName) => (
-              <label className="check-row" key={eventName}>
-                <input
-                  name="enabled_audit_event"
-                  type="checkbox"
-                  value={eventName}
-                  checked={enabledAuditEvents.has(eventName)}
-                  onChange={(event) =>
-                    onEnabledAuditEventsChange(
-                      eventName,
-                      event.currentTarget.checked,
-                    )
-                  }
-                />
-                <span>
-                  <strong>
-                    {globalAuditOperationLabel(eventName, locale, t)}
-                  </strong>
-                  <small>{eventName}</small>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ) : null}
+      {(() => {
+        if (auditEventsError) {
+          return (
+            <div
+              className={resolveClasses(
+                "notice notice-warning settings-warning",
+              )}
+            >
+              <Icon name="alert" />
+              <span>
+                {t("审计事件类型载入失败")}：{auditEventsError}
+              </span>
+            </div>
+          );
+        }
+        if (auditEvents.length) {
+          return (
+            <fieldset
+              className={resolveClasses(styles.auditEventConfig)}
+              disabled={
+                !configurationEditable(
+                  configuration,
+                  "disabled_audit_log_event_types",
+                )
+              }
+            >
+              <legend>{t("写入数据库的事件类型")}</legend>
+              <div className={resolveClasses("check-grid")}>
+                {auditEvents.map((eventName) => (
+                  <label
+                    className={resolveClasses("check-row")}
+                    key={eventName}
+                  >
+                    <FormInput
+                      name="enabled_audit_event"
+                      type="checkbox"
+                      value={eventName}
+                      checked={enabledAuditEvents.has(eventName)}
+                      onChange={(event) => {
+                        onEnabledAuditEventsChange(
+                          eventName,
+                          event.currentTarget.checked,
+                        );
+                      }}
+                    />
+                    <span>
+                      <strong>
+                        {globalAuditOperationLabel(eventName, locale, t)}
+                      </strong>
+                      <small>{eventName}</small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          );
+        }
+        return null;
+      })()}
     </ConfigurationGroup>
   );
 }
+
+type BannerSettingsProps = {
+  configuration: HarborConfiguration;
+  banner: BannerConfiguration;
+  onChange: (update: Partial<BannerConfiguration>) => void;
+};
 
 function BannerSettings({
   configuration,
   banner,
   onChange,
-}: {
-  configuration: HarborConfiguration;
-  banner: BannerConfiguration;
-  onChange: (update: Partial<BannerConfiguration>) => void;
-}) {
+}: BannerSettingsProps) {
   const { t } = useLocale();
   const bannerLocked = !configurationEditable(configuration, "banner_message");
   const bannerEnabled = Boolean(banner.message.trim());
@@ -370,22 +393,22 @@ function BannerSettings({
       title="横幅消息"
       description="在控制台顶部向所有用户显示实例公告"
     >
-      <div className="form-grid two-columns">
-        <label className="field field-span">
+      <div className={resolveClasses("form-grid two-columns")}>
+        <label className={resolveClasses("field field-span")}>
           <span>{t("消息内容")}</span>
-          <textarea
+          <FormTextarea
             name="banner_message_text"
             rows={4}
             maxLength={800}
             value={banner.message}
             disabled={bannerLocked}
             placeholder={t("留空表示不显示横幅")}
-            onChange={(event) =>
-              onChange({ message: event.currentTarget.value })
-            }
+            onChange={(event) => {
+              onChange({ message: event.currentTarget.value });
+            }}
           />
         </label>
-        <label className="field">
+        <label className={resolveClasses("field")}>
           <span>{t("消息类型")}</span>
           <UnifiedSelect
             ariaLabel={t("消息类型")}
@@ -398,7 +421,9 @@ function BannerSettings({
               { value: "warning", label: t("警告") },
               { value: "danger", label: t("错误") },
             ]}
-            onChange={(value) => onChange({ type: value })}
+            onChange={(value) => {
+              onChange({ type: value });
+            }}
           />
         </label>
         <div>
@@ -408,31 +433,33 @@ function BannerSettings({
             description={t("显示关闭按钮，用户可隐藏本次公告")}
             checked={banner.closable}
             disabled={bannerLocked || !bannerEnabled}
-            onChange={(value) => onChange({ closable: value })}
+            onChange={(value) => {
+              onChange({ closable: value });
+            }}
           />
         </div>
-        <label className="field">
+        <label className={resolveClasses("field")}>
           <span>{t("开始日期")}</span>
-          <input
+          <FormInput
             name="banner_from_date"
             type="date"
             value={banner.fromDate}
             disabled={bannerLocked || !bannerEnabled}
-            onChange={(event) =>
-              onChange({ fromDate: event.currentTarget.value })
-            }
+            onChange={(event) => {
+              onChange({ fromDate: event.currentTarget.value });
+            }}
           />
         </label>
-        <label className="field">
+        <label className={resolveClasses("field")}>
           <span>{t("结束日期")}</span>
-          <input
+          <FormInput
             name="banner_to_date"
             type="date"
             value={banner.toDate}
             disabled={bannerLocked || !bannerEnabled}
-            onChange={(event) =>
-              onChange({ toDate: event.currentTarget.value })
-            }
+            onChange={(event) => {
+              onChange({ toDate: event.currentTarget.value });
+            }}
           />
         </label>
       </div>
@@ -441,50 +468,71 @@ function BannerSettings({
 }
 
 /** Builds the configuration update; returns an error message when invalid. */
-function systemPayload(
-  configuration: HarborConfiguration,
-  data: FormData,
-  auditEvents: string[],
-  enabledAuditEvents: ReadonlySet<string>,
-  banner: BannerConfiguration,
-): ConfigurationPayload | string {
+function systemPayload({
+  configuration,
+  data,
+  auditEvents,
+  enabledAuditEvents,
+  banner,
+}: {
+  configuration: HarborConfiguration;
+  data: FormData;
+  auditEvents: string[];
+  enabledAuditEvents: ReadonlySet<string>;
+  banner: BannerConfiguration;
+}): ConfigurationPayload | string {
   const payload: ConfigurationPayload = {};
   for (const key of [
     "project_creation_restriction",
     "robot_name_prefix",
     "audit_log_forward_endpoint",
   ]) {
-    addEditable(payload, configuration, key, formString(data, key));
+    addEditable({
+      payload: payload,
+      configuration: configuration,
+      key: key,
+      value: formString(data, key),
+    });
   }
   for (const key of [
     "token_expiration",
     "session_timeout",
     "robot_token_duration",
   ]) {
-    addEditable(payload, configuration, key, Number(data.get(key)));
+    addEditable({
+      payload: payload,
+      configuration: configuration,
+      key: key,
+      value: Number(data.get(key)),
+    });
   }
   for (const key of Object.keys(systemToggles(configuration))) {
-    addEditable(payload, configuration, key, data.has(key));
+    addEditable({
+      payload: payload,
+      configuration: configuration,
+      key: key,
+      value: data.has(key),
+    });
   }
   const storageGiB = Number(data.get("storage_per_project_gb"));
   if (!Number.isInteger(storageGiB) || (storageGiB !== -1 && storageGiB <= 0)) {
     return "默认项目配额必须是 -1 或正整数";
   }
-  addEditable(
-    payload,
-    configuration,
-    "storage_per_project",
-    storageGiB === -1 ? -1 : storageGiB * 1024 ** 3,
-  );
+  addEditable({
+    payload: payload,
+    configuration: configuration,
+    key: "storage_per_project",
+    value: storageGiB === -1 ? -1 : storageGiB * 1024 ** 3,
+  });
   if (auditEvents.length) {
-    addEditable(
-      payload,
-      configuration,
-      "disabled_audit_log_event_types",
-      auditEvents
+    addEditable({
+      payload: payload,
+      configuration: configuration,
+      key: "disabled_audit_log_event_types",
+      value: auditEvents
         .filter((eventName) => !enabledAuditEvents.has(eventName))
         .join(","),
-    );
+    });
   }
   let bannerMessage = "";
   if (banner.message.trim()) {
@@ -499,9 +547,23 @@ function systemPayload(
       toDate: banner.toDate || null,
     });
   }
-  addEditable(payload, configuration, "banner_message", bannerMessage);
+  addEditable({
+    payload: payload,
+    configuration: configuration,
+    key: "banner_message",
+    value: bannerMessage,
+  });
   return payload;
 }
+
+type SystemConfigurationProps = {
+  configuration: HarborConfiguration;
+  auditEvents: string[];
+  auditEventsError?: string;
+  hasRootCertificate: boolean;
+  onReload: () => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
 
 export function SystemConfiguration({
   configuration,
@@ -510,101 +572,137 @@ export function SystemConfiguration({
   hasRootCertificate,
   onReload,
   onNotice,
-}: {
-  configuration: HarborConfiguration;
-  auditEvents: string[];
-  auditEventsError?: string;
-  hasRootCertificate: boolean;
-  onReload: () => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: SystemConfigurationProps) {
+  const mutate = useControlMutation(affectedQueries);
   const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [toggles, setToggles] = useState(() => systemToggles(configuration));
   const [banner, setBanner] = useState(() =>
     bannerConfiguration(configurationValue(configuration, "banner_message")),
   );
-  const disabledAuditEvents = useMemo(
-    () =>
-      new Set(
-        configurationString(configuration, "disabled_audit_log_event_types")
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
-      ),
-    [configuration],
-  );
+  const disabledAuditEvents = (() =>
+    new Set(
+      configurationString(configuration, "disabled_audit_log_event_types")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ))();
   const [enabledAuditEvents, setEnabledAuditEvents] = useState<
     ReadonlySet<string>
   >(
     () =>
       new Set(auditEvents.filter((event) => !disabledAuditEvents.has(event))),
   );
-  const setToggle = (key: keyof SystemToggles, value: boolean) =>
+  const setToggle = (key: keyof SystemToggles, value: boolean) => {
     setToggles((current) => ({ ...current, [key]: value }));
-  const setAuditEventEnabled = (eventName: string, enabled: boolean) =>
+  };
+  const setAuditEventEnabled = (eventName: string, enabled: boolean) => {
     setEnabledAuditEvents((current) => {
       const next = new Set(current);
       if (enabled) next.add(eventName);
       else next.delete(eventName);
       return next;
     });
+  };
 
   async function save(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
+    setFieldErrors({});
     if (!event.currentTarget.reportValidity()) return;
-    const payload = systemPayload(
-      configuration,
-      new FormData(event.currentTarget),
-      auditEvents,
-      enabledAuditEvents,
-      banner,
-    );
+    const payload = systemPayload({
+      configuration: configuration,
+      data: new FormData(event.currentTarget),
+      auditEvents: auditEvents,
+      enabledAuditEvents: enabledAuditEvents,
+      banner: banner,
+    });
     if (typeof payload === "string") {
       onNotice(payload, true);
       return;
     }
     setBusy(true);
     try {
-      await controlApi.mutate("configurations", {}, "PUT", payload);
+      await mutate({
+        operation: "configurations",
+        parameters: {},
+        method: "PUT",
+        payload: payload,
+      });
       onNotice("系统设置已保存");
       onReload();
     } catch (error) {
-      onNotice(errorMessage(error), true);
+      setFieldErrors(formErrors(error));
+      onNotice(errorText(error), true);
       setBusy(false);
     }
   }
 
   const groupProps = { configuration, toggles, setToggle };
   return (
-    <form
-      className="settings-form configuration-form"
-      onSubmit={(event) => void save(event)}
-    >
-      <ConfigurationFormHeader
-        title="系统设置"
-        description="项目创建、会话、机器人账号、审计和横幅消息"
+    <FormErrorsContext value={fieldErrors}>
+      <form
+        className={resolveClasses(`settings-form ${styles.configurationForm}`)}
+        onSubmit={(event) => void save(event)}
       >
-        <ConfigurationSaveButton busy={busy} label="保存系统设置" />
-      </ConfigurationFormHeader>
-      <AccountAndProjectSettings
-        configuration={configuration}
-        hasRootCertificate={hasRootCertificate}
-      />
-      <RuntimePolicySettings {...groupProps} />
-      <AuditLogSettings
-        {...groupProps}
-        auditEvents={auditEvents}
-        auditEventsError={auditEventsError}
-        enabledAuditEvents={enabledAuditEvents}
-        onEnabledAuditEventsChange={setAuditEventEnabled}
-      />
-      <BannerSettings
-        configuration={configuration}
-        banner={banner}
-        onChange={(update) =>
-          setBanner((current) => ({ ...current, ...update }))
-        }
-      />
-    </form>
+        <ConfigurationFormHeader
+          title="系统设置"
+          description="项目创建、会话、机器人账号、审计和横幅消息"
+        >
+          <ConfigurationSaveButton busy={busy} label="保存系统设置" />
+        </ConfigurationFormHeader>
+        <AccountAndProjectSettings
+          configuration={configuration}
+          hasRootCertificate={hasRootCertificate}
+        />
+        <RuntimePolicySettings {...groupProps} />
+        <AuditLogSettings
+          {...groupProps}
+          auditEvents={auditEvents}
+          auditEventsError={auditEventsError}
+          enabledAuditEvents={enabledAuditEvents}
+          onEnabledAuditEventsChange={setAuditEventEnabled}
+        />
+        <BannerSettings
+          configuration={configuration}
+          banner={banner}
+          onChange={(update) => {
+            setBanner((current) => ({ ...current, ...update }));
+          }}
+        />
+      </form>
+    </FormErrorsContext>
   );
 }
+
+const resolveClasses = createClassNames({
+  icon: uiStyles0.icon,
+  "toggle-setting": uiStyles0.toggleSetting,
+  "unified-select": uiStyles0.unifiedSelect,
+  "form-grid": uiStyles0.formGrid,
+  "two-columns": uiStyles0.twoColumns,
+  field: uiStyles0.field,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "settings-grid": uiStyles0.settingsGrid,
+  "field-help": uiStyles0.fieldHelp,
+  notice: uiStyles0.notice,
+  "notice-warning": uiStyles0.noticeWarning,
+  "settings-warning": uiStyles0.settingsWarning,
+  "check-grid": uiStyles0.checkGrid,
+  "check-row": uiStyles0.checkRow,
+  "field-span": uiStyles0.fieldSpan,
+  "settings-form": uiStyles0.settingsForm,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

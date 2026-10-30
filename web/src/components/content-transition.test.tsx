@@ -1,6 +1,8 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { replaceText, setupUser } from "../test/user";
 import { ContentTransition } from "./content-transition";
+import { FormInput } from "./form-input";
 
 const originalAnimate = Object.getOwnPropertyDescriptor(
   Element.prototype,
@@ -15,19 +17,20 @@ afterEach(() => {
 });
 
 describe("ContentTransition", () => {
-  it("preserves a draft across mode changes and ignores data-only rerenders", () => {
+  it("preserves a draft across mode changes and ignores data-only rerenders", async () => {
+    const user = setupUser();
     const cancel = vi.fn();
     const animate = vi.fn(() => ({ cancel }) as unknown as Animation);
     Element.prototype.animate = animate;
     const view = (mode: string, count: number) => (
       <ContentTransition mode={mode}>
-        <input aria-label="Draft" defaultValue="" />
+        <FormInput aria-label="Draft" defaultValue="" />
         <span>{count}</span>
       </ContentTransition>
     );
     const { rerender, unmount } = render(view("list", 1));
     const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "unsaved" } });
+    await replaceText(user, input, "unsaved");
     expect(animate).not.toHaveBeenCalled();
     rerender(view("list", 2));
     expect(animate).not.toHaveBeenCalled();

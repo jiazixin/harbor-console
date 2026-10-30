@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import path from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
 import react from "@vitejs/plugin-react";
@@ -15,13 +17,21 @@ export default defineConfig(({ mode }) => {
   return {
     root: fileURLToPath(new URL(".", import.meta.url)),
     publicDir: "public",
-    plugins: [react()],
-    resolve: {
-      alias: {
-        "@": fileURLToPath(new URL("./src", import.meta.url)),
+    css: {
+      modules: {
+        // Stable scoped names allow styles to address a composed primitive explicitly.
+        generateScopedName(name, filename) {
+          const relative = path
+            .relative(fileURLToPath(new URL(".", import.meta.url)), filename)
+            .split(path.sep)
+            .join("/");
+          return `hc_${createHash("sha256").update(relative).digest("hex").slice(0, 8)}_${name}`;
+        },
       },
     },
+    plugins: [react()],
     build: {
+      target: ["chrome124", "firefox126", "safari17.4"],
       outDir: fileURLToPath(new URL("./dist", import.meta.url)),
       emptyOutDir: true,
       assetsDir: "bundles",
@@ -60,13 +70,14 @@ export default defineConfig(({ mode }) => {
             });
           },
         },
-        "/health": backendURL,
+        "/healthz": backendURL,
       },
     },
     test: {
+      css: { include: [/\.css$/], modules: { classNameStrategy: "scoped" } },
       environment: "jsdom",
       setupFiles: ["./src/test/setup.ts"],
-      include: ["src/**/*.test.{ts,tsx}"],
+      include: ["src/**/*.test.{ts,tsx}", "tests/**/*.test.mjs"],
     },
   };
 });

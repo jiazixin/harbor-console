@@ -1,15 +1,9 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { setupUser } from "../../test/user";
 import { PreheatPage } from "./preheat-page";
 
 afterEach(() => {
@@ -20,6 +14,7 @@ afterEach(() => {
 
 describe("preheat page", () => {
   it("loads provider metadata and P2P instances with typed actions", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "data").mockResolvedValue([
       { id: "dragonfly", name: "Dragonfly", version: "v2" },
       { id: "kraken", name: "Kraken", version: "v1" },
@@ -42,7 +37,7 @@ describe("preheat page", () => {
     });
     const onAction = vi.fn();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <PreheatPage
           demo
@@ -51,7 +46,7 @@ describe("preheat page", () => {
           onAction={onAction}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("Dragonfly")).toBeVisible();
@@ -61,7 +56,7 @@ describe("preheat page", () => {
     expect(screen.queryByText("v2")).toBeNull();
     expect(screen.queryByText("v1")).toBeNull();
     expect(screen.getByText("dragonfly-shanghai")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "编辑实例" }));
+    await user.click(screen.getByRole("button", { name: "编辑实例" }));
     expect(onAction).toHaveBeenCalledWith({
       kind: "edit",
       instance: {
@@ -83,6 +78,7 @@ describe("preheat page", () => {
   });
 
   it("pings an existing instance by ID", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "data").mockResolvedValue([
       { id: "dragonfly", name: "Dragonfly" },
     ]);
@@ -100,7 +96,7 @@ describe("preheat page", () => {
     const mutate = vi.spyOn(controlApi, "mutate").mockResolvedValue(undefined);
     const onNotice = vi.fn();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <PreheatPage
           demo={false}
@@ -109,15 +105,22 @@ describe("preheat page", () => {
           onAction={vi.fn()}
           onNotice={onNotice}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "测试连接" }));
-    await waitFor(() =>
-      expect(mutate).toHaveBeenCalledWith("preheat-instance-ping", {}, "POST", {
-        id: 61,
-      }),
-    );
+    await user.click(await screen.findByRole("button", { name: "测试连接" }));
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith({
+        operation: "preheat-instance-ping",
+        parameters: {},
+        method: "POST",
+        payload: {
+          id: 61,
+        },
+        signal: expect.any(AbortSignal) as unknown,
+        idempotencyKey: expect.any(String) as unknown,
+      });
+    });
     expect(onNotice).toHaveBeenCalledWith("P2P Provider 连接正常");
   });
 });

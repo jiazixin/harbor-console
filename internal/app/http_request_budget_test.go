@@ -17,7 +17,7 @@ func newRequestBudgetTestApp(t *testing.T, writeTimeout time.Duration) *app {
 	t.Helper()
 	runtimeConfig := config.Default()
 	runtimeConfig.Server.WriteTimeout = config.Duration(writeTimeout)
-	application, err := newAppWithConfig(runtimeConfig, nil)
+	application, err := newAppWithConfig(runtimeConfig, nil, Build{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,12 +66,12 @@ func TestCredentialStagesShareEarlierRequestDeadline(t *testing.T) {
 				<-request.Context().Done()
 				return nil, request.Context().Err()
 			})}
-			current := createTestSession(t, application, client, false)
-			request := httptest.NewRequest(http.MethodPut, "/api/control/"+test.operation+"?id=7", strings.NewReader(test.body)).WithContext(ctx)
+			current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+			request := jsonRequest(http.MethodPut, "/api/operations/"+test.operation+"?id=7", strings.NewReader(test.body)).WithContext(ctx)
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			response := httptest.NewRecorder()
 			application.routes().ServeHTTP(response, request)
-			if response.Code != http.StatusGatewayTimeout || len(deadlines) != 2 {
+			if response.Code != http.StatusServiceUnavailable || len(deadlines) != 2 {
 				t.Fatalf("slow credential update response = %d, stages = %d, body = %s", response.Code, len(deadlines), response.Body.String())
 			}
 			for _, deadline := range deadlines {
@@ -115,19 +115,19 @@ func TestCredentialPreflightExpiryDoesNotStartWrite(t *testing.T) {
 				}
 				return nil, request.Context().Err()
 			})}
-			current := createTestSession(t, application, client, false)
-			request := httptest.NewRequest(http.MethodPut, "/api/control/current-user-password?id=7", strings.NewReader(`{"old_password":"password","new_password":"NewPassword2"}`)).WithContext(ctx)
+			current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+			request := jsonRequest(http.MethodPut, "/api/operations/current-user-password?id=7", strings.NewReader(`{"old_password":"password","new_password":"NewPassword2"}`)).WithContext(ctx)
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			response := httptest.NewRecorder()
 			application.routes().ServeHTTP(response, request)
-			wantStatus := http.StatusGatewayTimeout
+			wantStatus := http.StatusServiceUnavailable
 			if test.explicitlyCancel {
-				wantStatus = http.StatusBadGateway
+				wantStatus = http.StatusServiceUnavailable
 			}
 			if requestCount != 1 || response.Code != wantStatus {
 				t.Fatalf("expired preflight response = %d, upstream requests = %d", response.Code, requestCount)
 			}
-			if strings.Contains(response.Body.String(), "已接受写入") {
+			if strings.Contains(response.Body.String(), "harbor_write_unconfirmed") {
 				t.Fatal("preflight failure claimed that Harbor accepted a write")
 			}
 		})
@@ -162,13 +162,13 @@ func TestAllowlistReadbackExpiryReportsAcceptedWriteWithoutRetry(t *testing.T) {
 		}
 		return requestBudgetTestResponse(request, `{"id":1,"project_id":0,"expires_at":null,"items":[]}`), nil
 	})}
-	current := createTestSession(t, application, client, false)
-	request := httptest.NewRequest(http.MethodPut, "/api/control/system-cve-allowlist", strings.NewReader(`{"expires_at":null,"items":[]}`))
+	current := createTestSession(t, testSessionOptions{application: application, client: client, demo: false})
+	request := jsonRequest(http.MethodPut, "/api/operations/system-cve-allowlist", strings.NewReader(`{"expires_at":null,"items":[]}`))
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	response := httptest.NewRecorder()
 	started := time.Now()
 	application.routes().ServeHTTP(response, request)
-	if response.Code != http.StatusGatewayTimeout || requestCount != 3 || writeCount != 1 {
+	if response.Code != http.StatusServiceUnavailable || requestCount != 3 || writeCount != 1 {
 		t.Fatalf("allowlist confirmation response = %d, requests = %d, writes = %d", response.Code, requestCount, writeCount)
 	}
 	if elapsed := time.Since(started); elapsed > time.Second {
@@ -183,21 +183,18 @@ func TestAllowlistReadbackExpiryReportsAcceptedWriteWithoutRetry(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(failure.Error, "已接受写入") || !strings.Contains(failure.Error, "最终状态未确认") || !strings.Contains(failure.Details, "先刷新回读确认") {
+	if failure.Error.Code != "harbor_write_unconfirmed" || failure.Error.Details["reason"] != "harbor_timeout" {
 		t.Fatalf("write confirmation failure was misleading: %#v", failure)
-	}
-	if strings.Contains(failure.Details, "请稍后重试") {
-		t.Fatal("write confirmation failure recommended retrying before checking state")
 	}
 }
 
 func TestUpstreamRequestBudgetLeavesStaticRequestsUntouched(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	handler := upstreamRequestBudget(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
+	handler := upstreamRequestBudget(time.Second)(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
 		if request.Context() != ctx {
 			t.Fatal("static request received an API deadline")
 		}
-	}), time.Second)
+	}))
 	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/bundles/app-Ab12cd34.js", nil).WithContext(ctx))
 }

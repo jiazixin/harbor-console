@@ -12,15 +12,17 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"harbor-console/internal/buildinfo"
 )
 
-const harborRequestTimeout = 18 * time.Second
+const (
+	harborRequestTimeout = 18 * time.Second
+	maxHarborConnections = 16
+)
 
 // harborGetJSON reads a Harbor resource and decodes its JSON body into out.
-func (a *app) harborGetJSON(ctx context.Context, current *session, path string, query url.Values, out any) error {
-	response, err := a.harborRequest(ctx, current, http.MethodGet, path, query, nil, nil)
+func (a *app) harborGetJSON(ctx context.Context, options harborJSONRequest) error {
+	current, path, query, out := options.current, options.path, options.query, options.out
+	response, err := a.harborRequest(ctx, harborRequestOptions{current: current, method: http.MethodGet, path: path, query: query, body: nil, headers: nil})
 	if err != nil {
 		return err
 	}
@@ -28,7 +30,7 @@ func (a *app) harborGetJSON(ctx context.Context, current *session, path string, 
 		return nil
 	}
 	if err := json.Unmarshal(response.Body, out); err != nil {
-		return fmt.Errorf("Harbor returned invalid JSON: %w", err)
+		return fmt.Errorf("decode Harbor response: %w", err)
 	}
 	return nil
 }
@@ -39,7 +41,8 @@ type harborResponse struct {
 	Body       []byte
 }
 
-func (a *app) harborRequest(ctx context.Context, current *session, method, path string, query url.Values, body []byte, headers http.Header) (*harborResponse, error) {
+func (a *app) harborRequest(ctx context.Context, options harborRequestOptions) (*harborResponse, error) {
+	current, method, path, query, body, headers := options.current, options.method, options.path, options.query, options.body, options.headers
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -56,7 +59,7 @@ func (a *app) harborRequest(ctx context.Context, current *session, method, path 
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "Harbor-Console/"+buildinfo.Version)
+	req.Header.Set("User-Agent", "Harbor-Console/"+a.version())
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -77,15 +80,16 @@ func (a *app) harborRequest(ctx context.Context, current *session, method, path 
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
+	// The response is read to EOF below; closing releases transport resources.
 	defer resp.Body.Close()
 	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxReplyBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 	if len(responseBody) > maxReplyBytes {
-		return nil, errors.New("Harbor response exceeds the configured limit")
+		return nil, errors.New("response from Harbor exceeds the configured limit")
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		message := strings.TrimSpace(http.StatusText(resp.StatusCode))
 		var harborErr struct {
 			Errors []struct {
@@ -102,18 +106,31 @@ func (a *app) harborRequest(ctx context.Context, current *session, method, path 
 
 func newHarborClient(skipTLSVerify bool) *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: skipTLSVerify} //nolint:gosec -- explicitly selected per Harbor connection
+	transport.MaxConnsPerHost = maxHarborConnections
+	// Skipping verification is an explicit per-connection choice for Harbor
+	// instances with self-signed certificates.
+	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: skipTLSVerify}
 	return &http.Client{
 		Timeout:   harborRequestTimeout,
 		Transport: transport,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 3 {
-				return errors.New("too many redirects")
-			}
-			if req.URL.Host != via[0].URL.Host || req.URL.Scheme != via[0].URL.Scheme {
-				return errors.New("cross-origin redirect refused")
-			}
-			return nil
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			// Credentials must never be forwarded, even to another path on this host.
+			return http.ErrUseLastResponse
 		},
 	}
+}
+
+type harborJSONRequest struct {
+	current *session
+	path    string
+	query   url.Values
+	out     any
+}
+type harborRequestOptions struct {
+	current *session
+	method  string
+	path    string
+	query   url.Values
+	body    []byte
+	headers http.Header
 }

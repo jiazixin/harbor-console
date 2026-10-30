@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -21,31 +20,27 @@ func (a *app) handlePublicArtifacts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handlePublicCatalog(w http.ResponseWriter, r *http.Request, resource string) {
-	if !sameOrigin(r) {
-		writeError(w, http.StatusForbidden, "请求来源无效", "请从当前控制台浏览公开目录")
-		return
-	}
 	if !a.publicLimits.allow(clientIP(r)) {
-		writeError(w, http.StatusTooManyRequests, "公开目录请求过于频繁", "请稍后重试")
+		writeError(w, r, errRateLimited)
 		return
 	}
 	var input publicCatalogRequest
 	if err := decodeJSON(w, r, &input); err != nil {
-		writeError(w, http.StatusBadRequest, "公开目录请求无效", err.Error())
+		writeError(w, r, err)
 		return
 	}
 	current, query, path, headers, err := a.buildPublicCatalogRequest(input, resource)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "公开目录请求无效", err.Error())
+		writeError(w, r, err)
 		return
 	}
 	defer current.Client.CloseIdleConnections()
-	response, err := a.harborRequest(r.Context(), current, http.MethodGet, path, query, nil, headers)
+	response, err := a.harborRequest(r.Context(), harborRequestOptions{current: current, method: http.MethodGet, path: path, query: query, body: nil, headers: headers})
 	if err != nil {
-		writeUpstreamError(w, err)
+		writeUpstreamError(w, r, err)
 		return
 	}
-	writeControlResponse(w, response, controlMethod{list: true}, query)
+	writeControlResponse(w, r, controlResponse{response: response, config: controlMethod{list: true}, query: query})
 }
 
 func (a *app) buildPublicCatalogRequest(input publicCatalogRequest, resource string) (*session, url.Values, string, http.Header, error) {
@@ -54,21 +49,21 @@ func (a *app) buildPublicCatalogRequest(input publicCatalogRequest, resource str
 		return nil, nil, "", nil, err
 	}
 	if len(input.URL) > 2048 {
-		return nil, nil, "", nil, errors.New("Harbor 地址长度超过限制")
+		return nil, nil, "", nil, invalidField("url", "too_long", "exceeds 2048 bytes")
 	}
-	page := input.Page
-	if page == 0 {
-		page = 1
-	}
-	pageSize := input.PageSize
+	pageSize := input.Limit
 	if pageSize == 0 {
 		pageSize = 20
 	}
-	if page < 1 || page > 1_000_000 || pageSize < 1 || pageSize > 100 {
-		return nil, nil, "", nil, errors.New("分页参数超出允许范围")
+	if pageSize < 1 || pageSize > 100 {
+		return nil, nil, "", nil, invalidField("limit", "out_of_range", "must be from 1 to 100")
 	}
+	if input.Offset < 0 || input.Offset%pageSize != 0 || input.Offset/pageSize >= 1_000_000 {
+		return nil, nil, "", nil, invalidField("offset", "invalid_value", "must be a non-negative multiple of limit")
+	}
+	page := input.Offset/pageSize + 1
 	if len(input.Query) > 255 || strings.ContainsAny(input.Query, "\r\n\x00,=") {
-		return nil, nil, "", nil, errors.New("搜索内容包含无效字符或长度过长")
+		return nil, nil, "", nil, invalidField("query", "invalid_text", "contains invalid characters or is too long")
 	}
 	current := &session{InstanceURL: instanceURL, SkipTLSVerify: input.SkipTLSVerify, Client: a.newClient(input.SkipTLSVerify)}
 	query := url.Values{"page": {strconv.Itoa(page)}, "page_size": {strconv.Itoa(pageSize)}}
@@ -84,7 +79,7 @@ func (a *app) buildPublicCatalogRequest(input publicCatalogRequest, resource str
 		return current, query, "/api/v2.0/projects", headers, nil
 	case "repositories", "artifacts":
 		project := strings.TrimSpace(input.Project)
-		if err := validateResourceName(project, "项目名称", 255, false); err != nil {
+		if err := validateResourceName(resourceNameValidation{value: project, path: "project", maximum: 255, allowSpaces: false}); err != nil {
 			return nil, nil, "", nil, err
 		}
 		if err := validatePathParameter(project, "project"); err != nil {
@@ -112,6 +107,6 @@ func (a *app) buildPublicCatalogRequest(input publicCatalogRequest, resource str
 		path := base + "/" + url.PathEscape(url.PathEscape(repository)) + "/artifacts"
 		return current, query, path, headers, nil
 	default:
-		return nil, nil, "", nil, errors.New("未知公开目录资源")
+		return nil, nil, "", nil, failure(http.StatusNotFound, "not_found", "unknown public catalog resource")
 	}
 }

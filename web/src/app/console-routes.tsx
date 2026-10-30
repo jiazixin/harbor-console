@@ -1,15 +1,15 @@
 import { lazy } from "react";
-
-import { ErrorView } from "../components/feedback";
+import { Navigate, type RouteObject, useOutletContext } from "react-router";
+import { ErrorView } from "../components/error-view";
 import type { RepositoryArtifactAction } from "../features/artifacts/repository-detail-page";
 import type { ProjectRetentionAction } from "../features/projects/project-retention-section";
 import type { ReplicationAction } from "../features/replication/replication-page";
 import { controlApi } from "./api-client";
 import type { ApplicationDialog } from "./application-dialogs";
-import type { ConsoleRoute } from "./hash-router";
+import type { ConsoleRoute } from "./console-route";
+import { errorText } from "./errors";
 import { useLocale } from "./locale-context";
 import type { ProjectSummary, Session } from "./models";
-import type { PageVersions } from "./page-versions";
 import type { ConsoleData } from "./use-console-session";
 
 const AuditPage = lazy(() =>
@@ -108,12 +108,11 @@ export function navigationView(view: string): string {
     : view;
 }
 
-type ConsoleRouteContext = {
+export type ConsoleRouteContext = {
   route: ConsoleRoute;
   session: Session;
   consoleData: ConsoleData;
   refreshing: boolean;
-  versions: PageVersions;
   navigate: (path: string) => void;
   refresh: () => Promise<void>;
   openDialog: (dialog: ApplicationDialog) => void;
@@ -150,7 +149,7 @@ async function confirmProjectDeletable(
       notify(result?.message ?? "Harbor 当前不允许删除此项目。", true);
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorText(error);
     notify(`无法确认项目是否可删除：${message}`, true);
   }
 }
@@ -188,7 +187,6 @@ function ProjectDetailRoute(context: ConsoleRouteContext) {
     session,
     consoleData,
     refreshing,
-    versions,
     navigate,
     refresh,
     openDialog,
@@ -196,108 +194,111 @@ function ProjectDetailRoute(context: ConsoleRouteContext) {
   } = context;
   return (
     <ProjectDetailPage
-      key={versions.project}
       route={route}
       session={session}
-      isSystemAdmin={consoleData.identity?.sysadmin_flag === true}
+      isSystemAdmin={consoleData.identity.sysadmin_flag === true}
       refreshing={refreshing}
       navigate={navigate}
       onRefresh={refresh}
-      onDeleteRepositories={(project, repositories) =>
+      onDeleteRepositories={(project, repositories) => {
         openDialog({
           kind: "delete-repositories",
           project,
           repositories,
-        })
-      }
-      onShowPushCommand={(project, repository) =>
-        openDialog({ kind: "push-command", project, repository })
-      }
-      onAddMember={(project, members) =>
-        openDialog({ kind: "add-member", project, members })
-      }
-      onEditMember={(project, member) =>
-        openDialog({ kind: "edit-member", project, member })
-      }
-      onDeleteMember={(project, member) =>
-        openDialog({ kind: "delete-member", project, member })
-      }
-      onCreateRobot={(project, permissions) =>
-        openDialog({ kind: "create-robot", project, permissions })
-      }
-      onEditRobot={(project, robot, permissions) =>
+        });
+      }}
+      onShowPushCommand={(project, repository) => {
+        openDialog({ kind: "push-command", project, repository });
+      }}
+      onAddMember={(project, members) => {
+        openDialog({ kind: "add-member", project, members });
+      }}
+      onEditMember={(project, member) => {
+        openDialog({ kind: "edit-member", project, member });
+      }}
+      onDeleteMember={(project, member) => {
+        openDialog({ kind: "delete-member", project, member });
+      }}
+      onCreateRobot={(project, permissions) => {
+        openDialog({ kind: "create-robot", project, permissions });
+      }}
+      onEditRobot={(project, robot, permissions) => {
         openDialog({
           kind: "edit-robot",
           project,
           robot,
           permissions,
-        })
-      }
-      onResetRobotSecret={(project, robot) =>
-        openDialog({ kind: "reset-robot", project, robot })
-      }
-      onDeleteRobot={(project, robot) =>
-        openDialog({ kind: "delete-robot", project, robot })
-      }
-      onCreateWebhook={(project, metadata) =>
-        openDialog({ kind: "create-webhook", project, metadata })
-      }
-      onEditWebhook={(project, webhook, metadata) =>
+        });
+      }}
+      onResetRobotSecret={(project, robot) => {
+        openDialog({ kind: "reset-robot", project, robot });
+      }}
+      onDeleteRobot={(project, robot) => {
+        openDialog({ kind: "delete-robot", project, robot });
+      }}
+      onCreateWebhook={(project, metadata) => {
+        openDialog({ kind: "create-webhook", project, metadata });
+      }}
+      onEditWebhook={(project, webhook, metadata) => {
         openDialog({
           kind: "edit-webhook",
           project,
           webhook,
           metadata,
-        })
-      }
-      onShowWebhookHistory={(project, webhook) =>
-        openDialog({ kind: "webhook-history", project, webhook })
-      }
-      onDeleteWebhook={(project, webhook) =>
-        openDialog({ kind: "delete-webhook", project, webhook })
-      }
-      onCreateImmutableRule={(project, metadata) =>
+        });
+      }}
+      onShowWebhookHistory={(project, webhook) => {
+        openDialog({ kind: "webhook-history", project, webhook });
+      }}
+      onDeleteWebhook={(project, webhook) => {
+        openDialog({ kind: "delete-webhook", project, webhook });
+      }}
+      onCreateImmutableRule={(project, metadata) => {
         openDialog({
           kind: "create-immutable-rule",
           project,
           metadata,
-        })
-      }
-      onEditImmutableRule={(project, rule, metadata) =>
+        });
+      }}
+      onEditImmutableRule={(project, rule, metadata) => {
         openDialog({
           kind: "edit-immutable-rule",
           project,
           rule,
           metadata,
-        })
-      }
-      onDeleteImmutableRule={(project, rule) =>
+        });
+      }}
+      onDeleteImmutableRule={(project, rule) => {
         openDialog({
           kind: "delete-immutable-rule",
           project,
           rule,
-        })
-      }
-      onCreateProjectLabel={(project, projectId) =>
+        });
+      }}
+      onCreateProjectLabel={(project, projectId) => {
         openDialog({
           kind: "create-project-label",
           project,
           projectId,
-        })
-      }
-      onEditProjectLabel={(project, projectId, label) =>
+        });
+      }}
+      onEditProjectLabel={(project, projectId, label) => {
         openDialog({
           kind: "edit-project-label",
           project,
           projectId,
           label,
-        })
-      }
-      onDeleteProjectLabel={(label) =>
-        openDialog({ kind: "delete-project-label", label })
-      }
-      onRetentionAction={(action) => openRetentionDialog(action, context)}
-      onPreheatAction={(action) => openDialog({ kind: "preheat", action })}
+        });
+      }}
+      onDeleteProjectLabel={(label) => {
+        openDialog({ kind: "delete-project-label", label });
+      }}
+      onRetentionAction={(action) => {
+        openRetentionDialog(action, context);
+      }}
+      onPreheatAction={(action) => {
+        openDialog({ kind: "preheat", action });
+      }}
       onDeleteProject={(project) =>
         void confirmProjectDeletable(project, context)
       }
@@ -306,15 +307,17 @@ function ProjectDetailRoute(context: ConsoleRouteContext) {
   );
 }
 
-/** Renders the page of the current console route. */
-export function ConsoleRouteContent(context: ConsoleRouteContext) {
+/** Renders one console view with the context the application layout provides. */
+type ConsoleViewProps = { view: string };
+
+function ConsoleView({ view }: ConsoleViewProps) {
   const { t } = useLocale();
+  const context = useOutletContext<ConsoleRouteContext>();
   const {
     route,
     session,
     consoleData,
     refreshing,
-    versions,
     navigate,
     refresh,
     openDialog,
@@ -323,7 +326,7 @@ export function ConsoleRouteContent(context: ConsoleRouteContext) {
   const { dashboard } = consoleData;
   const refreshPage = () => void refresh();
 
-  switch (route.view) {
+  switch (view) {
     case "overview":
       return (
         <OverviewPage
@@ -341,13 +344,15 @@ export function ConsoleRouteContent(context: ConsoleRouteContext) {
           refreshing={refreshing}
           navigate={navigate}
           onRefresh={refresh}
-          onCreateProject={() => openDialog({ kind: "create" })}
-          onDeleteProjects={(projects) =>
-            openDialog({ kind: "delete", projects })
-          }
-          onExportProjectCve={(project) =>
-            openDialog({ kind: "export", project })
-          }
+          onCreateProject={() => {
+            openDialog({ kind: "create" });
+          }}
+          onDeleteProjects={(projects) => {
+            openDialog({ kind: "delete", projects });
+          }}
+          onExportProjectCve={(project) => {
+            openDialog({ kind: "export", project });
+          }}
         />
       );
     case "repositories":
@@ -359,9 +364,9 @@ export function ConsoleRouteContent(context: ConsoleRouteContext) {
           refreshing={refreshing}
           navigate={navigate}
           onRefresh={refresh}
-          onShowPushCommand={(project, repository) =>
-            openDialog({ kind: "push-command", project, repository })
-          }
+          onShowPushCommand={(project, repository) => {
+            openDialog({ kind: "push-command", project, repository });
+          }}
         />
       );
     case "project":
@@ -369,42 +374,43 @@ export function ConsoleRouteContent(context: ConsoleRouteContext) {
     case "repository":
       return (
         <RepositoryDetailPage
-          key={versions.repository}
           route={route}
           session={session}
           refreshing={refreshing}
           navigate={navigate}
           onRefresh={refresh}
-          onShowPushCommand={(project, repository) =>
-            openDialog({ kind: "push-command", project, repository })
-          }
-          onEditRepository={(project, repository) =>
-            openDialog({ kind: "edit-repository", project, repository })
-          }
-          onDeleteRepository={(project, repository) =>
-            openDialog({ kind: "delete-repository", project, repository })
-          }
-          onArtifactAction={(action) => openArtifactDialog(action, context)}
+          onShowPushCommand={(project, repository) => {
+            openDialog({ kind: "push-command", project, repository });
+          }}
+          onEditRepository={(project, repository) => {
+            openDialog({ kind: "edit-repository", project, repository });
+          }}
+          onDeleteRepository={(project, repository) => {
+            openDialog({ kind: "delete-repository", project, repository });
+          }}
+          onArtifactAction={(action) => {
+            openArtifactDialog(action, context);
+          }}
           onNotice={notify}
         />
       );
     case "artifact":
       return (
         <ArtifactDetailPage
-          key={versions.artifact}
           route={route}
           session={session}
           refreshing={refreshing}
           navigate={navigate}
           onRefresh={refresh}
-          onAction={(action) => openDialog({ kind: "artifact-detail", action })}
+          onAction={(action) => {
+            openDialog({ kind: "artifact-detail", action });
+          }}
           onNotice={notify}
         />
       );
     case "security":
       return (
         <SecurityPage
-          key={versions.security}
           route={route}
           projects={dashboard.projects ?? []}
           totalArtifacts={dashboard.statistics?.total_artifact_count ?? 0}
@@ -412,43 +418,46 @@ export function ConsoleRouteContent(context: ConsoleRouteContext) {
           refreshing={refreshing}
           navigate={navigate}
           onRefresh={refreshPage}
-          onAction={(action) => openDialog({ kind: "security", action })}
+          onAction={(action) => {
+            openDialog({ kind: "security", action });
+          }}
           onNotice={notify}
         />
       );
     case "registries":
       return (
         <RegistriesPage
-          key={versions.registries}
           demo={session.demo}
           refreshing={refreshing}
           onRefresh={refreshPage}
-          onAction={(action) => openDialog({ kind: "registry", action })}
+          onAction={(action) => {
+            openDialog({ kind: "registry", action });
+          }}
           onNotice={notify}
         />
       );
     case "replication":
       return (
         <ReplicationPage
-          key={versions.replication}
           route={route}
           demo={session.demo}
           refreshing={refreshing}
           navigate={navigate}
           onRefresh={refreshPage}
-          onAction={(action) => openReplicationDialog(action, context)}
+          onAction={(action) => {
+            openReplicationDialog(action, context);
+          }}
         />
       );
     case "preheat":
       return (
         <PreheatPage
-          key={versions.preheat}
           demo={session.demo}
           refreshing={refreshing}
           onRefresh={refreshPage}
-          onAction={(action) =>
-            openDialog({ kind: "preheat-instance", action })
-          }
+          onAction={(action) => {
+            openDialog({ kind: "preheat-instance", action });
+          }}
           onNotice={notify}
         />
       );
@@ -498,9 +507,47 @@ export function ConsoleRouteContent(context: ConsoleRouteContext) {
         <ErrorView
           title="页面不存在"
           message={t("请通过侧栏导航选择页面。")}
-          retry={() => navigate("overview")}
+          retry={() => {
+            navigate("overview");
+          }}
           retryLabel="返回概览"
         />
       );
   }
 }
+
+const topLevelViews = [
+  "overview",
+  "projects",
+  "repositories",
+  "security",
+  "registries",
+  "replication",
+  "preheat",
+  "audit",
+  "administration",
+  "system",
+  "about",
+];
+
+/**
+ * The console's route table. Pages read extra segments and the query from
+ * ConsoleRoute, so each view matches its whole subtree.
+ */
+export const consoleRoutes: RouteObject[] = [
+  { index: true, element: <Navigate to="/overview" replace /> },
+  ...topLevelViews.map((view) => ({
+    path: `${view}/*`,
+    element: <ConsoleView view={view} />,
+  })),
+  { path: "projects/:project/*", element: <ConsoleView view="project" /> },
+  {
+    path: "projects/:project/repositories/:repository/artifacts",
+    element: <ConsoleView view="repository" />,
+  },
+  {
+    path: "projects/:project/repositories/:repository/artifacts/:reference/*",
+    element: <ConsoleView view="artifact" />,
+  },
+  { path: "*", element: <ConsoleView view="not-found" /> },
+];

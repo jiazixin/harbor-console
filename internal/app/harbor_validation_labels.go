@@ -1,19 +1,17 @@
 package app
 
-import "errors"
-
 func validateLabel(body map[string]any) error {
 	name, _ := body["name"].(string)
-	if err := validateResourceName(name, "标签名称", 128, true); err != nil {
+	if err := validateResourceName(resourceNameValidation{value: name, path: "name", maximum: 128, allowSpaces: true}); err != nil {
 		return err
 	}
 	if color, ok := body["color"].(string); ok && color != "" {
 		if !validHexColor(color) {
-			return errors.New("标签颜色必须使用 #RRGGBB 格式")
+			return invalidField("color", "invalid_color", "must use the #RRGGBB format")
 		}
 	}
 	if scope, ok := body["scope"].(string); ok && scope != "g" && scope != "p" {
-		return errors.New("标签 scope 必须是 g 或 p")
+		return invalidField("scope", "invalid_value", "must be g or p")
 	}
 	if body["scope"] == "p" {
 		if err := validatePositiveInteger(body["project_id"], "project_id"); err != nil {

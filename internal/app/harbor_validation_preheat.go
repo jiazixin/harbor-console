@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -12,41 +11,41 @@ func validatePreheatInstance(body map[string]any) error {
 		return err
 	}
 	name, _ := body["name"].(string)
-	if err := validateResourceName(name, "P2P 实例名称", 255, true); err != nil {
+	if err := validateResourceName(resourceNameValidation{value: name, path: "name", maximum: 255, allowSpaces: true}); err != nil {
 		return err
 	}
 	if !validPreheatName(name) {
-		return errors.New("P2P 实例名称只能使用字母、数字及单个点、下划线或连字符分隔")
+		return invalidField("name", "invalid_preheat_name", "may contain only letters and digits separated by single dots, underscores or hyphens")
 	}
 	vendor, _ := body["vendor"].(string)
-	if err := validateResourceName(vendor, "P2P Provider", 255, false); err != nil {
+	if err := validateResourceName(resourceNameValidation{value: vendor, path: "vendor", maximum: 255, allowSpaces: false}); err != nil {
 		return err
 	}
-	if err := validateHTTPURL(body["endpoint"], "P2P 实例地址"); err != nil {
+	if err := validateHTTPURL(body["endpoint"], "endpoint"); err != nil {
 		return err
 	}
 	if description, ok := body["description"].(string); ok && (len(description) > 1024 || strings.ContainsAny(description, "\x00")) {
-		return errors.New("P2P 实例描述不能超过 1024 个字符")
+		return invalidField("description", "too_long", "must not exceed 1024 characters")
 	}
 	if authMode, ok := body["auth_mode"].(string); ok && (strings.TrimSpace(authMode) == "" || len(authMode) > 64 || strings.ContainsAny(authMode, "\r\n\x00")) {
-		return errors.New("P2P 认证模式无效")
+		return invalidField("auth_mode", "invalid_text", "must be non-empty single-line text of at most 64 characters")
 	}
 	if authInfo, ok := body["auth_info"]; ok {
 		credentials, objectOK := authInfo.(map[string]any)
 		if !objectOK {
-			return errors.New("P2P auth_info 必须是 JSON 对象")
+			return invalidField("auth_info", "not_object", "must be a JSON object")
 		}
 		for key, raw := range credentials {
 			value, valueOK := raw.(string)
 			if !valueOK || len(key) > 128 || len(value) > 4096 || strings.ContainsAny(key+value, "\x00") {
-				return errors.New("P2P 凭据字段必须是长度受限的文本")
+				return invalidField("auth_info."+key, "invalid_text", "must be text of limited length")
 			}
 		}
 	}
 	for _, field := range []string{"enabled", "default", "insecure"} {
 		if raw, ok := body[field]; ok {
 			if _, boolean := raw.(bool); !boolean {
-				return fmt.Errorf("%s 必须是布尔值", field)
+				return invalidField(field, "not_boolean", "must be a boolean")
 			}
 		}
 	}
@@ -55,7 +54,7 @@ func validatePreheatInstance(body map[string]any) error {
 
 func validatePreheatInstancePing(body map[string]any) error {
 	if id, exists := body["id"]; exists {
-		if err := validatePositiveInteger(id, "P2P 实例 id"); err != nil {
+		if err := validatePositiveInteger(id, "id"); err != nil {
 			return err
 		}
 		return validateAllowedFields(body, "id")
@@ -68,42 +67,42 @@ func validatePreheatPolicy(body map[string]any) error {
 		return err
 	}
 	name, _ := body["name"].(string)
-	if err := validateResourceName(name, "预热策略名称", 255, true); err != nil {
+	if err := validateResourceName(resourceNameValidation{value: name, path: "name", maximum: 255, allowSpaces: true}); err != nil {
 		return err
 	}
 	if !validPreheatName(name) {
-		return errors.New("预热策略名称只能使用字母、数字及单个点、下划线或连字符分隔")
+		return invalidField("name", "invalid_preheat_name", "may contain only letters and digits separated by single dots, underscores or hyphens")
 	}
 	for _, field := range []string{"id", "project_id"} {
 		if raw, exists := body[field]; exists {
-			if err := validatePositiveInteger(raw, "预热策略 "+field); err != nil {
+			if err := validatePositiveInteger(raw, field); err != nil {
 				return err
 			}
 		}
 	}
-	if err := validatePositiveInteger(body["provider_id"], "预热策略 provider_id"); err != nil {
+	if err := validatePositiveInteger(body["provider_id"], "provider_id"); err != nil {
 		return err
 	}
 	for _, field := range []string{"description", "filters", "trigger", "extra_attrs"} {
 		if raw, ok := body[field]; ok {
 			value, text := raw.(string)
 			if !text || len(value) > 65536 || strings.ContainsAny(value, "\x00") {
-				return fmt.Errorf("预热策略 %s 必须是 65536 个字符以内的文本", field)
+				return invalidField(field, "too_long", "must be text of at most 65536 characters")
 			}
 		}
 	}
 	filtersText, _ := body["filters"].(string)
 	var filters []map[string]any
 	if strings.TrimSpace(filtersText) == "" || json.Unmarshal([]byte(filtersText), &filters) != nil || len(filters) == 0 {
-		return errors.New("预热策略 filters 必须是非空 JSON 数组")
+		return invalidField("filters", "invalid_json", "must be a non-empty JSON array")
 	}
-	for _, filter := range filters {
+	for index, filter := range filters {
 		filterType, _ := filter["type"].(string)
 		if !slicesContain([]string{"repository", "tag", "label", "signature", "vulnerability"}, filterType) {
-			return errors.New("预热策略包含不支持的筛选类型")
+			return invalidField(fmt.Sprintf("filters.%d.type", index), "not_supported", "is not a supported filter type")
 		}
 		if _, exists := filter["value"]; !exists {
-			return errors.New("预热策略筛选条件缺少 value")
+			return invalidField(fmt.Sprintf("filters.%d.value", index), "required", "is required")
 		}
 	}
 	triggerText, _ := body["trigger"].(string)
@@ -114,20 +113,20 @@ func validatePreheatPolicy(body map[string]any) error {
 		} `json:"trigger_setting"`
 	}
 	if json.Unmarshal([]byte(triggerText), &trigger) != nil || !slicesContain([]string{"manual", "scheduled", "event_based", "scheduled(paused)"}, trigger.Type) {
-		return errors.New("预热策略 trigger 必须包含有效的官方触发类型")
+		return invalidField("trigger", "invalid_value", "must contain a valid Harbor trigger type")
 	}
 	if trigger.Type == "scheduled" && strings.TrimSpace(trigger.Setting.Cron) == "" {
-		return errors.New("定时预热策略必须包含 Cron 表达式")
+		return invalidField("trigger.trigger_setting.cron", "required", "is required for scheduled policies")
 	}
 	if extraText, ok := body["extra_attrs"].(string); ok && strings.TrimSpace(extraText) != "" {
 		var extra map[string]any
 		if json.Unmarshal([]byte(extraText), &extra) != nil {
-			return errors.New("预热策略 extra_attrs 必须是 JSON 对象")
+			return invalidField("extra_attrs", "invalid_json", "must contain a JSON object")
 		}
 	}
 	if raw, ok := body["enabled"]; ok {
 		if _, boolean := raw.(bool); !boolean {
-			return errors.New("预热策略 enabled 必须是布尔值")
+			return invalidField("enabled", "not_boolean", "must be a boolean")
 		}
 	}
 	return nil
@@ -139,7 +138,7 @@ func validatePreheatExecutionStop(body map[string]any) error {
 	}
 	status, _ := body["status"].(string)
 	if !strings.EqualFold(status, "Stopped") {
-		return errors.New("停止预热执行时 status 必须是 Stopped")
+		return invalidField("status", "invalid_value", "must be Stopped")
 	}
 	return nil
 }

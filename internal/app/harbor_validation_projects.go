@@ -1,8 +1,6 @@
 package app
 
 import (
-	"errors"
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,7 +8,7 @@ import (
 
 func validateProjectCreate(body map[string]any) error {
 	name, _ := body["project_name"].(string)
-	if err := validateResourceName(name, "项目名称", 255, false); err != nil {
+	if err := validateResourceName(resourceNameValidation{value: name, path: "project_name", maximum: 255, allowSpaces: false}); err != nil {
 		return err
 	}
 	if err := validateProjectFields(body, true); err != nil {
@@ -33,37 +31,37 @@ func validateProjectFields(body map[string]any, create bool) error {
 	}
 	if public, exists := body["public"]; exists && public != nil {
 		if _, ok := public.(bool); !ok {
-			return errors.New("public 必须是布尔值或 null")
+			return invalidField("public", "not_boolean_or_null", "must be a boolean or null")
 		}
 	}
 	if metadata, exists := body["metadata"]; exists {
 		values, ok := metadata.(map[string]any)
 		if !ok {
-			return errors.New("metadata 必须是 JSON 对象")
+			return invalidField("metadata", "not_object", "must be a JSON object")
 		}
 		if err := validateProjectMetadata(values); err != nil {
-			return err
+			return nestField("metadata", err)
 		}
 	}
 	if allowlist, exists := body["cve_allowlist"]; exists {
 		values, ok := allowlist.(map[string]any)
 		if !ok {
-			return errors.New("cve_allowlist 必须是 JSON 对象")
+			return invalidField("cve_allowlist", "not_object", "must be a JSON object")
 		}
 		if err := validateCVEAllowlist(values); err != nil {
-			return err
+			return nestField("cve_allowlist", err)
 		}
 	}
 	if storage, exists := body["storage_limit"]; create && exists && storage != nil {
 		value, ok := integerNumberValue(storage)
 		if !ok || value < -1 {
-			return errors.New("storage_limit 必须为 -1、0 或正整数")
+			return invalidField("storage_limit", "invalid_storage_limit", "must be -1, 0 or a positive integer")
 		}
 	}
 	if registry, exists := body["registry_id"]; create && exists && registry != nil {
 		value, ok := integerNumberValue(registry)
 		if !ok || value < 0 {
-			return errors.New("registry_id 必须是 0 或正整数")
+			return invalidField("registry_id", "not_non_negative_integer", "must be 0 or a positive integer")
 		}
 	}
 	return nil
@@ -84,11 +82,11 @@ func validateProjectMetadata(metadata map[string]any) error {
 			continue
 		}
 		if len(field) == 0 || len(field) > 255 || !regexp.MustCompile(`^[A-Za-z0-9_.-]+$`).MatchString(field) {
-			return fmt.Errorf("项目 metadata.%s 名称无效", field)
+			return invalidField(field, "invalid_key", "is not a valid metadata key")
 		}
 		text, ok := value.(string)
 		if !ok || len(text) > 65535 || strings.ContainsRune(text, '\x00') {
-			return fmt.Errorf("项目 metadata.%s 必须是长度受限的字符串", field)
+			return invalidField(field, "invalid_text", "must be a string of limited length")
 		}
 	}
 	booleanFields := []string{
@@ -99,26 +97,26 @@ func validateProjectMetadata(metadata map[string]any) error {
 		if raw, exists := metadata[field]; exists && raw != nil {
 			value, ok := raw.(string)
 			if !ok || (value != "true" && value != "false") {
-				return fmt.Errorf("项目 metadata.%s 必须是字符串 true 或 false", field)
+				return invalidField(field, "not_boolean_string", `must be the string "true" or "false"`)
 			}
 		}
 	}
 	if raw, exists := metadata["severity"]; exists && raw != nil {
 		value, ok := raw.(string)
 		if !ok || !slicesContain([]string{"none", "low", "medium", "high", "critical"}, value) {
-			return errors.New("项目 metadata.severity 必须是 none、low、medium、high 或 critical")
+			return invalidField("severity", "invalid_value", "must be none, low, medium, high or critical")
 		}
 	}
 	for _, field := range []string{"retention_id", "proxy_speed_kb", "max_upstream_conn"} {
 		if raw, exists := metadata[field]; exists && raw != nil {
 			value, ok := raw.(string)
 			if !ok || len(value) > 32 || strings.ContainsAny(value, "\r\n\x00") {
-				return fmt.Errorf("项目 metadata.%s 必须是 32 个字符以内的单行字符串", field)
+				return invalidField(field, "invalid_text", "must be a single-line string of at most 32 characters")
 			}
 			if field == "proxy_speed_kb" || field == "max_upstream_conn" {
 				parsed, err := strconv.ParseInt(value, 10, 64)
 				if err != nil || parsed == 0 || parsed < -1 {
-					return fmt.Errorf("项目 metadata.%s 必须是 -1 或正整数", field)
+					return invalidField(field, "not_minus_one_or_positive", "must be -1 or a positive integer")
 				}
 			}
 		}
@@ -132,7 +130,7 @@ func validateProjectMetadataWrite(body map[string]any) error {
 	}
 	value, ok := body["value"].(string)
 	if !ok || len(value) > 4096 {
-		return errors.New("metadata value 必须是不超过 4096 字符的字符串")
+		return invalidField("value", "invalid_text", "must be a string of at most 4096 characters")
 	}
 	return nil
 }
@@ -140,7 +138,7 @@ func validateProjectMetadataWrite(body map[string]any) error {
 func validateProjectScanner(body map[string]any) error {
 	uuid, ok := body["uuid"].(string)
 	if !ok || !validUUID(uuid) {
-		return errors.New("扫描器 uuid 必须是有效的 UUID")
+		return invalidField("uuid", "invalid_uuid", "must be a valid UUID")
 	}
 	return nil
 }

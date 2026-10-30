@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-
 import { controlApi } from "../../app/api-client";
+import { errorText, UserInputError } from "../../app/errors";
 import type {
   ArtifactAccessory,
   ArtifactLabelCollection,
@@ -11,12 +10,14 @@ import type {
   ProjectLabel,
   ProjectSummary,
 } from "../../app/models";
-import type { IconName } from "../../components/icons";
+import { useLoadedQuery } from "../../app/use-loaded-query";
+import type { IconName } from "../../components/icons-support";
 import {
   artifactAdditionTabs,
   type ArtifactDetailTab,
   artifactHasAddition,
-} from "./artifact-detail-sections";
+} from "./artifact-detail-sections-support";
+import { artifactKeys } from "./artifact-keys";
 
 export const artifactPageSize = 50;
 const additionTabKeys = Object.keys(
@@ -123,10 +124,6 @@ export function repositoryPath(project: string, repository: string): string {
   return `projects/${encodeURIComponent(project)}/repositories/${encodeURIComponent(repository)}/artifacts`;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
@@ -148,7 +145,7 @@ async function loadArtifactLabels(
   const projectLabels = controlApi
     .data<ProjectSummary>("project", { project: state.project }, signal)
     .then((project) => {
-      if (!project) throw new Error("项目不存在");
+      if (!project) throw new UserInputError("项目不存在");
       return controlApi.list<ProjectLabel>(
         "labels",
         {
@@ -171,12 +168,12 @@ async function loadArtifactLabels(
   if (projectResult.status === "fulfilled") {
     available.push(...projectResult.value.items);
   } else {
-    errors.push(errorMessage(projectResult.reason));
+    errors.push(errorText(projectResult.reason));
   }
   if (globalResult.status === "fulfilled") {
     available.push(...globalResult.value.items);
   } else {
-    errors.push(errorMessage(globalResult.reason));
+    errors.push(errorText(globalResult.reason));
   }
   return {
     attached: artifact.labels ?? [],
@@ -204,7 +201,7 @@ async function loadArtifactData(
     },
     signal,
   );
-  if (!artifact) throw new Error("制品不存在");
+  if (!artifact) throw new UserInputError("制品不存在");
   const result: ArtifactDetailData = { artifact };
   if (state.tab === "tags") {
     result.tags = await controlApi.list<ArtifactTag>(
@@ -240,7 +237,7 @@ async function loadArtifactData(
         );
     } catch (error) {
       if (isAbortError(error)) throw error;
-      result.vulnerabilityError = errorMessage(error);
+      result.vulnerabilityError = errorText(error);
     }
   } else if (state.tab === "accessories") {
     try {
@@ -258,7 +255,7 @@ async function loadArtifactData(
       );
     } catch (error) {
       if (isAbortError(error)) throw error;
-      result.accessoryError = errorMessage(error);
+      result.accessoryError = errorText(error);
       result.accessories = {
         items: [],
         pagination: { page: 1, page_size: artifactPageSize, total: 0 },
@@ -286,7 +283,7 @@ async function loadArtifactData(
       );
     } catch (error) {
       if (isAbortError(error)) throw error;
-      result.additionError = errorMessage(error);
+      result.additionError = errorText(error);
     }
   }
   abortIfNeeded(signal);
@@ -295,40 +292,10 @@ async function loadArtifactData(
 
 /** Loads the artifact and the data of the selected tab. */
 export function useArtifactDetail(routeState: ArtifactRouteState) {
-  const [data, setData] = useState<ArtifactDetailData>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [reloadToken, setReloadToken] = useState(0);
-  const requestVersion = useRef(0);
-  const reload = useCallback(
-    () => setReloadToken((current) => current + 1),
-    [],
+  // Another artifact's data would be misleading while this one loads.
+  return useLoadedQuery(
+    artifactKeys.detail(routeState),
+    (signal) => loadArtifactData(routeState, signal),
+    { keepPrevious: false },
   );
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const version = requestVersion.current + 1;
-    requestVersion.current = version;
-    setData(undefined);
-    setLoading(true);
-    setError("");
-    void loadArtifactData(routeState, controller.signal)
-      .then((next) => {
-        if (requestVersion.current === version) setData(next);
-      })
-      .catch((loadError: unknown) => {
-        if (isAbortError(loadError)) return;
-        if (requestVersion.current === version) {
-          setError(errorMessage(loadError));
-        }
-      })
-      .finally(() => {
-        if (requestVersion.current === version && !controller.signal.aborted) {
-          setLoading(false);
-        }
-      });
-    return () => controller.abort();
-  }, [reloadToken, routeState]);
-
-  return { data, loading, error, reload };
 }

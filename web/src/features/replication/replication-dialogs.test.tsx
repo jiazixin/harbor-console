@@ -1,25 +1,19 @@
-import { ReplicationPolicyDialog } from "./replication-policy-dialog";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
 import type { ReplicationAdapterInfo } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import { ReplicationExecutionDialog } from "./replication-dialogs";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { ReplicationExecutionDialog } from "./replication-execution-dialog";
+import { ReplicationPolicyDialog } from "./replication-policy-dialog";
 
 function renderDialog(node: React.ReactNode) {
   return render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       {node}
-    </LocaleProvider>,
+    </TestProviders>,
   );
 }
 
@@ -66,6 +60,7 @@ describe("replication dialogs", () => {
   });
 
   it("creates a policy with only Harbor v2.15 replication fields", async () => {
+    const user = setupUser();
     const capability: ReplicationAdapterInfo = {
       type: "harbor",
       supported_resource_filters: [
@@ -89,32 +84,45 @@ describe("replication dialogs", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "策略名称" }), {
-      target: { value: "release" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("例如 platform/**"), {
-      target: { value: "platform/**" },
-    });
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "策略名称" }),
+      "release",
+    );
+    await replaceText(
+      user,
+      screen.getByPlaceholderText("例如 platform/**"),
+      "platform/**",
+    );
     const submit = screen.getByRole("button", { name: "创建策略" });
     await waitFor(() => expect(submit).toBeEnabled());
-    fireEvent.click(submit);
+    await user.click(submit);
 
-    await waitFor(() => expect(mutate).toHaveBeenCalledOnce());
-    expect(mutate).toHaveBeenCalledWith("replication-policies", {}, "POST", {
-      name: "release",
-      description: "",
-      src_registry: null,
-      dest_registry: { id: 3 },
-      dest_namespace: "",
-      dest_namespace_replace_count: 1,
-      trigger: { type: "manual", trigger_settings: {} },
-      filters: [{ type: "name", value: "platform/**" }],
-      enabled: true,
-      override: true,
-      replicate_deletion: false,
-      speed: -1,
-      single_active_replication: false,
-      copy_by_chunk: false,
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledOnce();
+    });
+    expect(mutate).toHaveBeenCalledWith({
+      operation: "replication-policies",
+      parameters: {},
+      method: "POST",
+      payload: {
+        name: "release",
+        description: "",
+        src_registry: null,
+        dest_registry: { id: 3 },
+        dest_namespace: "",
+        dest_namespace_replace_count: 1,
+        trigger: { type: "manual", trigger_settings: {} },
+        filters: [{ type: "name", value: "platform/**" }],
+        enabled: true,
+        override: true,
+        replicate_deletion: false,
+        speed: -1,
+        single_active_replication: false,
+        copy_by_chunk: false,
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
     });
     expect(saved).toHaveBeenCalledOnce();
   });
@@ -154,6 +162,7 @@ describe("replication dialogs", () => {
   });
 
   it("aborts the previous replication log refresh and ignores stale output", async () => {
+    const user = setupUser();
     const pendingLogs: {
       signal: AbortSignal;
       resolve: (value: string) => void;
@@ -182,9 +191,9 @@ describe("replication dialogs", () => {
         return new Promise<string>((resolve, reject) => {
           if (!signal) throw new Error("log request must be cancellable");
           pendingLogs.push({ signal, resolve });
-          signal.addEventListener("abort", () =>
-            reject(new DOMException("Aborted", "AbortError")),
-          );
+          signal.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
         });
       },
     );
@@ -198,12 +207,16 @@ describe("replication dialogs", () => {
       />,
     );
 
-    fireEvent.click(
+    await user.click(
       await screen.findByRole("button", { name: "查看任务 9 日志" }),
     );
-    await waitFor(() => expect(pendingLogs).toHaveLength(1));
-    fireEvent.click(screen.getByRole("button", { name: "刷新复制任务日志" }));
-    await waitFor(() => expect(pendingLogs).toHaveLength(2));
+    await waitFor(() => {
+      expect(pendingLogs).toHaveLength(1);
+    });
+    await user.click(screen.getByRole("button", { name: "刷新复制任务日志" }));
+    await waitFor(() => {
+      expect(pendingLogs).toHaveLength(2);
+    });
     expect(pendingLogs[0]?.signal.aborted).toBe(true);
     pendingLogs[1]?.resolve("2026-08-03T10:00:00Z INFO current response");
     await screen.findByText("current response");

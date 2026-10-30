@@ -1,0 +1,8 @@
+@layer ui-collections {
+  .auditTime {
+    white-space: nowrap;
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.auditTime {
+}

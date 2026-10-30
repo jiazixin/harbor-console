@@ -1,9 +1,9 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../../app/locale-context";
 import type { AuditLog } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
 import { ProjectAuditSection } from "./project-audit-section";
 
 const logs: AuditLog[] = [
@@ -26,10 +26,11 @@ afterEach(() => {
 });
 
 describe("ProjectAuditSection", () => {
-  it("preserves the shared legacy audit columns, search, and result state", () => {
+  it("preserves the shared legacy audit columns, search, and result state", async () => {
+    const user = setupUser();
     const onSearch = vi.fn();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectAuditSection
           logs={logs}
@@ -39,7 +40,7 @@ describe("ProjectAuditSection", () => {
           onPageChange={vi.fn()}
           onRetry={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(screen.getByText("#48320")).toBeInTheDocument();
@@ -48,13 +49,12 @@ describe("ProjectAuditSection", () => {
     expect(screen.getByText("推送制品清单和数据层")).toBeInTheDocument();
     expect(screen.getByText("成功")).toBeInTheDocument();
 
-    fireEvent.change(
+    await replaceText(
+      user,
       screen.getByRole("searchbox", { name: "按资源或用户筛选" }),
-      {
-        target: { value: " gateway " },
-      },
+      " gateway ",
     );
-    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+    await user.click(screen.getByRole("button", { name: "搜索" }));
     expect(onSearch).toHaveBeenCalledWith("gateway");
     expect(
       screen.getAllByRole("columnheader").map((header) => header.textContent),

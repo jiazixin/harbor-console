@@ -1,0 +1,79 @@
+@layer ui-logs {
+  .replicationLogView {
+    margin-top: 18px;
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-panel);
+    background: var(--color-ce841f33);
+  }
+}
+
+@layer ui-logs {
+  .replicationLogView:focus {
+    outline: none;
+  }
+}
+
+@layer ui-logs {
+  .replicationLogView header {
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-1960ebc8);
+    background: var(--color-a7101ba3);
+  }
+}
+
+@layer ui-logs {
+  .replicationLogView h3 {
+    margin: 0;
+    color: var(--color-d4e8f64c);
+    font-size: 12px;
+  }
+}
+
+@layer ui-logs {
+  .replicationLogView p {
+    margin: 2px 0 0;
+    color: var(--color-74087bcf);
+    font-size: 11px;
+  }
+}
+
+@layer ui-logs {
+  .logViewActions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-control);
+  }
+}
+
+@layer ui-logs {
+  .logViewActions > span {
+    margin-right: 4px;
+    color: var(--color-74087bcf);
+    font-size: 11px;
+  }
+}
+
+@layer ui-logs {
+  .replicationLogView :global(.hc_8b938f52_iconButton) {
+    color: var(--color-cd48503c);
+    border-color: var(--color-cb0c3fb9);
+    background: var(--color-0ab24f07);
+  }
+}
+
+@layer ui-logs {
+  .replicationLogView :global(.hc_f2b6b3f8_structuredLogView) {
+    min-height: 210px;
+    max-height: 330px;
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.replicationLogView {
+}
+.logViewActions {
+}

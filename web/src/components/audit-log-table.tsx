@@ -1,23 +1,20 @@
-import { auditResourceTypeLabel, formatAuditDate } from "../app/audit-log";
+import { auditResourceTypeLabel } from "../app/audit-log";
 import { useLocale } from "../app/locale-context";
 import type { AuditLog, Locale } from "../app/models";
-import { SortableHeader, StableTableColumns } from "./data-table";
+import { displayTimeZone } from "../app/preferences";
+import { createClassNames } from "../lib/css/class-names";
+import { formatTimestamp } from "../lib/format/formatters";
+import uiStyles1 from "./audit-log-table.module.css";
 import { EmptyState } from "./empty-state";
+import type { IconName } from "./icons-support";
 import { OverflowText } from "./overflow-text";
-import type { IconName } from "./icons";
+import uiStyles0 from "./shared-ui.module.css";
+import { SortableHeader } from "./sortable-header";
+import { StableTableColumns } from "./stable-table-columns";
 
 type Translate = (source: string) => string;
 
-export function AuditLogTable({
-  logs,
-  emptyTitle,
-  emptyDescription,
-  emptyIcon,
-  sort,
-  onSort,
-  operationLabel,
-  descriptionLabel,
-}: {
+type AuditLogTableProps = {
   logs: AuditLog[];
   emptyTitle: string;
   emptyDescription: string;
@@ -34,7 +31,18 @@ export function AuditLogTable({
     locale: Locale,
     translate: Translate,
   ) => string;
-}) {
+};
+
+export function AuditLogTable({
+  logs,
+  emptyTitle,
+  emptyDescription,
+  emptyIcon,
+  sort,
+  onSort,
+  operationLabel,
+  descriptionLabel,
+}: AuditLogTableProps) {
   const { locale, t } = useLocale();
 
   if (!logs.length) {
@@ -48,7 +56,7 @@ export function AuditLogTable({
   }
 
   return (
-    <table className="data-table-stable audit-log-table">
+    <table className={resolveClasses("data-table-stable audit-log-table")}>
       <StableTableColumns
         widths={["144px", "12%", "24%", "112px", "10%", "22%", "96px"]}
       />
@@ -58,13 +66,15 @@ export function AuditLogTable({
             <SortableHeader
               label="时间"
               field="op_time"
-              className="audit-time table-cell-time"
+              className={resolveClasses("audit-time table-cell-time")}
               descendingFirst
               currentSort={sort}
               onSort={onSort}
             />
           ) : (
-            <th className="audit-time table-cell-time">{t("时间")}</th>
+            <th className={resolveClasses("audit-time table-cell-time")}>
+              {t("时间")}
+            </th>
           )}
           <th>{t("用户")}</th>
           <th>{t("事件")}</th>
@@ -80,17 +90,22 @@ export function AuditLogTable({
           const description = descriptionLabel(log, locale, t);
           return (
             <tr key={`${String(log.id)}-${String(index)}`}>
-              <td className="audit-time table-cell-time">
-                {formatAuditDate(log.op_time, locale)}
+              <td className={resolveClasses("audit-time table-cell-time")}>
+                {formatTimestamp(log.op_time, {
+                  locale: locale,
+                  timeZone: displayTimeZone(),
+                })}
               </td>
               <td>
                 <strong>{log.username ?? t("系统")}</strong>
               </td>
               <td>
-                <span className="cell-stack">
+                <span className={resolveClasses("cell-stack")}>
                   <span>
                     <span
-                      className="badge badge-blue audit-event-badge"
+                      className={resolveClasses(
+                        "badge badge-blue audit-event-badge",
+                      )}
                       title={operation}
                     >
                       {operation}
@@ -101,30 +116,38 @@ export function AuditLogTable({
               </td>
               <td>
                 <span
-                  className={`badge ${
-                    log.operation_result === true
-                      ? "badge-green"
-                      : log.operation_result === false
-                        ? "badge-red"
-                        : ""
-                  }`.trim()}
+                  className={resolveClasses(
+                    `badge ${(() => {
+                      if (log.operation_result === true) {
+                        return "badge-green";
+                      }
+                      if (log.operation_result === false) {
+                        return "badge-red";
+                      }
+                      return "";
+                    })()}`.trim(),
+                  )}
                 >
                   {t(
-                    log.operation_result === true
-                      ? "成功"
-                      : log.operation_result === false
-                        ? "失败"
-                        : "未记录",
+                    (() => {
+                      if (log.operation_result === true) {
+                        return "成功";
+                      }
+                      if (log.operation_result === false) {
+                        return "失败";
+                      }
+                      return "未记录";
+                    })(),
                   )}
                 </span>
               </td>
               <td>{auditResourceTypeLabel(log.resource_type, t)}</td>
               <td>
-                <OverflowText className="mono">
+                <OverflowText className={resolveClasses("mono")}>
                   {log.resource ?? "-"}
                 </OverflowText>
               </td>
-              <td className="id-cell">#{log.id}</td>
+              <td className={resolveClasses("id-cell")}>#{log.id}</td>
             </tr>
           );
         })}
@@ -132,3 +155,32 @@ export function AuditLogTable({
     </table>
   );
 }
+
+const resolveClasses = createClassNames({
+  "empty-state": uiStyles0.emptyState,
+  "overflow-text": uiStyles0.overflowText,
+  "data-table-stable": uiStyles0.dataTableStable,
+  "audit-log-table": uiStyles0.auditLogTable,
+  "table-cell-time": uiStyles0.tableCellTime,
+  "cell-stack": uiStyles0.cellStack,
+  badge: uiStyles0.badge,
+  "badge-blue": uiStyles0.badgeBlue,
+  "badge-green": uiStyles0.badgeGreen,
+  "badge-red": uiStyles0.badgeRed,
+  mono: uiStyles0.mono,
+  "id-cell": uiStyles0.idCell,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+  "audit-time": uiStyles1.auditTime,
+});

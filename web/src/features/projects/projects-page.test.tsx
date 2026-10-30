@@ -1,17 +1,11 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { parseHashRoute } from "../../app/hash-router";
-import { LocaleProvider } from "../../app/locale-context";
+import { parseConsoleRoute } from "../../app/console-route";
 import type { ProjectSummary, Session } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
 import { ProjectsPage } from "./projects-page";
 
 const session: Session = {
@@ -61,6 +55,7 @@ afterEach(() => {
 
 describe("ProjectsPage", () => {
   it("preserves project list behavior for selection, sorting, and filtering", async () => {
+    const user = setupUser();
     const list = vi.spyOn(controlApi, "list").mockResolvedValue({
       items: projects,
       pagination: { page: 1, page_size: 50, total: projects.length },
@@ -69,10 +64,10 @@ describe("ProjectsPage", () => {
     const deleteProjects = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectsPage
-          route={parseHashRoute("#/projects")}
+          route={parseConsoleRoute("#/projects")}
           session={session}
           refreshing={false}
           navigate={navigate}
@@ -81,7 +76,7 @@ describe("ProjectsPage", () => {
           onDeleteProjects={deleteProjects}
           onExportProjectCve={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("commerce")).toBeInTheDocument();
@@ -102,35 +97,36 @@ describe("ProjectsPage", () => {
         public: "",
         with_detail: true,
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "选择 commerce" }));
+    await user.click(screen.getByRole("checkbox", { name: "选择 commerce" }));
     const deleteButton = screen.getByRole("button", { name: "删除项目" });
     expect(deleteButton).toBeEnabled();
-    fireEvent.click(deleteButton);
+    await user.click(deleteButton);
     expect(deleteProjects).toHaveBeenCalledWith([projects[0]]);
 
-    fireEvent.click(screen.getByRole("button", { name: "按项目降序排序" }));
+    await user.click(screen.getByRole("button", { name: "按项目降序排序" }));
     expect(navigate).toHaveBeenCalledWith("projects?sort=-name");
 
-    fireEvent.click(screen.getByRole("button", { name: "按最近更新降序排序" }));
+    await user.click(
+      screen.getByRole("button", { name: "按最近更新降序排序" }),
+    );
     expect(navigate).toHaveBeenCalledWith("projects?sort=-update_time");
 
     const projectNameSearch = screen.getByRole("searchbox", {
       name: "按项目名称搜索",
     });
-    fireEvent.change(projectNameSearch, { target: { value: "plat" } });
-    fireEvent.change(
+    await replaceText(user, projectNameSearch, "plat");
+    await replaceText(
+      user,
       screen.getByRole("searchbox", { name: "按项目所有者筛选" }),
-      { target: { value: "demo-admin" } },
+      "demo-admin",
     );
-    const filterForm = projectNameSearch.closest("form");
-    expect(filterForm).not.toBeNull();
-    if (filterForm) fireEvent.submit(filterForm);
-    await waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith("projects?q=plat&owner=demo-admin"),
-    );
+    await user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith("projects?q=plat&owner=demo-admin");
+    });
   });
 
   it("sorts derived columns across the complete set without remounting the table", async () => {
@@ -140,10 +136,10 @@ describe("ProjectsPage", () => {
     });
 
     const { rerender } = render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectsPage
-          route={parseHashRoute("#/projects?sort=-public")}
+          route={parseConsoleRoute("#/projects?sort=-public")}
           session={session}
           refreshing={false}
           navigate={vi.fn()}
@@ -152,7 +148,7 @@ describe("ProjectsPage", () => {
           onDeleteProjects={vi.fn()}
           onExportProjectCve={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(
@@ -173,10 +169,10 @@ describe("ProjectsPage", () => {
     const table = screen.getByRole("table");
     const requestCount = list.mock.calls.length;
     rerender(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectsPage
-          route={parseHashRoute("#/projects?sort=-repo_count")}
+          route={parseConsoleRoute("#/projects?sort=-repo_count")}
           session={session}
           refreshing={false}
           navigate={vi.fn()}
@@ -185,7 +181,7 @@ describe("ProjectsPage", () => {
           onDeleteProjects={vi.fn()}
           onExportProjectCve={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     await waitFor(() => {
@@ -197,8 +193,8 @@ describe("ProjectsPage", () => {
     expect(list).toHaveBeenCalledTimes(requestCount);
     expect(list.mock.calls).not.toContainEqual([
       "projects",
-      expect.objectContaining({ sort: "-repo_count" }),
-      expect.any(AbortSignal),
+      expect.objectContaining({ sort: "-repo_count" }) as unknown,
+      expect.any(AbortSignal) as unknown,
     ]);
   });
 });

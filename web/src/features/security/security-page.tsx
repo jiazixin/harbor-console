@@ -1,20 +1,7 @@
-import {
-  type SubmitEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import { ContentTransition } from "../../components/content-transition";
-
+import { type SubmitEvent } from "react";
 import { controlApi } from "../../app/api-client";
-import {
-  formatCount,
-  formatDate,
-  formatDuration,
-  formatNumber,
-} from "../../app/formatters";
-import type { ConsoleRoute } from "../../app/hash-router";
+import type { ConsoleRoute } from "../../app/console-route";
+import { errorText } from "../../app/errors";
 import { useLocale } from "../../app/locale-context";
 import type {
   ControlList,
@@ -26,26 +13,44 @@ import type {
   SecuritySummary,
   SecurityVulnerability,
 } from "../../app/models";
-import { Pagination } from "../../components/data-table";
+import { displayTimeZone } from "../../app/preferences";
+import { useControlMutation } from "../../app/use-control-mutation";
+import { useLoadedQuery } from "../../app/use-loaded-query";
+import { ContentTransition } from "../../components/content-transition";
+import { DemoBanner } from "../../components/demo-banner";
 import { EmptyState } from "../../components/empty-state";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
+import { ErrorView } from "../../components/error-view";
+import { FormInput } from "../../components/form-input";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { Pagination } from "../../components/pagination";
+import { PanelTitle } from "../../components/panel-title";
+import { RefreshButton } from "../../components/refresh-button";
+import { SeverityBadge } from "../../components/severity-badge";
 import {
-  DemoBanner,
-  PageHeader,
-  PanelTitle,
-  RefreshButton,
-  StatCell,
-} from "../../components/page-elements";
-import {
-  SeverityBadge,
-  StatusBadge,
-  triggerLabel,
-} from "../../components/status-badge";
+  default as sharedPrimitiveStyles,
+  default as uiStyles0,
+} from "../../components/shared-ui.module.css";
+import { StatCell } from "../../components/stat-cell";
+import { StatusBadge } from "../../components/status-badge";
+import { triggerLabel } from "../../components/status-badge-support";
 import { ToolbarSearchForm } from "../../components/toolbar-search-form";
 import { UnifiedSelect } from "../../components/unified-select";
-import { useResettableState } from "../../components/use-resettable-state";
-import { shortDigest } from "../artifacts/artifact-utils";
+import { createClassNames } from "../../lib/css/class-names";
+import {
+  formatCount,
+  formatDate,
+  formatDecimal,
+  formatDuration,
+  formatNumber,
+} from "../../lib/format/formatters";
+import { useResettableState } from "../../lib/state/use-resettable-state";
+import { shortDigest } from "../artifacts/public";
+import { securityKeys } from "./security-keys";
+import styles from "./security.module.css";
+
+// Queries that a write in this module can change.
+const affectedQueries = [securityKeys.all];
 
 export type SecurityAction =
   | { kind: "create-scanner"; canDisable: boolean }
@@ -133,15 +138,20 @@ function artifactTarget(
   return `#/projects/${encodeURIComponent(project)}/repositories/${encodeURIComponent(repository)}/artifacts/${encodeURIComponent(item.digest)}?tab=vulnerabilities`;
 }
 
-function SecurityTabs({ selected }: { selected: SecuritySection }) {
+type SecurityTabsProps = { selected: SecuritySection };
+
+function SecurityTabs({ selected }: SecurityTabsProps) {
   const { t } = useLocale();
   return (
-    <nav className="resource-tabs security-tabs" aria-label={t("安全中心页面")}>
+    <nav
+      className={resolveClasses("resource-tabs security-tabs")}
+      aria-label={t("安全中心页面")}
+    >
       {tabs.map((tab) => (
         <a
           key={tab.key}
           href={`#/${securityPath(tab.key)}`}
-          className={selected === tab.key ? "active" : ""}
+          className={resolveClasses(selected === tab.key ? "active" : "")}
           aria-current={selected === tab.key ? "page" : undefined}
         >
           <Icon name={tab.icon} />
@@ -152,17 +162,19 @@ function SecurityTabs({ selected }: { selected: SecuritySection }) {
   );
 }
 
+type RiskProgressProps = {
+  label: string;
+  value: number;
+  total: number;
+  critical?: boolean;
+};
+
 function RiskProgress({
   label,
   value,
   total,
   critical = false,
-}: {
-  label: string;
-  value: number;
-  total: number;
-  critical?: boolean;
-}) {
+}: RiskProgressProps) {
   const { locale, t } = useLocale();
   const width = total
     ? Math.max(value ? 3 : 0, Math.min(100, (value / total) * 100))
@@ -172,7 +184,9 @@ function RiskProgress({
       <span>{t(label)}</span>
       <strong>{formatNumber(value, locale)}</strong>
       <progress
-        className={`security-risk-progress${critical ? " security-risk-critical" : ""}`}
+        className={resolveClasses(
+          `${styles.securityRiskProgress}${critical ? ` ${styles.securityRiskCritical}` : ""}`,
+        )}
         max={100}
         value={width}
         aria-label={`${t(label)}${t("漏洞占比")}`}
@@ -181,15 +195,17 @@ function RiskProgress({
   );
 }
 
+type SecurityOverviewProps = {
+  summary: SecuritySummary;
+  totalArtifacts: number;
+  projects: ProjectSummary[];
+};
+
 function SecurityOverview({
   summary,
   totalArtifacts,
   projects,
-}: {
-  summary: SecuritySummary;
-  totalArtifacts: number;
-  projects: ProjectSummary[];
-}) {
+}: SecurityOverviewProps) {
   const { locale, t } = useLocale();
   const scanned = summary.scanned_cnt ?? 0;
   const artifactTotal =
@@ -211,7 +227,7 @@ function SecurityOverview({
   return (
     <>
       <section
-        className="overview-stats security-stats"
+        className={resolveClasses("overview-stats security-stats")}
         aria-label={t("安全统计")}
       >
         <StatCell
@@ -239,8 +255,8 @@ function SecurityOverview({
           value={formatNumber(scanned, locale)}
           foot={
             locale === "en-US"
-              ? `${coverage.toFixed(1)}% artifact coverage`
-              : `覆盖 ${coverage.toFixed(1)}% 的制品`
+              ? `${formatDecimal(coverage)}% artifact coverage`
+              : `覆盖 ${formatDecimal(coverage)}% 的制品`
           }
           icon="check"
         />
@@ -255,7 +271,10 @@ function SecurityOverview({
           icon="database"
         />
       </section>
-      <section className="security-risk-band" aria-label={t("风险分布")}>
+      <section
+        className={resolveClasses(styles.securityRiskBand)}
+        aria-label={t("风险分布")}
+      >
         <RiskProgress
           label="严重"
           value={summary.critical_cnt ?? 0}
@@ -278,23 +297,25 @@ function SecurityOverview({
           total={vulnerabilities}
         />
       </section>
-      <div className="security-overview-grid">
-        <section className="table-shell">
-          <div className="table-toolbar">
+      <div className={resolveClasses(styles.securityOverviewGrid)}>
+        <section className={resolveClasses("table-shell")}>
+          <div className={resolveClasses("table-toolbar")}>
             <div>
               <strong>{t("高风险 CVE")}</strong>
-              <span className="toolbar-caption">{t("按 Harbor 风险汇总")}</span>
+              <span className={resolveClasses("toolbar-caption")}>
+                {t("按 Harbor 风险汇总")}
+              </span>
             </div>
-            <div className="toolbar-spacer" />
+            <div className={resolveClasses("toolbar-spacer")} />
             <a
-              className="button button-small"
+              className={resolveClasses("button button-small")}
               href="#/security/vulnerabilities"
             >
               <Icon name="arrow-right" />
               <span>{t("全部漏洞")}</span>
             </a>
           </div>
-          <div className="table-scroll">
+          <div className={resolveClasses("table-scroll")}>
             {cves.length ? (
               <table>
                 <thead>
@@ -313,24 +334,30 @@ function SecurityOverview({
                       key={`${item.cve_id ?? "unknown"}-${item.package ?? "unknown"}`}
                     >
                       <td>
-                        <strong className="mono">{item.cve_id ?? "-"}</strong>
+                        <strong className={resolveClasses("mono")}>
+                          {item.cve_id ?? "-"}
+                        </strong>
                       </td>
                       <td>
                         <SeverityBadge severity={item.severity} />
                       </td>
-                      <td className="mono">{item.cvss_score_v3 ?? "-"}</td>
+                      <td className={resolveClasses("mono")}>
+                        {item.cvss_score_v3 ?? "-"}
+                      </td>
                       <td>
-                        <span className="cell-stack">
+                        <span className={resolveClasses("cell-stack")}>
                           <strong>{item.package ?? "-"}</strong>
                           <small>{item.version ?? "-"}</small>
                         </span>
                       </td>
-                      <td className="vulnerability-description">
+                      <td
+                        className={resolveClasses("vulnerability-description")}
+                      >
                         {item.desc ? t(item.desc) : "-"}
                       </td>
                       <td>
                         <a
-                          className="icon-button"
+                          className={resolveClasses("icon-button")}
                           href={`#/security/vulnerabilities?cve=${encodeURIComponent(item.cve_id ?? "")}`}
                           title={t("查看此 CVE")}
                           aria-label={`${t("查看此 CVE")} ${item.cve_id ?? ""}`}
@@ -351,16 +378,16 @@ function SecurityOverview({
             )}
           </div>
         </section>
-        <section className="table-shell">
-          <div className="table-toolbar">
+        <section className={resolveClasses("table-shell")}>
+          <div className={resolveClasses("table-toolbar")}>
             <div>
               <strong>{t("危险制品")}</strong>
-              <span className="toolbar-caption">
+              <span className={resolveClasses("toolbar-caption")}>
                 {t("按严重、高危与中危数量排序")}
               </span>
             </div>
           </div>
-          <div className="table-scroll">
+          <div className={resolveClasses("table-scroll")}>
             {artifacts.length ? (
               <table>
                 <thead>
@@ -378,14 +405,17 @@ function SecurityOverview({
                     return (
                       <tr key={item.digest}>
                         <td>
-                          <span className="cell-stack">
+                          <span className={resolveClasses("cell-stack")}>
                             <strong>{item.repository_name ?? "-"}</strong>
-                            <small className="mono" title={item.digest}>
+                            <small
+                              className={resolveClasses("mono")}
+                              title={item.digest}
+                            >
                               {shortDigest(item.digest ?? "")}
                             </small>
                           </span>
                         </td>
-                        <td className="danger-text">
+                        <td className={resolveClasses("danger-text")}>
                           {formatNumber(item.critical_cnt, locale)}
                         </td>
                         <td>{formatNumber(item.high_cnt, locale)}</td>
@@ -393,7 +423,7 @@ function SecurityOverview({
                         <td>
                           {target ? (
                             <a
-                              className="icon-button"
+                              className={resolveClasses("icon-button")}
                               href={target}
                               title={t("打开制品漏洞")}
                               aria-label={t("打开制品漏洞")}
@@ -423,35 +453,43 @@ function SecurityOverview({
   );
 }
 
-function VulnerabilityStatus({ value }: { value: string | undefined }) {
+type VulnerabilityStatusProps = { value: string | undefined };
+
+function VulnerabilityStatus({ value }: VulnerabilityStatusProps) {
   const { t } = useLocale();
   const status = value?.toLowerCase() ?? "";
-  const presentation =
-    status === "fixed"
-      ? ["已有修复", "badge-green"]
-      : status === "will_not_fix" || status === "won't fix"
-        ? ["不会修复", "badge-orange"]
-        : status === "not_fixed"
-          ? ["暂无修复", ""]
-          : [value ?? "未知", ""];
+  const presentation = (() => {
+    if (status === "fixed") {
+      return ["已有修复", "badge-green"];
+    }
+    if (status === "will_not_fix" || status === "won't fix") {
+      return ["不会修复", "badge-orange"];
+    }
+    if (status === "not_fixed") {
+      return ["暂无修复", ""];
+    }
+    return [value ?? "未知", ""];
+  })();
   return (
-    <span className={`badge ${presentation[1]}`.trim()}>
-      {t(presentation[0])}
+    <span className={resolveClasses(`badge ${presentation[1] ?? ""}`.trim())}>
+      {t(presentation[0] ?? "未知")}
     </span>
   );
 }
+
+type VulnerabilitiesSectionProps = {
+  route: ConsoleRoute;
+  collection: ControlList<SecurityVulnerability>;
+  projects: ProjectSummary[];
+  navigate: (path: string) => void;
+};
 
 function VulnerabilitiesSection({
   route,
   collection,
   projects,
   navigate,
-}: {
-  route: ConsoleRoute;
-  collection: ControlList<SecurityVulnerability>;
-  projects: ProjectSummary[];
-  navigate: (path: string) => void;
-}) {
+}: VulnerabilitiesSectionProps) {
   const { t } = useLocale();
   const values = Object.fromEntries(
     [
@@ -464,11 +502,15 @@ function VulnerabilitiesSection({
       "tag",
     ].map((key) => [key, route.query.get(key) ?? ""]),
   );
-  const [projectFilter, setProjectFilter] = useResettableState(values.project);
-  const [severityFilter, setSeverityFilter] = useResettableState(
-    values.severity,
+  const [projectFilter, setProjectFilter] = useResettableState(
+    values.project ?? "",
   );
-  const [statusFilter, setStatusFilter] = useResettableState(values.status);
+  const [severityFilter, setSeverityFilter] = useResettableState(
+    values.severity ?? "",
+  );
+  const [statusFilter, setStatusFilter] = useResettableState(
+    values.status ?? "",
+  );
   const active = Object.values(values).some(Boolean);
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -487,32 +529,39 @@ function VulnerabilitiesSection({
     );
   }
   return (
-    <section className="table-shell security-vulnerability-shell">
-      <form className="table-toolbar security-filter-form" onSubmit={submit}>
-        <label className="toolbar-search">
+    <section
+      className={resolveClasses(
+        `table-shell ${styles.securityVulnerabilityShell}`,
+      )}
+    >
+      <form
+        className={resolveClasses(`table-toolbar ${styles.securityFilterForm}`)}
+        onSubmit={submit}
+      >
+        <label className={resolveClasses("toolbar-search")}>
           <Icon name="search" />
-          <input
+          <FormInput
             name="cve"
             defaultValue={values.cve}
             placeholder={t("CVE 编号")}
             aria-label={t("CVE 编号")}
           />
         </label>
-        <label className="toolbar-search">
+        <label className={resolveClasses("toolbar-search")}>
           <Icon name="package" />
-          <input
+          <FormInput
             name="repository"
             defaultValue={values.repository}
             placeholder={t("完整仓库名称")}
             aria-label={t("完整仓库名称")}
           />
         </label>
-        <label className="toolbar-field">
+        <label className={resolveClasses("toolbar-field")}>
           <span>{t("项目")}</span>
           <UnifiedSelect
             ariaLabel={t("项目")}
             name="project"
-            className="toolbar-select"
+            className={resolveClasses("toolbar-select")}
             value={projectFilter}
             options={[
               { value: "", label: t("全部项目") },
@@ -524,12 +573,12 @@ function VulnerabilitiesSection({
             onChange={setProjectFilter}
           />
         </label>
-        <label className="toolbar-field">
+        <label className={resolveClasses("toolbar-field")}>
           <span>{t("风险")}</span>
           <UnifiedSelect
             ariaLabel={t("风险")}
             name="severity"
-            className="toolbar-select"
+            className={resolveClasses("toolbar-select")}
             value={severityFilter}
             options={[
               { value: "", label: t("全部风险") },
@@ -542,12 +591,12 @@ function VulnerabilitiesSection({
             onChange={setSeverityFilter}
           />
         </label>
-        <label className="toolbar-field">
+        <label className={resolveClasses("toolbar-field")}>
           <span>{t("修复状态")}</span>
           <UnifiedSelect
             ariaLabel={t("修复状态")}
             name="status"
-            className="toolbar-select"
+            className={resolveClasses("toolbar-select")}
             value={statusFilter}
             options={[
               { value: "", label: t("全部状态") },
@@ -557,40 +606,49 @@ function VulnerabilitiesSection({
             onChange={setStatusFilter}
           />
         </label>
-        <label className="toolbar-search compact-search">
+        <label
+          className={resolveClasses(`toolbar-search ${styles.compactSearch}`)}
+        >
           <Icon name="database" />
-          <input
+          <FormInput
             name="package"
             defaultValue={values.package}
             placeholder={t("软件包")}
             aria-label={t("软件包")}
           />
         </label>
-        <label className="toolbar-search compact-search">
+        <label
+          className={resolveClasses(`toolbar-search ${styles.compactSearch}`)}
+        >
           <Icon name="tag" />
-          <input
+          <FormInput
             name="tag"
             defaultValue={values.tag}
             placeholder="Tag"
             aria-label="Tag"
           />
         </label>
-        <button className="button button-small button-primary" type="submit">
+        <button
+          className={resolveClasses("button button-small button-primary")}
+          type="submit"
+        >
           <Icon name="search" />
           <span>{t("筛选")}</span>
         </button>
         {active ? (
           <button
-            className="button button-small"
+            className={resolveClasses("button button-small")}
             type="button"
-            onClick={() => navigate(securityPath("vulnerabilities"))}
+            onClick={() => {
+              navigate(securityPath("vulnerabilities"));
+            }}
           >
             <Icon name="x" />
             <span>{t("取消筛选")}</span>
           </button>
         ) : null}
       </form>
-      <div className="table-scroll">
+      <div className={resolveClasses("table-scroll")}>
         {collection.items.length ? (
           <table>
             <thead>
@@ -615,10 +673,14 @@ function VulnerabilitiesSection({
                     key={`${item.cve_id ?? "unknown"}-${item.digest ?? "unknown"}-${String(index)}`}
                   >
                     <td>
-                      <span className="cell-stack">
-                        <strong className="mono">{item.cve_id ?? "-"}</strong>
+                      <span className={resolveClasses("cell-stack")}>
+                        <strong className={resolveClasses("mono")}>
+                          {item.cve_id ?? "-"}
+                        </strong>
                         <small
-                          className="security-vulnerability-desc"
+                          className={resolveClasses(
+                            styles.securityVulnerabilityDesc,
+                          )}
                           title={item.desc}
                         >
                           {item.desc ? t(item.desc) : t("暂无说明")}
@@ -628,34 +690,43 @@ function VulnerabilitiesSection({
                     <td>
                       <SeverityBadge severity={item.severity} />
                     </td>
-                    <td className="mono">{item.cvss_v3_score ?? "-"}</td>
+                    <td className={resolveClasses("mono")}>
+                      {item.cvss_v3_score ?? "-"}
+                    </td>
                     <td>
-                      <span className="cell-stack">
+                      <span className={resolveClasses("cell-stack")}>
                         <strong>{item.repository_name ?? "-"}</strong>
-                        <small className="mono" title={item.digest}>
+                        <small
+                          className={resolveClasses("mono")}
+                          title={item.digest}
+                        >
                           {shortDigest(item.digest ?? "")}
                         </small>
                       </span>
                     </td>
                     <td>
-                      <span className="tag-stack">
+                      <span className={resolveClasses(styles.tagStack)}>
                         {item.tags?.slice(0, 3).map((tag) => (
-                          <span key={tag} className="badge">
+                          <span key={tag} className={resolveClasses("badge")}>
                             {tag}
                           </span>
                         )) ?? "-"}
                       </span>
                     </td>
                     <td>{item.package ?? "-"}</td>
-                    <td className="mono">{item.version ?? "-"}</td>
-                    <td className="mono">{item.fixed_version ?? t("暂无")}</td>
+                    <td className={resolveClasses("mono")}>
+                      {item.version ?? "-"}
+                    </td>
+                    <td className={resolveClasses("mono")}>
+                      {item.fixed_version ?? t("暂无")}
+                    </td>
                     <td>
                       <VulnerabilityStatus value={item.status} />
                     </td>
                     <td>
                       {target ? (
                         <a
-                          className="icon-button"
+                          className={resolveClasses("icon-button")}
                           href={target}
                           title={t("打开制品")}
                           aria-label={t("打开制品")}
@@ -681,29 +752,38 @@ function VulnerabilitiesSection({
       </div>
       <Pagination
         pagination={collection.pagination}
-        onPageChange={(page) =>
+        onPageChange={(page) => {
           navigate(
             securityPath("vulnerabilities", {
               ...values,
               page,
               page_size: collection.pagination.page_size,
             }),
-          )
-        }
+          );
+        }}
         pageSizeOptions={[20, 50, 100]}
-        onPageSizeChange={(pageSize) =>
+        onPageSizeChange={(pageSize) => {
           navigate(
             securityPath("vulnerabilities", {
               ...values,
               page: 1,
               page_size: pageSize,
             }),
-          )
-        }
+          );
+        }}
       />
     </section>
   );
 }
+
+type ScannersSectionProps = {
+  route: ConsoleRoute;
+  collection: ControlList<ScannerRegistration>;
+  navigate: (path: string) => void;
+  onAction: (action: SecurityAction) => void;
+  onNotice: (message: string, error?: boolean) => void;
+  onReload: () => void;
+};
 
 function ScannersSection({
   route,
@@ -712,77 +792,81 @@ function ScannersSection({
   onAction,
   onNotice,
   onReload,
-}: {
-  route: ConsoleRoute;
-  collection: ControlList<ScannerRegistration>;
-  navigate: (path: string) => void;
-  onAction: (action: SecurityAction) => void;
-  onNotice: (message: string, error?: boolean) => void;
-  onReload: () => void;
-}) {
+}: ScannersSectionProps) {
+  const mutate = useControlMutation(affectedQueries);
   const { locale, t } = useLocale();
   const filter = route.query.get("filter") ?? "";
   const [query, setQuery] = useResettableState(filter);
   async function ping(scanner: ScannerRegistration) {
     try {
-      await controlApi.mutate("scanner-ping", {}, "POST", {
-        name: scanner.name,
-        url: scanner.url,
-        auth: scanner.auth ?? "",
-        access_credential: "",
-        skip_certVerify: Boolean(scanner.skip_certVerify),
-        use_internal_addr: Boolean(scanner.use_internal_addr),
+      await mutate({
+        operation: "scanner-ping",
+        parameters: {},
+        method: "POST",
+        payload: {
+          name: scanner.name,
+          url: scanner.url,
+          auth: scanner.auth ?? "",
+          access_credential: "",
+          skip_certVerify: Boolean(scanner.skip_certVerify),
+          use_internal_addr: Boolean(scanner.use_internal_addr),
+        },
       });
       onNotice("扫描器连接正常");
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : String(error), true);
+      onNotice(errorText(error), true);
     }
   }
   async function makeDefault(scanner: ScannerRegistration) {
     try {
-      await controlApi.mutate("scanner", { id: scanner.uuid }, "PATCH", {
-        is_default: true,
+      await mutate({
+        operation: "scanner",
+        parameters: { id: scanner.uuid },
+        method: "PATCH",
+        payload: {
+          is_default: true,
+        },
       });
       onNotice("默认扫描器已更新");
       onReload();
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : String(error), true);
+      onNotice(errorText(error), true);
     }
   }
   return (
-    <section className="table-shell">
-      <div className="table-toolbar">
+    <section className={resolveClasses("table-shell")}>
+      <div className={resolveClasses("table-toolbar")}>
         <ToolbarSearchForm
           name="filter"
           placeholder="按扫描器名称搜索"
           value={query}
           onChange={setQuery}
-          onSubmit={(term) =>
+          onSubmit={(term) => {
             navigate(
               securityPath("scanners", {
                 filter: term,
                 page: 1,
                 page_size: collection.pagination.page_size,
               }),
-            )
-          }
+            );
+          }}
         />
-        <div className="toolbar-spacer" />
+        <div className={resolveClasses("toolbar-spacer")} />
         <button
-          className="button button-small button-primary"
+          className={resolveClasses("button button-small button-primary")}
           type="button"
-          onClick={() =>
+          onClick={() => {
             onAction({
               kind: "create-scanner",
               canDisable: collection.pagination.total > 0,
-            })
-          }
+            });
+          }}
         >
           <Icon name="plus" />
           <span>{t("注册扫描器")}</span>
         </button>
       </div>
-      <div className="table-scroll">
+      <div className={resolveClasses("table-scroll")}>
         {collection.items.length ? (
           <table>
             <thead>
@@ -791,7 +875,9 @@ function ScannersSection({
                 <th>{t("地址")}</th>
                 <th>{t("健康状态")}</th>
                 <th>{t("能力")}</th>
-                <th className="table-cell-time">{t("最近更新")}</th>
+                <th className={resolveClasses("table-cell-time")}>
+                  {t("最近更新")}
+                </th>
                 <th />
               </tr>
             </thead>
@@ -799,64 +885,78 @@ function ScannersSection({
               {collection.items.map((scanner) => (
                 <tr key={scanner.uuid}>
                   <td>
-                    <div className="cell-title">
-                      <span className="cell-icon">
+                    <div className={resolveClasses("cell-title")}>
+                      <span className={resolveClasses("cell-icon")}>
                         <Icon name="shield" />
                       </span>
-                      <span className="cell-stack">
+                      <span className={resolveClasses("cell-stack")}>
                         <strong>{scanner.name ?? "-"}</strong>
                         <small>
-                          {[scanner.vendor, scanner.version].filter(
-                            (value): value is string => Boolean(value),
-                          ).length
-                            ? [scanner.vendor, scanner.version]
+                          {(() => {
+                            if (
+                              [scanner.vendor, scanner.version].filter(
+                                (value): value is string => Boolean(value),
+                              ).length
+                            ) {
+                              return [scanner.vendor, scanner.version]
                                 .filter((value): value is string =>
                                   Boolean(value),
                                 )
-                                .join(" · ")
-                            : scanner.description?.trim()
-                              ? scanner.description
-                              : scanner.uuid}
+                                .join(" · ");
+                            }
+                            if (scanner.description?.trim()) {
+                              return scanner.description;
+                            }
+                            return scanner.uuid;
+                          })()}
                         </small>
                       </span>
                     </div>
                   </td>
-                  <td className="truncate-cell mono">{scanner.url ?? "-"}</td>
+                  <td className={resolveClasses("truncate-cell mono")}>
+                    {scanner.url ?? "-"}
+                  </td>
                   <td>
                     {scanner.disabled ? (
-                      <span className="badge">{t("已停用")}</span>
+                      <span className={resolveClasses("badge")}>
+                        {t("已停用")}
+                      </span>
                     ) : (
                       <StatusBadge status={scanner.health} />
                     )}
                   </td>
                   <td>
                     {scanner.is_default ? (
-                      <span className="badge badge-orange">{t("默认")}</span>
+                      <span className={resolveClasses("badge badge-orange")}>
+                        {t("默认")}
+                      </span>
                     ) : (
-                      <span className="badge badge-blue">{t("已注册")}</span>
+                      <span className={resolveClasses("badge badge-blue")}>
+                        {t("已注册")}
+                      </span>
                     )}
                   </td>
-                  <td className="table-cell-time">
-                    {formatDate(
-                      scanner.update_time ?? scanner.create_time,
-                      locale,
-                    )}
+                  <td className={resolveClasses("table-cell-time")}>
+                    {formatDate(scanner.update_time ?? scanner.create_time, {
+                      locale: locale,
+                      timeZone: displayTimeZone(),
+                    })}
                   </td>
                   <td>
-                    <div className="row-actions">
+                    <div className={resolveClasses("row-actions")}>
                       <button
-                        className="icon-button"
+                        className={resolveClasses("icon-button")}
                         type="button"
                         title={t("查看扫描器元数据")}
                         aria-label={t("查看扫描器元数据")}
-                        onClick={() =>
-                          onAction({ kind: "scanner-metadata", scanner })
-                        }
+                        onClick={() => {
+                          onAction({ kind: "scanner-metadata", scanner });
+                        }}
                       >
                         <Icon name="info" />
                       </button>
                       <button
-                        className="icon-button"
+                        className={resolveClasses("icon-button")}
                         type="button"
                         title={t("测试连接")}
                         aria-label={t("测试连接")}
@@ -866,7 +966,7 @@ function ScannersSection({
                       </button>
                       {scanner.is_default ? null : (
                         <button
-                          className="icon-button"
+                          className={resolveClasses("icon-button")}
                           type="button"
                           title={t("设为默认")}
                           aria-label={t("设为默认")}
@@ -876,24 +976,24 @@ function ScannersSection({
                         </button>
                       )}
                       <button
-                        className="icon-button"
+                        className={resolveClasses("icon-button")}
                         type="button"
                         title={t("编辑扫描器")}
                         aria-label={t("编辑扫描器")}
-                        onClick={() =>
-                          onAction({ kind: "edit-scanner", scanner })
-                        }
+                        onClick={() => {
+                          onAction({ kind: "edit-scanner", scanner });
+                        }}
                       >
                         <Icon name="edit" />
                       </button>
                       <button
-                        className="icon-button danger-icon"
+                        className={resolveClasses("icon-button danger-icon")}
                         type="button"
                         title={t("删除扫描器")}
                         aria-label={t("删除扫描器")}
-                        onClick={() =>
-                          onAction({ kind: "delete-scanner", scanner })
-                        }
+                        onClick={() => {
+                          onAction({ kind: "delete-scanner", scanner });
+                        }}
                       >
                         <Icon name="trash" />
                       </button>
@@ -913,45 +1013,47 @@ function ScannersSection({
       </div>
       <Pagination
         pagination={collection.pagination}
-        onPageChange={(page) =>
+        onPageChange={(page) => {
           navigate(
             securityPath("scanners", {
               filter,
               page,
               page_size: collection.pagination.page_size,
             }),
-          )
-        }
+          );
+        }}
         pageSizeOptions={[20, 50, 100]}
-        onPageSizeChange={(pageSize) =>
+        onPageSizeChange={(pageSize) => {
           navigate(
             securityPath("scanners", {
               filter,
               page: 1,
               page_size: pageSize,
             }),
-          )
-        }
+          );
+        }}
       />
     </section>
   );
 }
+
+type ExportsSectionProps = {
+  executions: CveExportExecution[];
+  projects: ProjectSummary[];
+  onAction: (action: SecurityAction) => void;
+  onNotice: (message: string) => void;
+};
 
 function ExportsSection({
   executions,
   projects,
   onAction,
   onNotice,
-}: {
-  executions: CveExportExecution[];
-  projects: ProjectSummary[];
-  onAction: (action: SecurityAction) => void;
-  onNotice: (message: string) => void;
-}) {
+}: ExportsSectionProps) {
   const { locale, t } = useLocale();
   function downloadExecution(id: number | string) {
     const anchor = document.createElement("a");
-    anchor.href = `/api/control/cve-export-download?id=${encodeURIComponent(String(id))}&format=CSV`;
+    anchor.href = `/api/operations/cve-export-download?id=${encodeURIComponent(String(id))}&format=CSV`;
     anchor.download = "";
     document.body.append(anchor);
     anchor.click();
@@ -961,9 +1063,11 @@ function ExportsSection({
 
   return (
     <>
-      <section className="security-export-intro">
+      <section className={resolveClasses(styles.securityExportIntro)}>
         <div>
-          <span className="eyebrow">{t("官方扫描数据导出")}</span>
+          <span className={resolveClasses("eyebrow")}>
+            {t("官方扫描数据导出")}
+          </span>
           <h2>{t("生成可离线分析的 CVE 清单")}</h2>
           <p>
             {t(
@@ -972,28 +1076,30 @@ function ExportsSection({
           </p>
         </div>
         <button
-          className="button button-small button-primary"
+          className={resolveClasses("button button-small button-primary")}
           type="button"
           disabled={!projects.length}
-          onClick={() => onAction({ kind: "create-export", projects })}
+          onClick={() => {
+            onAction({ kind: "create-export", projects });
+          }}
         >
           <Icon name="plus" />
           <span>{t("新建导出")}</span>
         </button>
       </section>
-      <section className="table-shell">
-        <div className="table-toolbar">
+      <section className={resolveClasses("table-shell")}>
+        <div className={resolveClasses("table-toolbar")}>
           <PanelTitle
             title="导出执行记录"
-            count={formatCount(
-              executions.length,
-              locale,
-              "次执行",
-              "executions",
-            )}
+            count={formatCount({
+              total: executions.length,
+              locale: locale,
+              chineseUnit: "次执行",
+              englishUnit: "executions",
+            })}
           />
         </div>
-        <div className="table-scroll">
+        <div className={resolveClasses("table-scroll")}>
           {executions.length ? (
             <table>
               <thead>
@@ -1002,9 +1108,15 @@ function ExportsSection({
                   <th>{t("发起人")}</th>
                   <th>{t("触发方式")}</th>
                   <th>{t("状态")}</th>
-                  <th className="table-cell-time">{t("开始时间")}</th>
-                  <th className="table-cell-time">{t("结束时间")}</th>
-                  <th className="table-cell-time">{t("耗时")}</th>
+                  <th className={resolveClasses("table-cell-time")}>
+                    {t("开始时间")}
+                  </th>
+                  <th className={resolveClasses("table-cell-time")}>
+                    {t("结束时间")}
+                  </th>
+                  <th className={resolveClasses("table-cell-time")}>
+                    {t("耗时")}
+                  </th>
                   <th />
                 </tr>
               </thead>
@@ -1017,7 +1129,9 @@ function ExportsSection({
                   const failed = ["error", "failed"].includes(status);
                   return (
                     <tr key={execution.id}>
-                      <td className="id-cell">#{execution.id}</td>
+                      <td className={resolveClasses("id-cell")}>
+                        #{execution.id}
+                      </td>
                       <td>
                         {execution.user_name ??
                           `${t("用户")} #${String(execution.user_id ?? "-")}`}
@@ -1026,13 +1140,19 @@ function ExportsSection({
                       <td>
                         <StatusBadge status={execution.status} />
                       </td>
-                      <td className="table-cell-time">
-                        {formatDate(execution.start_time, locale)}
+                      <td className={resolveClasses("table-cell-time")}>
+                        {formatDate(execution.start_time, {
+                          locale: locale,
+                          timeZone: displayTimeZone(),
+                        })}
                       </td>
-                      <td className="table-cell-time">
-                        {formatDate(execution.end_time, locale)}
+                      <td className={resolveClasses("table-cell-time")}>
+                        {formatDate(execution.end_time, {
+                          locale: locale,
+                          timeZone: displayTimeZone(),
+                        })}
                       </td>
-                      <td className="table-cell-time">
+                      <td className={resolveClasses("table-cell-time")}>
                         {formatDuration(
                           execution.start_time,
                           execution.end_time,
@@ -1040,25 +1160,27 @@ function ExportsSection({
                         )}
                       </td>
                       <td>
-                        <div className="row-actions">
+                        <div className={resolveClasses("row-actions")}>
                           {failed ? (
                             <button
-                              className="icon-button"
+                              className={resolveClasses("icon-button")}
                               type="button"
                               title={t("查看失败详情")}
                               aria-label={t("查看失败详情")}
-                              onClick={() =>
-                                onAction({ kind: "export-detail", execution })
-                              }
+                              onClick={() => {
+                                onAction({ kind: "export-detail", execution });
+                              }}
                             >
                               <Icon name="alert" />
                             </button>
                           ) : null}
                           {success && execution.file_present !== false ? (
                             <button
-                              className="button button-small"
+                              className={resolveClasses("button button-small")}
                               type="button"
-                              onClick={() => downloadExecution(execution.id)}
+                              onClick={() => {
+                                downloadExecution(execution.id);
+                              }}
                             >
                               <Icon name="database" />
                               <span>{t("下载 CSV")}</span>
@@ -1084,29 +1206,30 @@ function ExportsSection({
   );
 }
 
-function AllowlistSection({
-  allowlist,
-  onAction,
-}: {
+type AllowlistSectionProps = {
   allowlist: CveAllowlist;
   onAction: (action: SecurityAction) => void;
-}) {
+};
+
+function AllowlistSection({ allowlist, onAction }: AllowlistSectionProps) {
   const { locale, t } = useLocale();
   const items = allowlist.items ?? [];
   const permanent = !allowlist.expires_at;
   const expiration = permanent
     ? t("永久生效")
-    : new Intl.DateTimeFormat(locale, {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date((allowlist.expires_at ?? 0) * 1000));
+    : formatDate(new Date((allowlist.expires_at ?? 0) * 1000).toISOString(), {
+        locale,
+        includeTime: false,
+        timeZone: displayTimeZone(),
+      });
   return (
     <>
-      <section className="allowlist-summary">
-        <div className="allowlist-summary-head">
+      <section className={resolveClasses(styles.allowlistSummary)}>
+        <div className={resolveClasses(styles.allowlistSummaryHead)}>
           <div>
-            <span className="eyebrow">{t("系统级 CVE Allowlist")}</span>
+            <span className={resolveClasses("eyebrow")}>
+              {t("系统级 CVE Allowlist")}
+            </span>
             <h2>
               {locale === "en-US"
                 ? `${formatNumber(items.length, locale)} exception vulnerabilities`
@@ -1114,35 +1237,43 @@ function AllowlistSection({
             </h2>
             <p>
               {expiration} · {t("最近更新")}{" "}
-              {formatDate(allowlist.update_time, locale)}
+              {formatDate(allowlist.update_time, {
+                locale: locale,
+                timeZone: displayTimeZone(),
+              })}
             </p>
           </div>
           <button
-            className="button button-small button-primary"
+            className={resolveClasses("button button-small button-primary")}
             type="button"
-            onClick={() => onAction({ kind: "edit-allowlist", allowlist })}
+            onClick={() => {
+              onAction({ kind: "edit-allowlist", allowlist });
+            }}
           >
             <Icon name="edit" />
             <span>{t("编辑白名单")}</span>
           </button>
         </div>
-        <div className="allowlist-items">
+        <div className={resolveClasses(styles.allowlistItems)}>
           {items.length ? (
             items.map((item) => (
-              <span key={item.cve_id} className="allowlist-chip">
+              <span
+                key={item.cve_id}
+                className={resolveClasses(styles.allowlistChip)}
+              >
                 <Icon name="check" />
                 <code>{item.cve_id}</code>
               </span>
             ))
           ) : (
-            <div className="allowlist-empty">
+            <div className={resolveClasses(styles.allowlistEmpty)}>
               <Icon name="shield" />
               <span>{t("系统白名单为空，所有漏洞均按扫描结果处理。")}</span>
             </div>
           )}
         </div>
       </section>
-      <section className="security-guidance">
+      <section className={resolveClasses(styles.securityGuidance)}>
         <div>
           <Icon name="alert" />
         </div>
@@ -1159,6 +1290,18 @@ function AllowlistSection({
   );
 }
 
+type SecurityPageProps = {
+  route: ConsoleRoute;
+  projects: ProjectSummary[];
+  totalArtifacts: number;
+  demo: boolean;
+  refreshing: boolean;
+  navigate: (path: string) => void;
+  onRefresh: () => void;
+  onAction: (action: SecurityAction) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
+
 export function SecurityPage({
   route,
   projects,
@@ -1169,24 +1312,9 @@ export function SecurityPage({
   onRefresh,
   onAction,
   onNotice,
-}: {
-  route: ConsoleRoute;
-  projects: ProjectSummary[];
-  totalArtifacts: number;
-  demo: boolean;
-  refreshing: boolean;
-  navigate: (path: string) => void;
-  onRefresh: () => void;
-  onAction: (action: SecurityAction) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: SecurityPageProps) {
   const { t } = useLocale();
   const section = sectionFromRoute(route);
-  const [data, setData] = useState<SectionData>();
-  const [error, setError] = useState("");
-  const [version, setVersion] = useState(0);
-  const requestVersion = useRef(0);
-  const reload = useCallback(() => setVersion((current) => current + 1), []);
   const parsedPage = Number(route.query.get("page"));
   const parsedPageSize = Number(route.query.get("page_size"));
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
@@ -1195,93 +1323,16 @@ export function SecurityPage({
   const vulnerabilityParameters =
     section === "vulnerabilities" ? vulnerabilityQuery(route, projects) : "";
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const current = requestVersion.current + 1;
-    requestVersion.current = current;
-    setData(undefined);
-    setError("");
-    void (async () => {
-      if (section === "overview")
-        return {
-          section,
-          summary:
-            (await controlApi.data<SecuritySummary>(
-              "security-summary",
-              { with_dangerous_cve: true, with_dangerous_artifact: true },
-              controller.signal,
-            )) ?? {},
-        } as SectionData;
-      if (section === "scanners")
-        return {
-          section,
-          scanners: await controlApi.list<ScannerRegistration>(
-            "scanners",
-            {
-              page,
-              page_size: pageSize,
-              sort: "name",
-              q: scannerFilter ? `name=~${scannerFilter}` : "",
-            },
-            controller.signal,
-          ),
-        } as SectionData;
-      if (section === "vulnerabilities")
-        return {
-          section,
-          vulnerabilities: await controlApi.list<SecurityVulnerability>(
-            "security-vulnerabilities",
-            {
-              page,
-              page_size: pageSize,
-              q: vulnerabilityParameters,
-              tune_count: true,
-              with_tag: true,
-            },
-            controller.signal,
-          ),
-        } as SectionData;
-      if (section === "allowlist")
-        return {
-          section,
-          allowlist:
-            (await controlApi.data<CveAllowlist>(
-              "system-cve-allowlist",
-              {},
-              controller.signal,
-            )) ?? {},
-        } as SectionData;
-      const raw = await controlApi.data<
-        CveExportExecution[] | { items?: CveExportExecution[] }
-      >("cve-export-executions", {}, controller.signal);
-      return {
-        section,
-        executions: Array.isArray(raw) ? raw : (raw?.items ?? []),
-      } as SectionData;
-    })()
-      .then((result) => {
-        if (requestVersion.current === current) setData(result);
-      })
-      .catch((loadError: unknown) => {
-        if (
-          loadError instanceof DOMException &&
-          loadError.name === "AbortError"
-        )
-          return;
-        if (requestVersion.current === current)
-          setError(
-            loadError instanceof Error ? loadError.message : String(loadError),
-          );
-      });
-    return () => controller.abort();
-  }, [
+  const sectionQuery = useSecurityData({
+    section,
     page,
     pageSize,
     scannerFilter,
-    section,
-    version,
     vulnerabilityParameters,
-  ]);
+  });
+  const data = sectionQuery.data;
+  const error = sectionQuery.error;
+  const reload = sectionQuery.reload;
 
   return (
     <>
@@ -1299,7 +1350,7 @@ export function SecurityPage({
             />
             {section === "vulnerabilities" ? (
               <a
-                className="button button-small button-primary"
+                className={resolveClasses("button button-small button-primary")}
                 href="#/security/exports"
               >
                 <Icon name="database" />
@@ -1316,10 +1367,10 @@ export function SecurityPage({
           <ErrorView title="安全模块载入失败" message={error} retry={reload} />
         ) : null}
         {!data && !error ? (
-          <section className="table-shell">
-            <div className="loading-state">
+          <section className={resolveClasses("table-shell")}>
+            <div className={resolveClasses("loading-state")}>
               <div>
-                <span className="spinner" />
+                <span className={resolveClasses("spinner")} />
               </div>
             </div>
           </section>
@@ -1362,5 +1413,148 @@ export function SecurityPage({
         ) : null}
       </ContentTransition>
     </>
+  );
+}
+
+const resolveClasses = createClassNames({
+  critical: sharedPrimitiveStyles.critical,
+  high: sharedPrimitiveStyles.high,
+  medium: sharedPrimitiveStyles.medium,
+  "empty-state": uiStyles0.emptyState,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "panel-title": uiStyles0.panelTitle,
+  "refresh-button": uiStyles0.refreshButton,
+  "stat-cell": uiStyles0.statCell,
+  "status-badge": uiStyles0.statusBadge,
+  "unified-select": uiStyles0.unifiedSelect,
+  tag: uiStyles0.tag,
+  "resource-tabs": uiStyles0.resourceTabs,
+  active: uiStyles0.active,
+  "overview-stats": uiStyles0.overviewStats,
+  "table-shell": uiStyles0.tableShell,
+  "table-toolbar": uiStyles0.tableToolbar,
+  "toolbar-caption": uiStyles0.toolbarCaption,
+  "toolbar-spacer": uiStyles0.toolbarSpacer,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "table-scroll": uiStyles0.tableScroll,
+  mono: uiStyles0.mono,
+  "cell-stack": uiStyles0.cellStack,
+  "vulnerability-description": uiStyles0.vulnerabilityDescription,
+  "icon-button": uiStyles0.iconButton,
+  "danger-text": uiStyles0.dangerText,
+  "badge-green": uiStyles0.badgeGreen,
+  "badge-orange": uiStyles0.badgeOrange,
+  badge: uiStyles0.badge,
+  "toolbar-search": uiStyles0.toolbarSearch,
+  "toolbar-field": uiStyles0.toolbarField,
+  "toolbar-select": uiStyles0.toolbarSelect,
+  "button-primary": uiStyles0.buttonPrimary,
+  "table-cell-time": uiStyles0.tableCellTime,
+  "cell-title": uiStyles0.cellTitle,
+  "cell-icon": uiStyles0.cellIcon,
+  "truncate-cell": uiStyles0.truncateCell,
+  "badge-blue": uiStyles0.badgeBlue,
+  "row-actions": uiStyles0.rowActions,
+  "danger-icon": uiStyles0.dangerIcon,
+  eyebrow: uiStyles0.eyebrow,
+  "id-cell": uiStyles0.idCell,
+  "loading-state": uiStyles0.loadingState,
+  spinner: uiStyles0.spinner,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});
+
+function useSecurityData({
+  section,
+  page,
+  pageSize,
+  scannerFilter,
+  vulnerabilityParameters,
+}: {
+  section: SecuritySection;
+  page: number;
+  pageSize: number;
+  scannerFilter: string;
+  vulnerabilityParameters: string;
+}) {
+  return useLoadedQuery(
+    securityKeys.section(section, {
+      page,
+      pageSize,
+      scannerFilter,
+      vulnerabilityParameters,
+    }),
+    async (signal): Promise<SectionData> => {
+      if (section === "overview")
+        return {
+          section,
+          summary:
+            (await controlApi.data<SecuritySummary>(
+              "security-summary",
+              { with_dangerous_cve: true, with_dangerous_artifact: true },
+              signal,
+            )) ?? {},
+        };
+      if (section === "scanners")
+        return {
+          section,
+          scanners: await controlApi.list<ScannerRegistration>(
+            "scanners",
+            {
+              page,
+              page_size: pageSize,
+              sort: "name",
+              q: scannerFilter ? `name=~${scannerFilter}` : "",
+            },
+            signal,
+          ),
+        };
+      if (section === "vulnerabilities")
+        return {
+          section,
+          vulnerabilities: await controlApi.list<SecurityVulnerability>(
+            "security-vulnerabilities",
+            {
+              page,
+              page_size: pageSize,
+              q: vulnerabilityParameters,
+              tune_count: true,
+              with_tag: true,
+            },
+            signal,
+          ),
+        };
+      if (section === "allowlist")
+        return {
+          section,
+          allowlist:
+            (await controlApi.data<CveAllowlist>(
+              "system-cve-allowlist",
+              {},
+              signal,
+            )) ?? {},
+        };
+      const raw = await controlApi.data<
+        CveExportExecution[] | { items?: CveExportExecution[] }
+      >("cve-export-executions", {}, signal);
+      return {
+        section,
+        executions: Array.isArray(raw) ? raw : (raw?.items ?? []),
+      };
+    },
+    { keepPrevious: false },
   );
 }

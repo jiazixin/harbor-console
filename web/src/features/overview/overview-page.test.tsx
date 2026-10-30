@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../../app/locale-context";
 import type { Dashboard, Session } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { setupUser } from "../../test/user";
 import { OverviewPage } from "./overview-page";
 
 const session: Session = {
@@ -39,9 +39,10 @@ const dashboard: Dashboard = {
 };
 
 describe("OverviewPage", () => {
-  it("renders the visual-contract statistics and switches asset metrics", () => {
+  it("renders the visual-contract statistics and switches asset metrics", async () => {
+    const user = setupUser();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <OverviewPage
           session={session}
@@ -49,21 +50,21 @@ describe("OverviewPage", () => {
           refreshing={false}
           onRefresh={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(
       screen.getByRole("heading", { name: "实例概览" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("1.0 GB")).toHaveLength(3);
-    fireEvent.click(screen.getByRole("button", { name: "项目资产排序" }));
-    fireEvent.click(screen.getByRole("option", { name: "仓库数量" }));
+    expect(screen.getAllByText("1.0 GiB")).toHaveLength(3);
+    await user.click(screen.getByRole("button", { name: "项目资产排序" }));
+    await user.click(screen.getByRole("option", { name: "仓库数量" }));
     expect(screen.getByText("按镜像仓库数量排序")).toBeInTheDocument();
   });
 
   it("keeps the recent replication duration header and cells on one axis", () => {
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <OverviewPage
           session={session}
@@ -87,14 +88,14 @@ describe("OverviewPage", () => {
           refreshing={false}
           onRefresh={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(screen.getByRole("columnheader", { name: "耗时" })).toHaveClass(
-      "table-cell-time",
+      "hc_8b938f52_tableCellTime",
     );
     expect(screen.getByRole("cell", { name: "6 秒" })).toHaveClass(
-      "table-cell-time",
+      "hc_8b938f52_tableCellTime",
     );
   });
 });

@@ -1,19 +1,13 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
 import { auditQueryValue } from "../../app/audit-log";
-import { parseHashRoute } from "../../app/hash-router";
-import { LocaleProvider } from "../../app/locale-context";
+import { parseConsoleRoute } from "../../app/console-route";
 import type { AuditLog } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import { auditControlQuery, auditPath, AuditPage } from "./audit-page";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { auditControlQuery, AuditPage, auditPath } from "./audit-page";
 
 const log: AuditLog = {
   id: 48320,
@@ -46,21 +40,29 @@ describe("audit query contract", () => {
     );
     expect(auditQueryValue('release "bot"')).toBe('"release \\"bot\\""');
     expect(
-      auditPath(2, 20, {
-        username: "ci-bot",
-        resource: "platform/gateway",
-        operation: "push",
-        result: "success",
+      auditPath({
+        page: 2,
+        pageSize: 20,
+        filters: {
+          username: "ci-bot",
+          resource: "platform/gateway",
+          operation: "push",
+          result: "success",
+        },
       }),
     ).toBe(
       "audit?username=ci-bot&resource=platform%2Fgateway&operation=push&result=success&page=2&page_size=20",
     );
     expect(
-      auditPath(1, 50, {
-        username: "",
-        resource: "",
-        operation: "",
-        result: "",
+      auditPath({
+        page: 1,
+        pageSize: 50,
+        filters: {
+          username: "",
+          resource: "",
+          operation: "",
+          result: "",
+        },
       }),
     ).toBe("audit");
   });
@@ -68,6 +70,7 @@ describe("audit query contract", () => {
 
 describe("audit page", () => {
   it("renders the legacy filter geometry and shared seven-column audit table", async () => {
+    const user = setupUser();
     const list = vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [log],
       pagination: { page: 1, page_size: 50, total: 1 },
@@ -79,16 +82,16 @@ describe("audit page", () => {
     const navigate = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <AuditPage
-          route={parseHashRoute("#/audit")}
+          route={parseConsoleRoute("#/audit")}
           demo
           refreshing={false}
           navigate={navigate}
           onRefresh={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("#48320")).toBeVisible();
@@ -103,24 +106,26 @@ describe("audit page", () => {
     expect(list).toHaveBeenCalledWith(
       "audit-logs",
       { page: 1, page_size: 50, sort: "-op_time", q: "" },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.change(screen.getByRole("searchbox", { name: "按用户名筛选" }), {
-      target: { value: "release-engineer" },
+    await replaceText(
+      user,
+      screen.getByRole("searchbox", { name: "按用户名筛选" }),
+      "release-engineer",
+    );
+    await user.click(screen.getByRole("button", { name: "筛选" }));
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith("audit?username=release-engineer");
     });
-    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
-    await waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith("audit?username=release-engineer"),
-    );
 
-    fireEvent.click(screen.getByRole("button", { name: "每页条数" }));
-    fireEvent.click(screen.getByRole("option", { name: "每页 20 条" }));
-    await waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith("audit?page_size=20"),
-    );
+    await user.click(screen.getByRole("button", { name: "每页条数" }));
+    await user.click(screen.getByRole("option", { name: "每页 20 条" }));
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith("audit?page_size=20");
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "按时间升序排序" }));
+    await user.click(screen.getByRole("button", { name: "按时间升序排序" }));
     expect(navigate).toHaveBeenCalledWith("audit?sort=op_time");
   });
 });

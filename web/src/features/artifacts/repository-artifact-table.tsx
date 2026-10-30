@@ -1,11 +1,20 @@
 import { useEffect, useRef } from "react";
-
-import { formatBytes, formatDate, formatNumber } from "../../app/formatters";
 import { useLocale } from "../../app/locale-context";
 import type { HarborArtifact, ProjectLabel } from "../../app/models";
+import { displayTimeZone } from "../../app/preferences";
+import { ColorSwatch } from "../../components/color-swatch";
 import { EmptyState } from "../../components/empty-state";
-import { Icon } from "../../components/icons";
-import { SeverityBadge, StatusBadge } from "../../components/status-badge";
+import { FormInput } from "../../components/form-input";
+import { Icon } from "../../components/icon";
+import { SeverityBadge } from "../../components/severity-badge";
+import uiStyles0 from "../../components/shared-ui.module.css";
+import { StatusBadge } from "../../components/status-badge";
+import { createClassNames } from "../../lib/css/class-names";
+import {
+  formatBytes,
+  formatDate,
+  formatNumber,
+} from "../../lib/format/formatters";
 import {
   artifactPlatformLabel,
   artifactPlatforms,
@@ -13,55 +22,68 @@ import {
   artifactSignatureState,
   shortDigest,
 } from "./artifact-utils";
+import styles from "./artifacts.module.css";
 import { artifactPath } from "./repository-artifacts-data";
 
-function ArtifactLabelChip({ label }: { label: ProjectLabel }) {
+type ArtifactLabelChipProps = { label: ProjectLabel };
+
+function ArtifactLabelChip({ label }: ArtifactLabelChipProps) {
   const { t } = useLocale();
   const name = t(label.name);
   return (
-    <span className="artifact-label-chip">
-      <span
-        className="artifact-label-swatch"
-        style={{ backgroundColor: label.color ?? "#8a8a8a" }}
+    <span className={resolveClasses(styles.artifactLabelChip)}>
+      <ColorSwatch
+        className={resolveClasses(styles.artifactLabelSwatch)}
+        color={label.color}
       />
       <span title={name}>{name}</span>
     </span>
   );
 }
 
-function ArchitectureCell({ artifact }: { artifact: HarborArtifact }) {
+type ArchitectureCellProps = { artifact: HarborArtifact };
+
+function ArchitectureCell({ artifact }: ArchitectureCellProps) {
   const { locale, t } = useLocale();
   const platforms = artifactPlatforms(artifact);
-  if (!platforms.length) return <span className="muted">{t("暂无")}</span>;
+  const [first] = platforms;
+  if (!first)
+    return <span className={resolveClasses("muted")}>{t("暂无")}</span>;
   if (platforms.length === 1) {
     return (
-      <span className="badge architecture-badge">
-        {artifactPlatformLabel(platforms[0])}
+      <span className={resolveClasses(`badge ${styles.architectureBadge}`)}>
+        {artifactPlatformLabel(first)}
       </span>
     );
   }
   const labels = platforms.map(artifactPlatformLabel);
   const remaining = labels.length - 2;
   return (
-    <div className="architecture-cell">
-      <span className="badge badge-blue">
+    <div className={resolveClasses(styles.architectureCell)}>
+      <span className={resolveClasses("badge badge-blue")}>
         {locale === "en-US"
           ? `Multi-architecture · ${formatNumber(labels.length, locale)}`
           : `多架构 · ${formatNumber(labels.length, locale)}`}
       </span>
       <small title={labels.join(" · ")}>
         {labels.slice(0, 2).join(" · ")}
-        {remaining > 0
-          ? locale === "en-US"
-            ? ` · ${formatNumber(remaining, locale)} more`
-            : ` · 另 ${formatNumber(remaining, locale)} 个`
-          : ""}
+        {(() => {
+          if (remaining > 0) {
+            if (locale === "en-US") {
+              return ` · ${formatNumber(remaining, locale)} more`;
+            }
+            return ` · 另 ${formatNumber(remaining, locale)} 个`;
+          }
+          return "";
+        })()}
       </small>
     </div>
   );
 }
 
-function SignatureBadge({ artifact }: { artifact: HarborArtifact }) {
+type SignatureBadgeProps = { artifact: HarborArtifact };
+
+function SignatureBadge({ artifact }: SignatureBadgeProps) {
   const { t } = useLocale();
   const state = artifactSignatureState(artifact);
   const labels = { signed: "已签名", unsigned: "未签名", unknown: "未知" };
@@ -71,36 +93,56 @@ function SignatureBadge({ artifact }: { artifact: HarborArtifact }) {
     unknown: "",
   };
   return (
-    <span className={`badge ${classes[state]}`.trim()}>{t(labels[state])}</span>
+    <span className={resolveClasses(`badge ${classes[state]}`.trim())}>
+      {t(labels[state])}
+    </span>
   );
 }
+
+type AnnotationSummaryProps = {
+  artifact: HarborArtifact;
+  project: string;
+  repository: string;
+};
 
 function AnnotationSummary({
   artifact,
   project,
   repository,
-}: {
-  artifact: HarborArtifact;
-  project: string;
-  repository: string;
-}) {
+}: AnnotationSummaryProps) {
   const { locale, t } = useLocale();
   const entries = Object.entries(artifact.annotations ?? {});
-  if (!entries.length) return <span className="muted">-</span>;
-  const [key, value] = entries[0];
+  const first = entries[0];
+  if (!first) return <span className={resolveClasses("muted")}>-</span>;
+  const [key, value] = first;
   return (
-    <div className="artifact-annotation-summary">
+    <div className={resolveClasses(styles.artifactAnnotationSummary)}>
       <code title={`${key}: ${value}`}>{`${key}: ${value}`}</code>
       <a href={`#/${artifactPath(project, repository, artifact.digest)}`}>
-        {entries.length > 1
-          ? locale === "en-US"
-            ? `+${String(entries.length - 1)} view all`
-            : `+${String(entries.length - 1)} ${t("查看全部")}`
-          : t("查看全部")}
+        {(() => {
+          if (entries.length > 1) {
+            if (locale === "en-US") {
+              return `+${String(entries.length - 1)} view all`;
+            }
+            return `+${String(entries.length - 1)} ${t("查看全部")}`;
+          }
+          return t("查看全部");
+        })()}
       </a>
     </div>
   );
 }
+
+type ArtifactTableProps = {
+  artifacts: HarborArtifact[];
+  project: string;
+  repository: string;
+  selected: ReadonlySet<string>;
+  busy: boolean;
+  navigate: (path: string) => void;
+  onToggle: (digest: string) => void;
+  onToggleAll: () => void;
+};
 
 export function ArtifactTable({
   artifacts,
@@ -111,16 +153,7 @@ export function ArtifactTable({
   navigate,
   onToggle,
   onToggleAll,
-}: {
-  artifacts: HarborArtifact[];
-  project: string;
-  repository: string;
-  selected: ReadonlySet<string>;
-  busy: boolean;
-  navigate: (path: string) => void;
-  onToggle: (digest: string) => void;
-  onToggleAll: () => void;
-}) {
+}: ArtifactTableProps) {
   const { locale, t } = useLocale();
   const selectAllRef = useRef<HTMLInputElement>(null);
   const selectedVisible = artifacts.filter((artifact) =>
@@ -129,10 +162,14 @@ export function ArtifactTable({
   const allSelected =
     artifacts.length > 0 && selectedVisible === artifacts.length;
   useEffect(() => {
-    if (selectAllRef.current) {
-      selectAllRef.current.indeterminate =
-        selectedVisible > 0 && selectedVisible < artifacts.length;
-    }
+    const input = selectAllRef.current;
+    if (!input) return;
+    const previous = input.indeterminate;
+    input.indeterminate =
+      selectedVisible > 0 && selectedVisible < artifacts.length;
+    return () => {
+      input.indeterminate = previous;
+    };
   }, [artifacts.length, selectedVisible]);
 
   if (!artifacts.length) {
@@ -145,11 +182,11 @@ export function ArtifactTable({
     );
   }
   return (
-    <table className="artifact-select-table">
+    <table className={resolveClasses(styles.artifactSelectTable)}>
       <thead>
         <tr>
-          <th className="selection-cell table-cell-center">
-            <input
+          <th className={resolveClasses("selection-cell table-cell-center")}>
+            <FormInput
               ref={selectAllRef}
               type="checkbox"
               checked={allSelected}
@@ -160,14 +197,18 @@ export function ArtifactTable({
           </th>
           <th>{t("Tag / 摘要")}</th>
           <th>{t("架构")}</th>
-          <th className="table-cell-center">{t("签名")}</th>
+          <th className={resolveClasses("table-cell-center")}>{t("签名")}</th>
           <th>{t("注释")}</th>
-          <th className="table-cell-center">{t("扫描状态")}</th>
-          <th className="table-cell-center">{t("最高风险")}</th>
-          <th className="table-cell-number">{t("大小")}</th>
-          <th className="table-cell-time">{t("拉取时间")}</th>
-          <th className="table-cell-time">{t("推送时间")}</th>
-          <th className="table-cell-center" />
+          <th className={resolveClasses("table-cell-center")}>
+            {t("扫描状态")}
+          </th>
+          <th className={resolveClasses("table-cell-center")}>
+            {t("最高风险")}
+          </th>
+          <th className={resolveClasses("table-cell-number")}>{t("大小")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("拉取时间")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("推送时间")}</th>
+          <th className={resolveClasses("table-cell-center")} />
         </tr>
       </thead>
       <tbody>
@@ -175,45 +216,65 @@ export function ArtifactTable({
           const scan = artifactScanState(artifact);
           const tags = artifact.tags ?? [];
           const labels = artifact.labels ?? [];
-          const title = tags[0]?.name || shortDigest(artifact.digest);
+          const firstTag = tags[0]?.name;
+          const title = firstTag ? firstTag : shortDigest(artifact.digest);
           const isSelected = selected.has(artifact.digest);
           return (
             <tr
               key={artifact.digest}
-              className={`clickable-row${isSelected ? " selected-row" : ""}`}
-              onClick={() =>
-                navigate(artifactPath(project, repository, artifact.digest))
-              }
+              className={resolveClasses(
+                `clickable-row${isSelected ? " selected-row" : ""}`,
+              )}
+              onClick={() => {
+                navigate(artifactPath(project, repository, artifact.digest));
+              }}
             >
-              <td className="selection-cell table-cell-center">
-                <input
+              <td
+                className={resolveClasses("selection-cell table-cell-center")}
+              >
+                <FormInput
                   type="checkbox"
                   checked={isSelected}
                   disabled={busy}
                   aria-label={`${t("选择")} ${title}`}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={() => onToggle(artifact.digest)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onChange={() => {
+                    onToggle(artifact.digest);
+                  }}
                 />
               </td>
               <td>
-                <div className="cell-title">
-                  <span className="cell-stack">
+                <div className={resolveClasses("cell-title")}>
+                  <span className={resolveClasses("cell-stack")}>
                     <strong>{title}</strong>
-                    <small className="mono" title={artifact.digest}>
+                    <small
+                      className={resolveClasses("mono")}
+                      title={artifact.digest}
+                    >
                       {shortDigest(artifact.digest)}
-                      {tags.length > 1
-                        ? locale === "en-US"
-                          ? ` · ${formatNumber(tags.length, locale)} tags`
-                          : ` · ${formatNumber(tags.length, locale)} 个 Tag`
-                        : ""}
+                      {(() => {
+                        if (tags.length > 1) {
+                          if (locale === "en-US") {
+                            return ` · ${formatNumber(tags.length, locale)} tags`;
+                          }
+                          return ` · ${formatNumber(tags.length, locale)} 个 Tag`;
+                        }
+                        return "";
+                      })()}
                     </small>
                     {labels.length ? (
-                      <span className="artifact-row-labels">
+                      <span
+                        className={resolveClasses(styles.artifactRowLabels)}
+                      >
                         {labels.slice(0, 2).map((label) => (
                           <ArtifactLabelChip key={label.id} label={label} />
                         ))}
                         {labels.length > 2 ? (
-                          <span className="badge">+{labels.length - 2}</span>
+                          <span className={resolveClasses("badge")}>
+                            +{labels.length - 2}
+                          </span>
                         ) : null}
                       </span>
                     ) : null}
@@ -223,7 +284,7 @@ export function ArtifactTable({
               <td>
                 <ArchitectureCell artifact={artifact} />
               </td>
-              <td className="table-cell-center">
+              <td className={resolveClasses("table-cell-center")}>
                 <SignatureBadge artifact={artifact} />
               </td>
               <td>
@@ -233,22 +294,28 @@ export function ArtifactTable({
                   repository={repository}
                 />
               </td>
-              <td className="table-cell-center">
+              <td className={resolveClasses("table-cell-center")}>
                 <StatusBadge status={scan.status} />
               </td>
-              <td className="table-cell-center">
+              <td className={resolveClasses("table-cell-center")}>
                 <SeverityBadge severity={scan.severity} />
               </td>
-              <td className="table-cell-number">
+              <td className={resolveClasses("table-cell-number")}>
                 {formatBytes(artifact.size, locale)}
               </td>
-              <td className="table-cell-time">
-                {formatDate(artifact.pull_time, locale)}
+              <td className={resolveClasses("table-cell-time")}>
+                {formatDate(artifact.pull_time, {
+                  locale: locale,
+                  timeZone: displayTimeZone(),
+                })}
               </td>
-              <td className="table-cell-time">
-                {formatDate(artifact.push_time, locale)}
+              <td className={resolveClasses("table-cell-time")}>
+                {formatDate(artifact.push_time, {
+                  locale: locale,
+                  timeZone: displayTimeZone(),
+                })}
               </td>
-              <td className="table-cell-center">
+              <td className={resolveClasses("table-cell-center")}>
                 <Icon name="chevron" />
               </td>
             </tr>
@@ -258,3 +325,36 @@ export function ArtifactTable({
     </table>
   );
 }
+
+const resolveClasses = createClassNames({
+  "empty-state": uiStyles0.emptyState,
+  icon: uiStyles0.icon,
+  "status-badge": uiStyles0.statusBadge,
+  muted: uiStyles0.muted,
+  badge: uiStyles0.badge,
+  "badge-blue": uiStyles0.badgeBlue,
+  "badge-green": uiStyles0.badgeGreen,
+  "badge-orange": uiStyles0.badgeOrange,
+  "selection-cell": uiStyles0.selectionCell,
+  "table-cell-center": uiStyles0.tableCellCenter,
+  "table-cell-number": uiStyles0.tableCellNumber,
+  "table-cell-time": uiStyles0.tableCellTime,
+  "clickable-row": uiStyles0.clickableRow,
+  "selected-row": uiStyles0.selectedRow,
+  "cell-title": uiStyles0.cellTitle,
+  "cell-stack": uiStyles0.cellStack,
+  mono: uiStyles0.mono,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

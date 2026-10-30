@@ -3,15 +3,17 @@ package app
 import (
 	"strings"
 	"time"
+
+	"harbor-console/internal/timefmt"
 )
 
-func demoVulnerabilityReport() map[string]any {
+func demoVulnerabilityReport(now time.Time) map[string]any {
 	items := []any{
 		map[string]any{"id": "CVE-2026-1842", "package": "libssl3", "version": "3.4.0-r1", "fix_version": "3.4.1-r0", "severity": "Critical", "description": "OpenSSL 边界检查缺陷"},
 		map[string]any{"id": "CVE-2026-0917", "package": "busybox", "version": "1.37.0-r3", "fix_version": "1.37.0-r5", "severity": "High", "description": "归档解包路径验证缺陷"},
 		map[string]any{"id": "CVE-2025-52881", "package": "zlib", "version": "1.3.1-r1", "fix_version": "1.3.1-r2", "severity": "Medium", "description": "特制输入导致资源消耗"},
 	}
-	return map[string]any{"generated_at": time.Now().UTC().Format(time.RFC3339), "scanner": map[string]any{"name": "Trivy", "version": "v0.57.1"}, "severity": "Critical", "vulnerabilities": items}
+	return map[string]any{"generated_at": now.UTC().Format(timefmt.Layout), "scanner": map[string]any{"name": "Trivy", "version": "v0.57.1"}, "severity": "Critical", "vulnerabilities": items}
 }
 
 func demoSecurityVulnerabilities() []map[string]any {

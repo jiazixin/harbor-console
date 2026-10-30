@@ -1,10 +1,5 @@
 export type Locale = "zh-CN" | "en-US";
 
-export type ApiErrorPayload = {
-  error?: string;
-  details?: string;
-};
-
 export type Session = {
   connection_id: string;
   instance_url: string;
@@ -1005,7 +1000,15 @@ export type Dashboard = {
   projects?: ProjectSummary[];
   replications?: ReplicationExecution[];
   replication_policies?: ReplicationPolicy[];
-  warnings?: string[];
+  warnings?: DashboardWarning[];
+};
+
+/** A dashboard section that could not be loaded, with its error code. */
+export type DashboardWarning = {
+  source: string;
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
 };
 
 export type HarborIdentity = {
@@ -1024,17 +1027,12 @@ export type HarborPermission = {
   action?: string;
 };
 
-export type ControlDataResponse<T> = {
-  data?: T;
-};
-
+/** A list as the console API sends it: offset paging with the total. */
 export type ControlListResponse<T> = {
   items?: T[];
-  pagination?: {
-    page?: number;
-    page_size?: number;
-    total?: number;
-  };
+  total?: number;
+  offset?: number;
+  limit?: number;
 };
 
 export type ControlPagination = {

@@ -9,8 +9,12 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-
-import { Icon } from "./icons";
+import { createClassNames } from "../lib/css/class-names";
+import { FieldError } from "./field-error";
+import { useFieldError } from "./form-errors";
+import { Icon } from "./icon";
+import uiStyles0 from "./shared-ui.module.css";
+import uiStyles1 from "./unified-select.module.css";
 
 export type SelectOption<T extends string> = {
   value: T;
@@ -24,6 +28,16 @@ const VIEWPORT_PADDING = 8;
 
 type MenuPlacement = "top" | "bottom";
 
+type UnifiedSelectProps<T extends string> = {
+  ariaLabel: string;
+  className?: string;
+  disabled?: boolean;
+  name?: string;
+  options: SelectOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+};
+
 export function UnifiedSelect<T extends string>({
   ariaLabel,
   className = "",
@@ -32,16 +46,10 @@ export function UnifiedSelect<T extends string>({
   options,
   value,
   onChange,
-}: {
-  ariaLabel: string;
-  className?: string;
-  disabled?: boolean;
-  name?: string;
-  options: SelectOption<T>[];
-  value: T;
-  onChange: (value: T) => void;
-}) {
+}: UnifiedSelectProps<T>) {
   const id = useId();
+  const errorId = useId();
+  const error = useFieldError(name);
   const rootRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const focusOnOpen = useRef(false);
@@ -149,7 +157,7 @@ export function UnifiedSelect<T extends string>({
         '[aria-selected="true"]:not(:disabled)',
       );
       const firstOption = menuRef.current?.querySelector<HTMLButtonElement>(
-        ".unified-select-option:not(:disabled)",
+        ".hc_71599926_unifiedSelectOption:not(:disabled)",
       );
       (selectedOption ?? firstOption)?.focus({ preventScroll: true });
     }
@@ -173,9 +181,8 @@ export function UnifiedSelect<T extends string>({
     };
   }, [open, updateMenuPosition]);
 
-  useEffect(() => {
-    if (unavailable) setOpen(false);
-  }, [unavailable]);
+  // A select that becomes unavailable closes during the same render.
+  if (unavailable && open) setOpen(false);
 
   function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
@@ -190,7 +197,7 @@ export function UnifiedSelect<T extends string>({
   function handleOptionKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     const buttons = Array.from(
       menuRef.current?.querySelectorAll<HTMLButtonElement>(
-        ".unified-select-option:not(:disabled)",
+        ".hc_71599926_unifiedSelectOption:not(:disabled)",
       ) ?? [],
     );
     const index = buttons.indexOf(event.currentTarget);
@@ -216,7 +223,7 @@ export function UnifiedSelect<T extends string>({
     <span
       ref={menuRef}
       id={id}
-      className="unified-select-menu"
+      className={resolveClasses("unified-select-menu")}
       role="listbox"
       aria-label={ariaLabel}
       data-placement={menuPlacement}
@@ -225,7 +232,7 @@ export function UnifiedSelect<T extends string>({
       {options.map((option) => (
         <button
           key={option.value}
-          className="unified-select-option"
+          className={resolveClasses("unified-select-option")}
           type="button"
           role="option"
           aria-selected={option.value === value}
@@ -247,16 +254,20 @@ export function UnifiedSelect<T extends string>({
   return (
     <span
       ref={rootRef}
-      className={`unified-select ${className}${open ? " is-open" : ""}`.trim()}
+      className={resolveClasses(
+        `unified-select ${className}${open ? " is-open" : ""}`.trim(),
+      )}
     >
       {name ? (
         <input type="hidden" name={name} value={value} disabled={disabled} />
       ) : null}
       <button
         ref={triggerRef}
-        className="unified-select-trigger"
+        className={resolveClasses("unified-select-trigger")}
         type="button"
         aria-label={ariaLabel}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={id}
@@ -267,10 +278,37 @@ export function UnifiedSelect<T extends string>({
         }}
         onKeyDown={handleTriggerKeyDown}
       >
-        <span className="unified-select-label">{selected?.label ?? ""}</span>
+        <span className={resolveClasses("unified-select-label")}>
+          {selected?.label ?? ""}
+        </span>
         <Icon name="chevron" />
       </button>
+      <FieldError id={errorId} message={error} />
       {menu ? createPortal(menu, document.body) : null}
     </span>
   );
 }
+
+const resolveClasses = createClassNames({
+  icon: uiStyles0.icon,
+  button: uiStyles0.button,
+  "unified-select": uiStyles0.unifiedSelect,
+  "unified-select-trigger": uiStyles0.unifiedSelectTrigger,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+  "unified-select-option": uiStyles1.unifiedSelectOption,
+  "unified-select-menu": uiStyles1.unifiedSelectMenu,
+  "is-open": uiStyles1.isOpen,
+  "unified-select-label": uiStyles1.unifiedSelectLabel,
+});

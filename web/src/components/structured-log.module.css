@@ -1,0 +1,107 @@
+@layer ui-logs {
+  .structuredLogView {
+    min-height: 280px;
+    max-height: min(520px, 55vh);
+    overflow: auto;
+    background: var(--color-ce841f33);
+    color: var(--color-dcc2339a);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.55;
+  }
+}
+
+@layer ui-logs {
+  .structuredLogHeader,
+  .structuredLogRow {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 188px 62px minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+@layer ui-logs {
+  .structuredLogHeader {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom: 1px solid var(--color-cb0c3fb9);
+    background: var(--color-0ab24f07);
+    color: var(--color-4a7fcce3);
+    font-size: 11px;
+    font-weight: 750;
+  }
+}
+
+@layer ui-logs {
+  .structuredLogHeader span,
+  .structuredLogRow > * {
+    min-width: 0;
+    padding: 7px 10px;
+    border-left: 1px solid var(--color-773c94dd);
+  }
+}
+
+@layer ui-logs {
+  .structuredLogHeader span:first-child,
+  .structuredLogRow > *:first-child {
+    border-left: 0;
+  }
+}
+
+@layer ui-logs {
+  .structuredLogRow {
+    border-bottom: 1px solid var(--color-e448657d);
+  }
+}
+
+@layer ui-logs {
+  .structuredLogRow time {
+    color: var(--color-7bd78869);
+    white-space: nowrap;
+  }
+}
+
+@layer ui-logs {
+  .structuredLogLevel {
+    font-weight: 800;
+  }
+}
+
+@layer ui-logs {
+  .structuredLogMessage {
+    color: var(--color-dcc2339a);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+
+@layer ui-logs {
+  @media (max-width: 620px) {
+    .structuredLogHeader,
+    .structuredLogRow {
+      grid-template-columns: 132px 52px minmax(0, 1fr);
+    }
+  }
+}
+
+@layer ui-logs {
+  @media (max-width: 620px) {
+    .structuredLogHeader span,
+    .structuredLogRow > * {
+      padding: 7px 8px;
+    }
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.structuredLogView {
+}
+.structuredLogHeader {
+}
+.structuredLogRow {
+}
+.structuredLogLevel {
+}
+.structuredLogMessage {
+}

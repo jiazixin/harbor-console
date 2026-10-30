@@ -6,7 +6,7 @@ export function useCenterActiveTab(
 ) {
   useLayoutEffect(() => {
     const tabs = containerRef.current;
-    const active = tabs?.querySelector<HTMLElement>(".active");
+    const active = tabs?.querySelector<HTMLElement>(".hc_8b938f52_active");
     if (!tabs || !active || tabs.scrollWidth <= tabs.clientWidth) return;
     const activeLeft = active.offsetLeft;
     const activeRight = activeLeft + active.offsetWidth;

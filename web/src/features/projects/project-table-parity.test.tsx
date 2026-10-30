@@ -1,13 +1,12 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../../app/locale-context";
-import { IconSprite } from "../../components/icons";
-import { ProjectTable } from "./project-list-views";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
 import { ProjectMembersSection } from "./project-members-section";
 import { ProjectPreheatSection } from "./project-preheat-section";
 import { ProjectRobotsSection } from "./project-robots-section";
 import { ProjectRulesSection } from "./project-rules-section";
+import { ProjectTable } from "./project-table";
 import { ProjectWebhooksSection } from "./project-webhooks-section";
 
 afterEach(() => {
@@ -18,10 +17,10 @@ afterEach(() => {
 
 function renderLocalized(node: React.ReactNode) {
   return render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       {node}
-    </LocaleProvider>,
+    </TestProviders>,
   );
 }
 
@@ -67,7 +66,7 @@ describe("project detail legacy table parity", () => {
     expect(screen.getByText("实体编号 23")).toBeInTheDocument();
     expect(screen.getByText(memberName)).toHaveAttribute("title", memberName);
     expect(
-      table.querySelector('.cell-icon use[href="#i-users"]'),
+      table.querySelector('.hc_8b938f52_cellIcon use[href="#i-users"]'),
     ).not.toBeNull();
   });
 
@@ -109,11 +108,11 @@ describe("project detail legacy table parity", () => {
       robotDescription,
     );
     expect(
-      table.querySelector('.cell-icon use[href="#i-terminal"]'),
+      table.querySelector('.hc_8b938f52_cellIcon use[href="#i-terminal"]'),
     ).not.toBeNull();
 
     rerender(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectWebhooksSection
           project="library"
@@ -133,7 +132,7 @@ describe("project detail legacy table parity", () => {
           onHistory={vi.fn()}
           onDelete={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     table = screen.getByRole("table");
@@ -154,7 +153,7 @@ describe("project detail legacy table parity", () => {
       "h".repeat(1024),
     );
     expect(
-      table.querySelector('.cell-icon use[href="#i-refresh"]'),
+      table.querySelector('.hc_8b938f52_cellIcon use[href="#i-refresh"]'),
     ).not.toBeNull();
   });
 
@@ -187,7 +186,7 @@ describe("project detail legacy table parity", () => {
     let table = screen.getByRole("table");
     expect(tableHeaders(table)).toEqual(["标签", "描述", "最近更新", ""]);
     expect(screen.queryByText("#51")).not.toBeInTheDocument();
-    expect(table.querySelector(".label-swatch")).not.toBeNull();
+    expect(table.querySelector(".hc_8b938f52_labelSwatch")).not.toBeNull();
     expect(screen.getByText(labelName)).toHaveAttribute("title", labelName);
     expect(screen.getByText(labelDescription)).toHaveAttribute(
       "title",
@@ -195,7 +194,7 @@ describe("project detail legacy table parity", () => {
     );
 
     rerender(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectPreheatSection
           project="library"
@@ -209,7 +208,7 @@ describe("project detail legacy table parity", () => {
           onPageChange={vi.fn()}
           onAction={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     table = screen.getByRole("table");
@@ -224,7 +223,7 @@ describe("project detail legacy table parity", () => {
     ]);
     expect(screen.getByText("策略 #61")).toBeInTheDocument();
     expect(
-      table.querySelector('.cell-icon use[href="#i-play"]'),
+      table.querySelector('.hc_8b938f52_cellIcon use[href="#i-play"]'),
     ).not.toBeNull();
   });
 
@@ -301,9 +300,11 @@ describe("project center table alignment", () => {
     );
     const table = screen.getByRole("table");
     const alignment = (cell: Element) =>
-      ["table-cell-center", "table-cell-number", "table-cell-time"].find(
-        (name) => cell.classList.contains(name),
-      );
+      [
+        "hc_8b938f52_tableCellCenter",
+        "hc_8b938f52_tableCellNumber",
+        "hc_8b938f52_tableCellTime",
+      ].find((name) => cell.classList.contains(name));
     const headers = [...table.querySelectorAll("thead th")].map(alignment);
     const cells = [...table.querySelectorAll("tbody tr:first-child td")].map(
       alignment,
@@ -312,11 +313,11 @@ describe("project center table alignment", () => {
     expect(headers).toEqual([
       undefined,
       undefined,
-      "table-cell-center",
-      "table-cell-number",
-      "table-cell-center",
-      "table-cell-center",
-      "table-cell-time",
+      "hc_8b938f52_tableCellCenter",
+      "hc_8b938f52_tableCellNumber",
+      "hc_8b938f52_tableCellCenter",
+      "hc_8b938f52_tableCellCenter",
+      "hc_8b938f52_tableCellTime",
       undefined,
     ]);
   });

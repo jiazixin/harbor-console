@@ -1,6 +1,6 @@
 type StorageName = "localStorage" | "sessionStorage";
 
-// UI preferences remain optional when browser policy or quota blocks storage.
+/** Reads optional UI preferences; blocked browser storage acts as missing data. */
 export function readStoredItem(
   storage: StorageName,
   key: string,
@@ -12,6 +12,7 @@ export function readStoredItem(
   }
 }
 
+/** Persists non-secret UI preferences when browser policy permits it. */
 export function writeStoredItem(
   storage: StorageName,
   key: string,
@@ -24,6 +25,7 @@ export function writeStoredItem(
   }
 }
 
+/** Removes optional UI state without making blocked storage a UI failure. */
 export function removeStoredItem(storage: StorageName, key: string): void {
   try {
     window[storage].removeItem(key);

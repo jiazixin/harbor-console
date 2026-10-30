@@ -1,5 +1,4 @@
 import { fileURLToPath } from "node:url";
-
 import { defineConfig, devices } from "@playwright/test";
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -16,6 +15,8 @@ export default defineConfig({
   workers: 3,
   reporter: "line",
   use: {
+    locale: "zh-CN",
+    timezoneId: "Asia/Shanghai",
     baseURL,
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
@@ -30,13 +31,13 @@ export default defineConfig({
           CONFIG_FILE: fileURLToPath(
             new URL("../configs/config.example.yaml", import.meta.url),
           ),
-          ACCESS_LOG: "false",
-          LISTEN: "127.0.0.1",
-          PORT: String(port),
+          HARBOR_CONSOLE_LOGGING__ACCESS_LOG: "false",
+          HARBOR_CONSOLE_SERVER__LISTEN: "127.0.0.1",
+          HARBOR_CONSOLE_SERVER__PORT: String(port),
         },
         reuseExistingServer: false,
         timeout: 120_000,
-        url: `${baseURL}/health`,
+        url: `${baseURL}/healthz`,
       },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

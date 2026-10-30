@@ -1,3 +1,9 @@
+import { z } from "zod";
+import {
+  readStoredItem,
+  writeStoredItem,
+} from "../lib/browser-storage/storage";
+import { decodeJson } from "../lib/json/decode-json";
 export type ConsolePreferences = {
   dateTimezone: "local" | "utc";
   registryView: "card" | "list";
@@ -7,15 +13,21 @@ export type ConsolePreferences = {
 
 const storageKey = "harbor-console-preferences-v1";
 
+const preferencesSchema = z.object({
+  dateTimezone: z.enum(["local", "utc"]).catch("local").optional(),
+  registryView: z.enum(["card", "list"]).catch("list").optional(),
+  repositoryView: z.enum(["card", "list"]).catch("list").optional(),
+  runtime: z.enum(["docker", "nerdctl", "podman"]).catch("docker").optional(),
+});
+
 function readStoredPreferences(): Partial<ConsolePreferences> {
   try {
-    const stored: unknown = JSON.parse(
+    return decodeJson(
       readStoredItem("localStorage", storageKey) ?? "{}",
+      preferencesSchema,
     );
-    return stored && typeof stored === "object" && !Array.isArray(stored)
-      ? stored
-      : {};
   } catch {
+    // Corrupt optional browser preferences reset to the documented defaults.
     return {};
   }
 }
@@ -37,7 +49,8 @@ export function loadPreferences(): ConsolePreferences {
 export function savePreferences(preferences: ConsolePreferences): void {
   writeStoredItem("localStorage", storageKey, JSON.stringify(preferences));
 }
-import {
-  readStoredItem,
-  writeStoredItem,
-} from "../lib/browser-storage/storage";
+
+/** Resolves the user's selected timezone for the pure display formatters. */
+export function displayTimeZone(): string | undefined {
+  return loadPreferences().dateTimezone === "utc" ? "UTC" : undefined;
+}

@@ -1,16 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../app/locale-context";
-import { IconSprite } from "./icons";
+import { TestProviders } from "../test/test-providers";
+import { setupUser } from "../test/user";
+import { IconSprite } from "./icon-sprite";
 import { ToolbarSearchForm } from "./toolbar-search-form";
 
 describe("ToolbarSearchForm", () => {
-  it("submits the current draft across a stale parent rerender", () => {
+  it("submits the current draft across a stale parent rerender", async () => {
+    const user = setupUser();
     const onChange = vi.fn();
     const onSubmit = vi.fn();
     const view = render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ToolbarSearchForm
           ariaLabel="按用户名搜索"
@@ -19,14 +20,16 @@ describe("ToolbarSearchForm", () => {
           onChange={onChange}
           onSubmit={onSubmit}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(screen.getByRole("searchbox", { name: "按用户名搜索" }), {
-      target: { value: "platform" },
-    });
+    // The parent never applies onChange, so replace the text in one paste.
+    await user.tripleClick(
+      screen.getByRole("searchbox", { name: "按用户名搜索" }),
+    );
+    await user.paste("platform");
     view.rerender(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ToolbarSearchForm
           ariaLabel="按用户名搜索"
@@ -35,9 +38,9 @@ describe("ToolbarSearchForm", () => {
           onChange={onChange}
           onSubmit={onSubmit}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+    await user.click(screen.getByRole("button", { name: "搜索" }));
 
     expect(onChange).toHaveBeenCalledWith("platform");
     expect(onSubmit).toHaveBeenCalledWith("platform");

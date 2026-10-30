@@ -1,0 +1,68 @@
+@layer ui-controls {
+  .unifiedSelectLabel {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@layer ui-controls {
+  .unifiedSelectMenu {
+    position: fixed;
+    z-index: 110;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 4px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--ink) 12%, transparent);
+  }
+}
+
+@layer ui-controls {
+  .unifiedSelectOption {
+    width: 100%;
+    min-height: 30px;
+    display: block;
+    padding: 6px 8px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 2px;
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@layer ui-controls {
+  .unifiedSelectOption:hover,
+  .unifiedSelectOption:focus-visible,
+  .unifiedSelectOption[aria-selected="true"] {
+    outline: 0;
+    background: var(--surface-subtle);
+    color: var(--ink);
+  }
+}
+
+@layer ui-controls {
+  .unifiedSelectOption:disabled {
+    cursor: not-allowed;
+    color: var(--ink-faint);
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.isOpen {
+}
+.unifiedSelectLabel {
+}
+.unifiedSelectMenu {
+}
+.unifiedSelectOption {
+}

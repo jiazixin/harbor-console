@@ -2,16 +2,11 @@ package app
 
 import (
 	"net/http"
-	"net/url"
 	"strings"
 )
 
-func (state *demoState) handleAuditControl(
-	responseWriter http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleAuditControl(responseWriter http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	operation, query := request.operation, request.query
 	handled = true
 	status = http.StatusOK
 	switch operation {
@@ -20,7 +15,7 @@ func (state *demoState) handleAuditControl(
 		if filterQuery := query.Get("q"); filterQuery != "" {
 			entries = filterDemoAuditTimeRange(entries, filterQuery)
 		}
-		state.writeList(responseWriter, entries, query)
+		ds.writeList(responseWriter, entries, query)
 		return
 
 	case "audit-log-events":
@@ -40,7 +35,7 @@ func (state *demoState) handleAuditControl(
 			entries = filterMaps(entries, project+"/", "resource")
 		}
 		entries = filterDemoAuditEntries(entries, query.Get("q"))
-		state.writeList(responseWriter, entries, query)
+		ds.writeList(responseWriter, entries, query)
 		return
 
 	default:

@@ -2,18 +2,14 @@ package app
 
 import (
 	"net/http"
-	"net/url"
 	"strings"
-	"time"
+
+	"harbor-console/internal/timefmt"
 )
 
 // handleProjectControl serves projects and their summaries.
-func (state *demoState) handleProjectControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleProjectControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
@@ -24,7 +20,7 @@ func (state *demoState) handleProjectControl(
 			return
 		}
 		if method == http.MethodGet {
-			items := filterMaps(state.projects, query.Get("name"), "name")
+			items := filterMaps(ds.projects, query.Get("name"), "name")
 			items = filterMaps(items, query.Get("owner"), "owner_name")
 			if query.Has("public") {
 				wantPublic := query.Get("public") == "true"
@@ -37,25 +33,25 @@ func (state *demoState) handleProjectControl(
 				}
 				items = filtered
 			}
-			state.writeList(w, items, query)
+			ds.writeList(w, items, query)
 			return
 		}
 		name := strings.TrimSpace(stringValue(body["project_name"]))
-		if _, found := findMap(state.projects, "name", name); found {
-			errStatus, errMessage = http.StatusConflict, "同名项目已经存在"
+		if _, found := findMap(ds.projects, "name", name); found {
+			errStatus, errMessage = http.StatusConflict, "a project with the same name already exists"
 			break
 		}
-		state.nextProjectID++
-		now := time.Now().UTC().Format(time.RFC3339)
+		ds.nextProjectID++
+		now := ds.now().UTC().Format(timefmt.Layout)
 		metadata := map[string]any{"public": "false", "auto_scan": "false", "prevent_vul": "false", "severity": "critical", "auto_sbom_generation": "false", "reuse_sys_cve_allowlist": "true"}
 		if provided, ok := body["metadata"].(map[string]any); ok {
 			for key, value := range provided {
 				metadata[key] = value
 			}
 		}
-		project := map[string]any{"project_id": state.nextProjectID, "name": name, "repo_count": 0, "owner_name": "demo-admin", "creation_time": now, "update_time": now, "metadata": metadata, "cve_allowlist": map[string]any{"project_id": state.nextProjectID, "expires_at": nil, "items": []any{}}}
+		project := map[string]any{"project_id": ds.nextProjectID, "name": name, "repo_count": 0, "owner_name": "demo-admin", "creation_time": now, "update_time": now, "metadata": metadata, "cve_allowlist": map[string]any{"project_id": ds.nextProjectID, "expires_at": nil, "items": []any{}}}
 		storageLimit := int64(-1)
-		if configured, ok := state.configurations["storage_per_project"].(map[string]any); ok {
+		if configured, ok := ds.configurations["storage_per_project"].(map[string]any); ok {
 			storageLimit = numberValue(configured["value"])
 		}
 		if requested, ok := body["storage_limit"]; ok {
@@ -65,82 +61,82 @@ func (state *demoState) handleProjectControl(
 		if registryID, ok := body["registry_id"]; ok && registryID != nil && numberValue(registryID) > 0 {
 			project["registry_id"] = numberValue(registryID)
 		}
-		state.projects = append([]map[string]any{project}, state.projects...)
-		state.quotas = append(state.quotas, map[string]any{
-			"id": state.nextProjectID, "ref": map[string]any{"id": state.nextProjectID, "name": name, "owner_name": "demo-admin"},
+		ds.projects = append([]map[string]any{project}, ds.projects...)
+		ds.quotas = append(ds.quotas, map[string]any{
+			"id": ds.nextProjectID, "ref": map[string]any{"id": ds.nextProjectID, "name": name, "owner_name": "demo-admin"},
 			"hard": map[string]any{"storage": storageLimit}, "used": map[string]any{"storage": int64(0)}, "creation_time": now,
 		})
-		state.repositories[name] = []map[string]any{}
-		state.members[name] = []map[string]any{{"id": 1, "project_id": state.nextProjectID, "entity_name": "demo-admin", "role_name": "projectAdmin", "role_id": 1, "entity_id": 1, "entity_type": "u"}}
-		state.projectScanners[name] = "00000000-0000-4000-8000-000000000001"
+		ds.repositories[name] = []map[string]any{}
+		ds.members[name] = []map[string]any{{"id": 1, "project_id": ds.nextProjectID, "entity_name": "demo-admin", "role_name": "projectAdmin", "role_id": 1, "entity_id": 1, "entity_type": "u"}}
+		ds.projectScanners[name] = "00000000-0000-4000-8000-000000000001"
 		status, data = http.StatusCreated, project
 
 	case "project":
 		projectName := query.Get("project")
-		index, found := findMap(state.projects, "name", projectName)
+		index, found := findMap(ds.projects, "name", projectName)
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+			errStatus, errMessage = http.StatusNotFound, "project not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.projects[index]
+			data = ds.projects[index]
 		} else if method == http.MethodPut {
 			if metadata, ok := body["metadata"].(map[string]any); ok {
-				current, _ := state.projects[index]["metadata"].(map[string]any)
+				current, _ := ds.projects[index]["metadata"].(map[string]any)
 				for key, value := range metadata {
 					current[key] = value
 				}
 			}
 			if allowlist, ok := body["cve_allowlist"].(map[string]any); ok {
-				state.projects[index]["cve_allowlist"] = cloneMap(allowlist)
+				ds.projects[index]["cve_allowlist"] = cloneMap(allowlist)
 			}
-			state.projects[index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
-			data = state.projects[index]
+			ds.projects[index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+			data = ds.projects[index]
 		} else {
-			if len(state.repositories[projectName]) > 0 {
-				errStatus, errMessage = http.StatusPreconditionFailed, "项目仍包含仓库，请先删除仓库"
+			if len(ds.repositories[projectName]) > 0 {
+				errStatus, errMessage = http.StatusPreconditionFailed, "project still contains repositories; delete them first"
 				break
 			}
-			projectID := numberValue(state.projects[index]["project_id"])
-			state.projects = append(state.projects[:index], state.projects[index+1:]...)
-			filteredQuotas := state.quotas[:0]
-			for _, quota := range state.quotas {
+			projectID := numberValue(ds.projects[index]["project_id"])
+			ds.projects = append(ds.projects[:index], ds.projects[index+1:]...)
+			filteredQuotas := ds.quotas[:0]
+			for _, quota := range ds.quotas {
 				ref, _ := quota["ref"].(map[string]any)
 				if numberValue(ref["id"]) != projectID {
 					filteredQuotas = append(filteredQuotas, quota)
 				}
 			}
-			state.quotas = filteredQuotas
-			delete(state.repositories, projectName)
-			delete(state.members, projectName)
-			delete(state.projectScanners, projectName)
+			ds.quotas = filteredQuotas
+			delete(ds.repositories, projectName)
+			delete(ds.members, projectName)
+			delete(ds.projectScanners, projectName)
 		}
 
 	case "project-summary":
 		projectName := query.Get("project")
-		if _, found := findMap(state.projects, "name", projectName); !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+		if _, found := findMap(ds.projects, "name", projectName); !found {
+			errStatus, errMessage = http.StatusNotFound, "project not found"
 			break
 		}
-		repositories := state.repositories[projectName]
+		repositories := ds.repositories[projectName]
 		artifactCount := 0
 		for _, repository := range repositories {
-			artifactCount += len(demoVisibleArtifacts(state.artifacts[stringValue(repository["name"])]))
+			artifactCount += len(demoVisibleArtifacts(ds.artifacts[stringValue(repository["name"])]))
 		}
 		roleCounts := map[int]int{}
-		for _, member := range state.members[projectName] {
+		for _, member := range ds.members[projectName] {
 			roleCounts[int(numberValue(member["role_id"]))]++
 		}
 		data = map[string]any{"repo_count": len(repositories), "artifact_count": artifactCount, "project_admin_count": roleCounts[1], "maintainer_count": roleCounts[4], "developer_count": roleCounts[2], "guest_count": roleCounts[3]}
 
 	case "project-deletable":
 		projectName := query.Get("project")
-		if _, found := findMap(state.projects, "name", projectName); !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+		if _, found := findMap(ds.projects, "name", projectName); !found {
+			errStatus, errMessage = http.StatusNotFound, "project not found"
 			break
 		}
-		if len(state.repositories[projectName]) > 0 {
-			data = map[string]any{"deletable": false, "message": "项目仍包含仓库，请先删除仓库"}
+		if len(ds.repositories[projectName]) > 0 {
+			data = map[string]any{"deletable": false, "message": "project still contains repositories; delete them first"}
 		} else {
 			data = map[string]any{"deletable": true}
 		}
@@ -148,12 +144,12 @@ func (state *demoState) handleProjectControl(
 	case "project-artifacts":
 		projectName := query.Get("project")
 		items := make([]map[string]any, 0)
-		for repositoryName, artifacts := range state.artifacts {
+		for repositoryName, artifacts := range ds.artifacts {
 			if strings.HasPrefix(repositoryName, projectName+"/") {
 				items = append(items, demoVisibleArtifacts(artifacts)...)
 			}
 		}
-		state.writeList(w, items, query)
+		ds.writeList(w, items, query)
 		return
 
 	default:
@@ -163,24 +159,20 @@ func (state *demoState) handleProjectControl(
 }
 
 // handleProjectSettingsControl serves project metadata and the project scanner.
-func (state *demoState) handleProjectSettingsControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleProjectSettingsControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "project-metadatas":
 		projectName := query.Get("project")
-		index, found := findMap(state.projects, "name", projectName)
+		index, found := findMap(ds.projects, "name", projectName)
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+			errStatus, errMessage = http.StatusNotFound, "project not found"
 			break
 		}
-		metadata, _ := state.projects[index]["metadata"].(map[string]any)
+		metadata, _ := ds.projects[index]["metadata"].(map[string]any)
 		if method == http.MethodGet {
 			data = metadata
 			break
@@ -188,7 +180,7 @@ func (state *demoState) handleProjectSettingsControl(
 		key := strings.TrimSpace(stringValue(body["key"]))
 		value := stringValue(body["value"])
 		if key == "" {
-			errStatus, errMessage = http.StatusBadRequest, "metadata key 不能为空"
+			errStatus, errMessage = http.StatusBadRequest, "metadata key must not be empty"
 			break
 		}
 		metadata[key] = value
@@ -196,17 +188,17 @@ func (state *demoState) handleProjectSettingsControl(
 
 	case "project-metadata":
 		projectName := query.Get("project")
-		index, found := findMap(state.projects, "name", projectName)
+		index, found := findMap(ds.projects, "name", projectName)
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+			errStatus, errMessage = http.StatusNotFound, "project not found"
 			break
 		}
-		metadata, _ := state.projects[index]["metadata"].(map[string]any)
+		metadata, _ := ds.projects[index]["metadata"].(map[string]any)
 		key := query.Get("meta")
 		if method == http.MethodGet {
 			value, exists := metadata[key]
 			if !exists {
-				errStatus, errMessage = http.StatusNotFound, "metadata 不存在"
+				errStatus, errMessage = http.StatusNotFound, "metadata not found"
 				break
 			}
 			data = map[string]any{"value": value}
@@ -219,40 +211,40 @@ func (state *demoState) handleProjectSettingsControl(
 
 	case "project-scanner":
 		projectName := query.Get("project")
-		if _, found := findMap(state.projects, "name", projectName); !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+		if _, found := findMap(ds.projects, "name", projectName); !found {
+			errStatus, errMessage = http.StatusNotFound, "project not found"
 			break
 		}
 		if method == http.MethodPut {
 			uuid := stringValue(body["uuid"])
-			index, found := findMap(state.scanners, "uuid", uuid)
-			if !found || state.scanners[index]["disabled"] == true {
-				errStatus, errMessage = http.StatusNotFound, "扫描器不存在或已停用"
+			index, found := findMap(ds.scanners, "uuid", uuid)
+			if !found || ds.scanners[index]["disabled"] == true {
+				errStatus, errMessage = http.StatusNotFound, "scanner not found or disabled"
 				break
 			}
-			state.projectScanners[projectName] = uuid
+			ds.projectScanners[projectName] = uuid
 		}
-		uuid := state.projectScanners[projectName]
-		index, found := findMap(state.scanners, "uuid", uuid)
+		uuid := ds.projectScanners[projectName]
+		index, found := findMap(ds.scanners, "uuid", uuid)
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "项目扫描器不存在"
+			errStatus, errMessage = http.StatusNotFound, "project scanner not found"
 			break
 		}
-		data = state.scanners[index]
+		data = ds.scanners[index]
 
 	case "project-scanner-candidates":
 		projectName := query.Get("project")
-		if _, found := findMap(state.projects, "name", projectName); !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+		if _, found := findMap(ds.projects, "name", projectName); !found {
+			errStatus, errMessage = http.StatusNotFound, "project not found"
 			break
 		}
-		items := make([]map[string]any, 0, len(state.scanners))
-		for _, scanner := range filterMaps(state.scanners, demoQueryString(query.Get("q"), "name"), "name") {
+		items := make([]map[string]any, 0, len(ds.scanners))
+		for _, scanner := range filterMaps(ds.scanners, demoQueryString(query.Get("q"), "name"), "name") {
 			if scanner["disabled"] != true {
 				items = append(items, scanner)
 			}
 		}
-		state.writeList(w, items, query)
+		ds.writeList(w, items, query)
 		return
 
 	default:
@@ -262,25 +254,21 @@ func (state *demoState) handleProjectSettingsControl(
 }
 
 // handleProjectMemberControl serves project members.
-func (state *demoState) handleProjectMemberControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleProjectMemberControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "project-members":
 		projectName := query.Get("project")
-		if _, found := state.members[projectName]; !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+		if _, found := ds.members[projectName]; !found {
+			errStatus, errMessage = http.StatusNotFound, "project not found"
 			break
 		}
 		if method == http.MethodGet {
-			items := filterMaps(state.members[projectName], query.Get("entityname"), "entity_name")
-			state.writeList(w, items, query)
+			items := filterMaps(ds.members[projectName], query.Get("entityname"), "entity_name")
+			ds.writeList(w, items, query)
 			return
 		}
 		role := int(numberValue(body["role_id"]))
@@ -295,45 +283,45 @@ func (state *demoState) handleProjectMemberControl(
 			}
 			entityType = "g"
 		}
-		for _, member := range state.members[projectName] {
+		for _, member := range ds.members[projectName] {
 			if strings.EqualFold(stringValue(member["entity_name"]), name) {
-				errStatus, errMessage = http.StatusConflict, "该成员已经在项目中"
+				errStatus, errMessage = http.StatusConflict, "member already in the project"
 				break
 			}
 		}
 		if errStatus != 0 {
 			break
 		}
-		state.nextMemberID++
-		member := map[string]any{"id": state.nextMemberID, "project_id": projectID(state.projects, projectName), "entity_name": name, "role_name": demoRoleName(role), "role_id": role, "entity_id": state.nextMemberID, "entity_type": entityType}
-		state.members[projectName] = append(state.members[projectName], member)
+		ds.nextMemberID++
+		member := map[string]any{"id": ds.nextMemberID, "project_id": projectID(ds.projects, projectName), "entity_name": name, "role_name": demoRoleName(role), "role_id": role, "entity_id": ds.nextMemberID, "entity_type": entityType}
+		ds.members[projectName] = append(ds.members[projectName], member)
 		status, data = http.StatusCreated, member
 
 	case "project-member":
 		projectName := query.Get("project")
 		memberID := query.Get("member")
-		index, found := findMapNumber(state.members[projectName], "id", memberID)
+		index, found := findMapNumber(ds.members[projectName], "id", memberID)
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "项目成员不存在"
+			errStatus, errMessage = http.StatusNotFound, "project member not found"
 			break
 		}
 		if method == http.MethodPut {
 			role := int(numberValue(body["role_id"]))
-			state.members[projectName][index]["role_id"] = role
-			state.members[projectName][index]["role_name"] = demoRoleName(role)
-			data = state.members[projectName][index]
+			ds.members[projectName][index]["role_id"] = role
+			ds.members[projectName][index]["role_name"] = demoRoleName(role)
+			data = ds.members[projectName][index]
 		} else {
-			state.members[projectName] = append(state.members[projectName][:index], state.members[projectName][index+1:]...)
+			ds.members[projectName] = append(ds.members[projectName][:index], ds.members[projectName][index+1:]...)
 		}
 
 	case "project-member-detail":
 		projectName := query.Get("project")
-		index, found := findMapNumber(state.members[projectName], "id", query.Get("member"))
+		index, found := findMapNumber(ds.members[projectName], "id", query.Get("member"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "项目成员不存在"
+			errStatus, errMessage = http.StatusNotFound, "project member not found"
 			break
 		}
-		data = state.members[projectName][index]
+		data = ds.members[projectName][index]
 
 	default:
 		handled = false
@@ -342,55 +330,51 @@ func (state *demoState) handleProjectMemberControl(
 }
 
 // handleRepositoryControl serves repositories across and within projects.
-func (state *demoState) handleRepositoryControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleRepositoryControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "all-repositories":
 		items := make([]map[string]any, 0)
-		for _, repositories := range state.repositories {
+		for _, repositories := range ds.repositories {
 			items = append(items, repositories...)
 		}
-		state.writeList(w, items, query)
+		ds.writeList(w, items, query)
 		return
 
 	case "repositories":
 		projectName := query.Get("project")
-		items, found := state.repositories[projectName]
+		items, found := ds.repositories[projectName]
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "项目不存在"
+			errStatus, errMessage = http.StatusNotFound, "project not found"
 			break
 		}
 		items = filterMaps(items, query.Get("q"), "name")
-		state.writeList(w, items, query)
+		ds.writeList(w, items, query)
 		return
 
 	case "repository":
 		projectName := query.Get("project")
 		repositoryName := query.Get("repository")
-		index, found := findMap(state.repositories[projectName], "name", repositoryName)
+		index, found := findMap(ds.repositories[projectName], "name", repositoryName)
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "仓库不存在"
+			errStatus, errMessage = http.StatusNotFound, "repository not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.repositories[projectName][index]
+			data = ds.repositories[projectName][index]
 		} else if method == http.MethodPut {
 			if description, ok := body["description"].(string); ok {
-				state.repositories[projectName][index]["description"] = description
+				ds.repositories[projectName][index]["description"] = description
 			}
-			state.repositories[projectName][index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
-			data = state.repositories[projectName][index]
+			ds.repositories[projectName][index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+			data = ds.repositories[projectName][index]
 		} else {
-			state.repositories[projectName] = append(state.repositories[projectName][:index], state.repositories[projectName][index+1:]...)
-			delete(state.artifacts, repositoryName)
-			updateDemoRepoCount(state.projects, projectName, len(state.repositories[projectName]))
+			ds.repositories[projectName] = append(ds.repositories[projectName][:index], ds.repositories[projectName][index+1:]...)
+			delete(ds.artifacts, repositoryName)
+			ds.updateRepoCount(projectName)
 		}
 
 	default:

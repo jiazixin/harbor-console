@@ -1,12 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-
-import { request } from "../../app/api-client";
+import { displayTimeZone } from "../../app/preferences";
+import { formatDate } from "../../lib/format/formatters";
+import { api } from "../../app/api-client";
 import { useLocale } from "../../app/locale-context";
 import type { AboutPayload, Session } from "../../app/models";
+import { useLoadedQuery } from "../../app/use-loaded-query";
 import { DefinitionList } from "../../components/definition-list";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
-import { PageHeader, RefreshButton } from "../../components/page-elements";
+import { ErrorView } from "../../components/error-view";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { RefreshButton } from "../../components/refresh-button";
+import uiStyles0 from "../../components/shared-ui.module.css";
+import { createClassNames } from "../../lib/css/class-names";
+import { aboutKeys } from "./about-keys";
+import styles from "./about.module.css";
 
 export function harborSwaggerURL(session: Session): string {
   if (session.demo) return "";
@@ -26,44 +32,24 @@ export function harborSwaggerURL(session: Session): string {
   }
 }
 
+type AboutPageProps = {
+  session: Session;
+  harborVersion?: string;
+  refreshing: boolean;
+  onRefresh: () => void;
+};
+
 export function AboutPage({
   session,
   harborVersion,
   refreshing,
   onRefresh,
-}: {
-  session: Session;
-  harborVersion?: string;
-  refreshing: boolean;
-  onRefresh: () => void;
-}) {
-  const { t } = useLocale();
-  const [payload, setPayload] = useState<AboutPayload>();
-  const [error, setError] = useState("");
-  const [version, setVersion] = useState(0);
-  const requestVersion = useRef(0);
-  const reload = useCallback(() => setVersion((current) => current + 1), []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const current = requestVersion.current + 1;
-    requestVersion.current = current;
-    setPayload(undefined);
-    setError("");
-    void request<AboutPayload>("/api/about", { signal: controller.signal })
-      .then((data) => {
-        if (!controller.signal.aborted && requestVersion.current === current)
-          setPayload(data);
-      })
-      .catch((loadError: unknown) => {
-        if (controller.signal.aborted || requestVersion.current !== current)
-          return;
-        setError(
-          loadError instanceof Error ? loadError.message : String(loadError),
-        );
-      });
-    return () => controller.abort();
-  }, [version]);
+}: AboutPageProps) {
+  const { locale, t } = useLocale();
+  const about = useAboutData();
+  const payload = about.data;
+  const error = about.error;
+  const reload = about.reload;
 
   const swaggerURL = harborSwaggerURL(session);
   const consoleInfo = payload?.console ?? {};
@@ -86,13 +72,13 @@ export function AboutPage({
         }
       />
       {!payload && !error ? (
-        <section className="table-shell">
+        <section className={resolveClasses("table-shell")}>
           <div
-            className="route-loading"
+            className={resolveClasses("route-loading")}
             role="status"
             aria-label={t("正在载入")}
           >
-            <span className="spinner spinner-small" />
+            <span className={resolveClasses("spinner spinner-small")} />
           </div>
         </section>
       ) : null}
@@ -100,11 +86,13 @@ export function AboutPage({
         <ErrorView title="产品信息载入失败" message={error} retry={reload} />
       ) : null}
       {payload ? (
-        <div className="about-layout">
-          <section className="about-product-band">
-            <div className="about-product-mark">H</div>
+        <div className={resolveClasses(styles.aboutLayout)}>
+          <section className={resolveClasses(styles.aboutProductBand)}>
+            <div className={resolveClasses(styles.aboutProductMark)}>H</div>
             <div>
-              <span className="eyebrow">{t("Harbor 控制台")}</span>
+              <span className={resolveClasses("eyebrow")}>
+                {t("Harbor 控制台")}
+              </span>
               <h2>{t("私有镜像仓库控制端")}</h2>
               <p>
                 {t(
@@ -112,11 +100,13 @@ export function AboutPage({
                 )}
               </p>
             </div>
-            <span className="badge badge-green">{t("纯内网可用")}</span>
+            <span className={resolveClasses("badge badge-green")}>
+              {t("纯内网可用")}
+            </span>
           </section>
-          <div className="about-grid">
-            <section className="panel">
-              <div className="panel-head">
+          <div className={resolveClasses(styles.aboutGrid)}>
+            <section className={resolveClasses("panel")}>
+              <div className={resolveClasses("panel-head")}>
                 <div>
                   <h2>{t("版本信息")}</h2>
                   <p>{t("当前控制端与 Harbor 实例")}</p>
@@ -134,7 +124,10 @@ export function AboutPage({
                   },
                   {
                     label: t("构建时间"),
-                    value: consoleInfo.build_date ?? t("未知"),
+                    value: formatDate(consoleInfo.build_date, {
+                      locale,
+                      timeZone: displayTimeZone(),
+                    }),
                   },
                   {
                     label: t("当前 Harbor"),
@@ -148,8 +141,8 @@ export function AboutPage({
                 ]}
               />
             </section>
-            <section className="panel">
-              <div className="panel-head">
+            <section className={resolveClasses("panel")}>
+              <div className={resolveClasses("panel-head")}>
                 <div>
                   <h2>{t("许可证")}</h2>
                   <p>{t("Harbor 上游项目信息")}</p>
@@ -181,16 +174,20 @@ export function AboutPage({
               />
             </section>
           </div>
-          <section className="about-contract">
+          <section className={resolveClasses(styles.aboutContract)}>
             <div>
               <h2>{t("Harbor 官方 Swagger")}</h2>
               <p>
                 {t("在新标签页中查看当前 Harbor 实例提供的完整 API 文档。")}
               </p>
               {swaggerURL ? (
-                <code className="about-swagger-url">{swaggerURL}</code>
+                <code className={resolveClasses(styles.aboutSwaggerUrl)}>
+                  {swaggerURL}
+                </code>
               ) : (
-                <span className="about-swagger-unavailable">
+                <span
+                  className={resolveClasses(styles.aboutSwaggerUnavailable)}
+                >
                   {t(
                     "当前为演示实例，连接真实 Harbor 后可打开其官方 Swagger。",
                   )}
@@ -199,7 +196,7 @@ export function AboutPage({
             </div>
             {swaggerURL ? (
               <a
-                className="button button-small button-primary"
+                className={resolveClasses("button button-small button-primary")}
                 href={swaggerURL}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -208,7 +205,11 @@ export function AboutPage({
                 <span>{t("打开官方 Swagger")}</span>
               </a>
             ) : (
-              <button className="button button-small" type="button" disabled>
+              <button
+                className={resolveClasses("button button-small")}
+                type="button"
+                disabled
+              >
                 <Icon name="external" />
                 <span>{t("打开官方 Swagger")}</span>
               </button>
@@ -217,5 +218,45 @@ export function AboutPage({
         </div>
       ) : null}
     </>
+  );
+}
+
+const resolveClasses = createClassNames({
+  "definition-list": uiStyles0.definitionList,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  "table-shell": uiStyles0.tableShell,
+  "route-loading": uiStyles0.routeLoading,
+  spinner: uiStyles0.spinner,
+  "spinner-small": uiStyles0.spinnerSmall,
+  eyebrow: uiStyles0.eyebrow,
+  badge: uiStyles0.badge,
+  "badge-green": uiStyles0.badgeGreen,
+  panel: uiStyles0.panel,
+  "panel-head": uiStyles0.panelHead,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "button-primary": uiStyles0.buttonPrimary,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});
+
+function useAboutData() {
+  return useLoadedQuery(
+    aboutKeys.all,
+    (signal) => api<AboutPayload>("/api/info", { signal }),
+    { keepPrevious: false },
   );
 }

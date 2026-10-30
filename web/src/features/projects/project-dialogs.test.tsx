@@ -1,16 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
 import type { ProjectSummary } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import {
-  CreateProjectDialog,
-  DeleteProjectDialog,
-  DeleteProjectsDialog,
-  ProjectCveExportDialog,
-} from "./project-dialogs";
+import { IconSprite } from "../../components/icon-sprite";
+import { first } from "../../test/first";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { CreateProjectDialog } from "./create-project-dialog";
+import { DeleteProjectDialog } from "./delete-project-dialog";
+import { DeleteProjectsDialog } from "./delete-projects-dialog";
+import { ProjectCveExportDialog } from "./project-cve-export-dialog";
 
 const projects: ProjectSummary[] = [
   { project_id: 1, name: "platform" },
@@ -21,6 +20,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("project dialogs", () => {
   it("omits registry_id for a standard project", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [],
       pagination: { page: 1, page_size: 100, total: 0 },
@@ -34,145 +34,181 @@ describe("project dialogs", () => {
     const onCreated = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <CreateProjectDialog onClose={vi.fn()} onCreated={onCreated} />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "项目名称" }), {
-      target: { value: "acceptance-standard" },
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "项目名称" }),
+      "acceptance-standard",
+    );
+    await user.click(screen.getByRole("button", { name: "创建项目" }));
+
+    await waitFor(() => {
+      expect(onCreated).toHaveBeenCalledWith("acceptance-standard");
     });
-    fireEvent.click(screen.getByRole("button", { name: "创建项目" }));
-
-    await waitFor(() =>
-      expect(onCreated).toHaveBeenCalledWith("acceptance-standard"),
-    );
-    const payload = mutation.mock.calls[0]?.[3];
-    expect(mutation).toHaveBeenCalledWith(
-      "projects",
-      {},
-      "POST",
-      expect.objectContaining({ project_name: "acceptance-standard" }),
-    );
+    const payload = mutation.mock.calls[0]?.[0].payload;
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "projects",
+      parameters: {},
+      method: "POST",
+      payload: expect.objectContaining({
+        project_name: "acceptance-standard",
+      }) as unknown,
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
+    });
     expect(payload).not.toHaveProperty("registry_id");
   });
 
   it("requires the project name for a single project deletion", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
     const onDeleted = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <DeleteProjectDialog
-          project={projects[0]}
+          project={first(projects)}
           onClose={vi.fn()}
           onDeleted={onDeleted}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(
+    await replaceText(
+      user,
       screen.getByRole("textbox", { name: "输入资源名称确认" }),
-      { target: { value: "wrong" } },
+      "wrong",
     );
-    fireEvent.click(screen.getByRole("button", { name: "删除项目" }));
+    await user.click(screen.getByRole("button", { name: "删除项目" }));
     expect(
       await screen.findByText("输入内容与资源名称不一致"),
     ).toBeInTheDocument();
     expect(mutation).not.toHaveBeenCalled();
 
-    fireEvent.change(
+    await replaceText(
+      user,
       screen.getByRole("textbox", { name: "输入资源名称确认" }),
-      { target: { value: "platform" } },
+      "platform",
     );
-    fireEvent.click(screen.getByRole("button", { name: "删除项目" }));
+    await user.click(screen.getByRole("button", { name: "删除项目" }));
 
-    await waitFor(() => expect(onDeleted).toHaveBeenCalledOnce());
-    expect(mutation).toHaveBeenCalledWith(
-      "project",
-      { project: "platform" },
-      "DELETE",
-    );
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalledOnce();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "project",
+      parameters: { project: "platform" },
+      method: "DELETE",
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 
   it("requires the exact batch deletion confirmation and deletes each project", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
     const onDeleted = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <DeleteProjectsDialog
           projects={projects}
           onClose={vi.fn()}
           onDeleted={onDeleted}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "确认文本" }), {
-      target: { value: "wrong" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "确认文本" }),
+      "wrong",
+    );
+    await user.click(screen.getByRole("button", { name: "永久删除" }));
     expect(await screen.findByText("请输入 DELETE 2 确认")).toBeInTheDocument();
     expect(mutation).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "确认文本" }), {
-      target: { value: "DELETE 2" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "永久删除" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "确认文本" }),
+      "DELETE 2",
+    );
+    await user.click(screen.getByRole("button", { name: "永久删除" }));
 
-    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(0));
-    expect(mutation).toHaveBeenNthCalledWith(
-      1,
-      "project",
-      { project: "platform" },
-      "DELETE",
-    );
-    expect(mutation).toHaveBeenNthCalledWith(
-      2,
-      "project",
-      { project: "commerce" },
-      "DELETE",
-    );
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalledWith(0);
+    });
+    expect(mutation).toHaveBeenNthCalledWith(1, {
+      operation: "project",
+      parameters: { project: "platform" },
+      method: "DELETE",
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
+    expect(mutation).toHaveBeenNthCalledWith(2, {
+      operation: "project",
+      parameters: { project: "commerce" },
+      method: "DELETE",
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 
   it("submits a typed CVE export payload for the selected project", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
-      .mockResolvedValue({ data: { id: 91 } });
+      .mockResolvedValue({ id: 91 });
     const onCreated = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectCveExportDialog
-          project={projects[0]}
+          project={first(projects)}
           onClose={vi.fn()}
           onCreated={onCreated}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "标签 ID" }), {
-      target: { value: "12, 18" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "仓库匹配" }), {
-      target: { value: "platform/**" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "创建导出任务" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "标签 ID" }),
+      "12, 18",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "仓库匹配" }),
+      "platform/**",
+    );
+    await user.click(screen.getByRole("button", { name: "创建导出任务" }));
 
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(91));
-    expect(mutation).toHaveBeenCalledWith("cve-export", {}, "POST", {
-      projects: [1],
-      labels: [12, 18],
-      repositories: "platform/**",
+    await waitFor(() => {
+      expect(onCreated).toHaveBeenCalledWith(91);
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "cve-export",
+      parameters: {},
+      method: "POST",
+      payload: {
+        projects: [1],
+        labels: [12, 18],
+        repositories: "platform/**",
+      },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
     });
   });
 });

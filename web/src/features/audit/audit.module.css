@@ -1,0 +1,39 @@
+/* Audit log page styles. */
+
+.auditFilterForm {
+  flex-wrap: wrap;
+}
+
+.auditFilterForm :global(.hc_8b938f52_toolbarSearch) {
+  flex: 0 1 220px;
+}
+
+.auditFilterForm .auditResourceSearch {
+  flex: 1 1 240px;
+}
+
+.auditFilterForm
+  :global(.hc_8b938f52_toolbarField)
+  :global(.hc_8b938f52_toolbarSelect) {
+  min-width: 118px;
+}
+
+.auditFilterForm :global(.hc_8b938f52_filterToolbarControls) {
+  gap: 10px;
+}
+
+.auditFilterForm :global(.hc_8b938f52_filterToolbarQuery) {
+  gap: 10px;
+}
+
+.auditFilterForm .auditOperationFilter :global(.hc_8b938f52_toolbarSelect) {
+  width: 237px;
+  min-width: 237px;
+}
+
+@media (max-width: 620px) {
+  .auditFilterForm :global(.hc_8b938f52_toolbarSearch),
+  .auditFilterForm .auditResourceSearch {
+    flex: 1 1 100%;
+  }
+}

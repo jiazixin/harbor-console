@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import { createEnglishTranslator } from "./message-templates";
 
 describe("createEnglishTranslator", () => {

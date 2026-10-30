@@ -1,9 +1,8 @@
 import { useLocale } from "../app/locale-context";
-
-type StatusPresentation = {
-  label: string;
-  className: string;
-};
+import { createClassNames } from "../lib/css/class-names";
+import uiStyles1 from "./shared-ui.module.css";
+import { type StatusPresentation } from "./status-badge-support";
+import uiStyles0 from "./status-badge.module.css";
 
 const statusPresentations: Record<string, StatusPresentation> = {
   healthy: { label: "正常", className: "status-healthy" },
@@ -30,70 +29,46 @@ const statusPresentations: Record<string, StatusPresentation> = {
   unknown: { label: "未知", className: "" },
 };
 
-export function StatusBadge({
-  status,
-  label,
-}: {
+type StatusBadgeProps = {
   status: string | undefined;
   label?: string;
-}) {
+};
+
+export function StatusBadge({ status, label }: StatusBadgeProps) {
   const { t } = useLocale();
   const presentation = statusPresentations[status?.toLowerCase() ?? ""] ?? {
     label: status?.trim() ? status : "未知",
     className: "",
   };
   return (
-    <span className={`status-badge ${presentation.className}`.trim()}>
+    <span
+      className={resolveClasses(
+        `status-badge ${presentation.className}`.trim(),
+      )}
+    >
       {t(label ?? presentation.label)}
     </span>
   );
 }
 
-const severityPresentations: Partial<
-  Record<string, Pick<StatusPresentation, "className" | "label">>
-> = {
-  critical: { label: "严重", className: "severity-critical" },
-  high: { label: "高危", className: "severity-high" },
-  medium: { label: "中危", className: "severity-medium" },
-  low: { label: "低危", className: "badge-blue" },
-  negligible: { label: "可忽略", className: "" },
-  none: { label: "无风险", className: "badge-green" },
-  unknown: { label: "未扫描", className: "" },
-};
-
-/** Chinese label for a Harbor severity such as "High"; unknown values pass through. */
-export function severityLabel(severity: string | undefined): string {
-  return (
-    severityPresentations[severity?.toLowerCase() ?? "unknown"]?.label ??
-    severity ??
-    "未扫描"
-  );
-}
-
-export function SeverityBadge({ severity }: { severity: string | undefined }) {
-  const { t } = useLocale();
-  const presentation = severityPresentations[
-    severity?.toLowerCase() ?? "unknown"
-  ] ?? {
-    label: severity?.trim() ? severity : "未扫描",
-    className: "",
-  };
-  return (
-    <span className={`badge ${presentation.className}`.trim()}>
-      {t(presentation.label)}
-    </span>
-  );
-}
-
-export function triggerLabel(
-  value: string | undefined,
-  translate: (source: string) => string,
-): string {
-  return translate(
-    {
-      scheduled: "定时触发",
-      event_based: "事件触发",
-      manual: "手动触发",
-    }[value?.toLowerCase() ?? ""] ?? "未知方式",
-  );
-}
+const resolveClasses = createClassNames({
+  "status-healthy": uiStyles0.statusHealthy,
+  "status-success": uiStyles0.statusSuccess,
+  "status-running": uiStyles0.statusRunning,
+  "status-stopped": uiStyles0.statusStopped,
+  "status-failed": uiStyles0.statusFailed,
+  "status-badge": uiStyles1.statusBadge,
+  "harbor-banner-warning": uiStyles1.harborBannerWarning,
+  "harbor-banner-success": uiStyles1.harborBannerSuccess,
+  "harbor-banner-info": uiStyles1.harborBannerInfo,
+  "harbor-banner-danger": uiStyles1.harborBannerDanger,
+  clickable: uiStyles1.clickable,
+  "overlay-open": uiStyles1.overlayOpen,
+  "log-level-trace": uiStyles1.logLevelTrace,
+  "log-level-debug": uiStyles1.logLevelDebug,
+  "log-level-log": uiStyles1.logLevelLog,
+  "log-level-info": uiStyles1.logLevelInfo,
+  "log-level-warn": uiStyles1.logLevelWarn,
+  "log-level-error": uiStyles1.logLevelError,
+  "log-level-fatal": uiStyles1.logLevelFatal,
+});

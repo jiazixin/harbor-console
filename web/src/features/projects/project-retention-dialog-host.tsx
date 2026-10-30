@@ -1,26 +1,26 @@
-import {
-  CreateRetentionPolicyDialog,
-  DeleteRetentionPolicyDialog,
-  DeleteRetentionRuleDialog,
-  RetentionExecutionDialog,
-  RetentionRuleDialog,
-  RetentionScheduleDialog,
-  RunRetentionDialog,
-  StopRetentionExecutionDialog,
-} from "../projects/project-retention-dialogs";
 import type { ProjectRetentionAction } from "../projects/project-retention-section";
+import { CreateRetentionPolicyDialog } from "./create-retention-policy-dialog";
+import { DeleteRetentionPolicyDialog } from "./delete-retention-policy-dialog";
+import { DeleteRetentionRuleDialog } from "./delete-retention-rule-dialog";
+import { RetentionExecutionDialog } from "./retention-execution-dialog";
+import { RetentionRuleDialog } from "./retention-rule-dialog";
+import { RetentionScheduleDialog } from "./retention-schedule-dialog";
+import { RunRetentionDialog } from "./run-retention-dialog";
+import { StopRetentionExecutionDialog } from "./stop-retention-execution-dialog";
+
+type RetentionDialogHostProps = {
+  action: ProjectRetentionAction;
+  onClose: () => void;
+  onChanged: (message: string) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
 
 export function RetentionDialogHost({
   action,
   onClose,
   onChanged,
   onNotice,
-}: {
-  action: ProjectRetentionAction;
-  onClose: () => void;
-  onChanged: (message: string) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: RetentionDialogHostProps) {
   switch (action.kind) {
     case "create-policy":
       return (
@@ -29,7 +29,9 @@ export function RetentionDialogHost({
           projectId={action.projectId}
           metadata={action.metadata}
           onClose={onClose}
-          onSaved={() => onChanged("Tag 保留策略已创建")}
+          onSaved={() => {
+            onChanged("Tag 保留策略已创建");
+          }}
         />
       );
     case "edit-schedule":
@@ -38,7 +40,9 @@ export function RetentionDialogHost({
           projectId={action.projectId}
           policy={action.policy}
           onClose={onClose}
-          onSaved={() => onChanged("Tag 保留执行计划已更新")}
+          onSaved={() => {
+            onChanged("Tag 保留执行计划已更新");
+          }}
         />
       );
     case "add-rule":
@@ -50,13 +54,13 @@ export function RetentionDialogHost({
           metadata={action.metadata}
           ruleIndex={action.kind === "edit-rule" ? action.ruleIndex : undefined}
           onClose={onClose}
-          onSaved={() =>
+          onSaved={() => {
             onChanged(
               action.kind === "edit-rule"
                 ? "Tag 保留规则已更新"
                 : "Tag 保留规则已添加",
-            )
-          }
+            );
+          }}
         />
       );
     case "delete-rule":
@@ -66,7 +70,9 @@ export function RetentionDialogHost({
           policy={action.policy}
           ruleIndex={action.ruleIndex}
           onClose={onClose}
-          onDeleted={() => onChanged("Tag 保留规则已删除")}
+          onDeleted={() => {
+            onChanged("Tag 保留规则已删除");
+          }}
         />
       );
     case "delete-policy":
@@ -74,7 +80,9 @@ export function RetentionDialogHost({
         <DeleteRetentionPolicyDialog
           policy={action.policy}
           onClose={onClose}
-          onDeleted={() => onChanged("Tag 保留策略已删除")}
+          onDeleted={() => {
+            onChanged("Tag 保留策略已删除");
+          }}
         />
       );
     case "run":
@@ -83,11 +91,11 @@ export function RetentionDialogHost({
           policy={action.policy}
           dryRun={action.dryRun}
           onClose={onClose}
-          onStarted={() =>
+          onStarted={() => {
             onChanged(
               action.dryRun ? "Tag 保留演练已启动" : "Tag 保留任务已启动",
-            )
-          }
+            );
+          }}
         />
       );
     case "stop-execution":
@@ -96,7 +104,9 @@ export function RetentionDialogHost({
           policy={action.policy}
           execution={action.execution}
           onClose={onClose}
-          onStopped={() => onChanged("Tag 保留执行已停止")}
+          onStopped={() => {
+            onChanged("Tag 保留执行已停止");
+          }}
         />
       );
     case "view-execution":

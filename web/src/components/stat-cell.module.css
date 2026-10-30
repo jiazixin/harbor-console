@@ -1,0 +1,47 @@
+@layer ui-page {
+  .statLabel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-page {
+  .statLabel :global(.hc_8b938f52_icon) {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+@layer ui-page {
+  .statValue {
+    display: block;
+    margin-top: 9px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--font-mono);
+    font-size: 27px;
+    line-height: 1.2;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+}
+
+@layer ui-page {
+  .statFoot {
+    display: block;
+    margin-top: 6px;
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.statFoot {
+}
+.statLabel {
+}
+.statValue {
+}

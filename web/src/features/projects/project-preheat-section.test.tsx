@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../../app/locale-context";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { setupUser } from "../../test/user";
 import { ProjectPreheatSection } from "./project-preheat-section";
 
 afterEach(() => {
@@ -12,10 +12,11 @@ afterEach(() => {
 });
 
 describe("ProjectPreheatSection", () => {
-  it("renders the legacy policy table and routes row actions", () => {
+  it("renders the legacy policy table and routes row actions", async () => {
+    const user = setupUser();
     const onAction = vi.fn();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <ProjectPreheatSection
           project="platform"
@@ -42,14 +43,14 @@ describe("ProjectPreheatSection", () => {
           onPageChange={vi.fn()}
           onAction={onAction}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(screen.getByText("release-images")).toBeInTheDocument();
     expect(screen.getByText("release-*")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "立即预热" }));
+    await user.click(screen.getByRole("button", { name: "立即预热" }));
     expect(onAction).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "run", project: "platform" }),
+      expect.objectContaining({ kind: "run", project: "platform" }) as unknown,
     );
   });
 });

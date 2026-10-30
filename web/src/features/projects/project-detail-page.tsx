@@ -1,7 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-
-import { formatNumber } from "../../app/formatters";
-import type { ConsoleRoute } from "../../app/hash-router";
+import { useRef, useState } from "react";
+import type { ConsoleRoute } from "../../app/console-route";
 import { useLocale } from "../../app/locale-context";
 import type {
   HarborPermission,
@@ -17,18 +15,23 @@ import type {
   WebhookEventMetadata,
 } from "../../app/models";
 import { loadPreferences, savePreferences } from "../../app/preferences";
+import { Breadcrumb } from "../../components/breadcrumb";
 import { ContentTransition } from "../../components/content-transition";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
+import { DemoBanner } from "../../components/demo-banner";
+import { ErrorView } from "../../components/error-view";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { RefreshButton } from "../../components/refresh-button";
 import {
-  Breadcrumb,
-  DemoBanner,
-  PageHeader,
-  RefreshButton,
-  StatCell,
-} from "../../components/page-elements";
-import { severityLabel } from "../../components/status-badge";
+  default as sharedPrimitiveStyles,
+  default as uiStyles0,
+} from "../../components/shared-ui.module.css";
+import { StatCell } from "../../components/stat-cell";
+import { severityLabel } from "../../components/status-badge-support";
 import { useCenterActiveTab } from "../../components/use-center-active-tab";
+import { createClassNames } from "../../lib/css/class-names";
+import { formatNumber } from "../../lib/format/formatters";
+import { ProjectAuditSection } from "./project-audit-section";
 import type { ProjectPageData } from "./project-detail-data";
 import {
   hasPermission,
@@ -37,7 +40,6 @@ import {
   projectTabs,
   type ProjectDetailRoute,
 } from "./project-detail-routing";
-import { ProjectAuditSection } from "./project-audit-section";
 import { ProjectMembersSection } from "./project-members-section";
 import {
   ProjectPreheatSection,
@@ -58,7 +60,9 @@ function numberValue(value: number | undefined): number {
   return Number.isFinite(value) ? Number(value) : 0;
 }
 
-function ProjectStats({ data }: { data: ProjectPageData }) {
+type ProjectStatsProps = { data: ProjectPageData };
+
+function ProjectStats({ data }: ProjectStatsProps) {
   const { locale, t } = useLocale();
   const metadata = data.project.metadata ?? {};
   const memberCount =
@@ -68,14 +72,18 @@ function ProjectStats({ data }: { data: ProjectPageData }) {
     numberValue(data.summary.guest_count);
   const autoScan = String(metadata.auto_scan) === "true";
   const blocking = String(metadata.prevent_vul) === "true";
-  const blockingLevel = blocking
-    ? t(severityLabel(metadata.severity ?? "high"))
-    : locale === "en-US"
-      ? "Off"
-      : "关闭";
+  const blockingLevel = (() => {
+    if (blocking) {
+      return t(severityLabel(metadata.severity ?? "high"));
+    }
+    if (locale === "en-US") {
+      return "Off";
+    }
+    return "关闭";
+  })();
   return (
     <section
-      className="overview-stats project-stats"
+      className={resolveClasses("overview-stats project-stats")}
       aria-label={t("项目统计")}
     >
       <StatCell
@@ -110,37 +118,7 @@ function ProjectStats({ data }: { data: ProjectPageData }) {
   );
 }
 
-export function ProjectDetailPage({
-  route,
-  session,
-  isSystemAdmin,
-  refreshing,
-  navigate,
-  onRefresh,
-  onDeleteRepositories,
-  onShowPushCommand,
-  onAddMember,
-  onEditMember,
-  onDeleteMember,
-  onCreateRobot,
-  onEditRobot,
-  onResetRobotSecret,
-  onDeleteRobot,
-  onCreateWebhook,
-  onEditWebhook,
-  onShowWebhookHistory,
-  onDeleteWebhook,
-  onCreateImmutableRule,
-  onEditImmutableRule,
-  onDeleteImmutableRule,
-  onCreateProjectLabel,
-  onEditProjectLabel,
-  onDeleteProjectLabel,
-  onRetentionAction,
-  onPreheatAction = () => undefined,
-  onDeleteProject = () => undefined,
-  onNotice = () => undefined,
-}: {
+type ProjectDetailPageProps = {
   route: ConsoleRoute;
   session: Session;
   isSystemAdmin: boolean;
@@ -189,11 +167,42 @@ export function ProjectDetailPage({
   onPreheatAction?: (action: ProjectPreheatAction) => void;
   onDeleteProject?: (project: ProjectSummary) => void;
   onNotice?: (message: string, error?: boolean) => void;
-}) {
+};
+
+export function ProjectDetailPage({
+  route,
+  session,
+  isSystemAdmin,
+  refreshing,
+  navigate,
+  onRefresh,
+  onDeleteRepositories,
+  onShowPushCommand,
+  onAddMember,
+  onEditMember,
+  onDeleteMember,
+  onCreateRobot,
+  onEditRobot,
+  onResetRobotSecret,
+  onDeleteRobot,
+  onCreateWebhook,
+  onEditWebhook,
+  onShowWebhookHistory,
+  onDeleteWebhook,
+  onCreateImmutableRule,
+  onEditImmutableRule,
+  onDeleteImmutableRule,
+  onCreateProjectLabel,
+  onEditProjectLabel,
+  onDeleteProjectLabel,
+  onRetentionAction,
+  onPreheatAction = () => undefined,
+  onDeleteProject = () => undefined,
+  onNotice = () => undefined,
+}: ProjectDetailPageProps) {
   const { locale, t } = useLocale();
-  const routeKey = `${route.path}?${route.query.toString()}`;
   // The key captures every route field, so parsing reruns only when the route changes.
-  const routeState = useMemo(() => parseRoute(route), [routeKey]);
+  const routeState = (() => parseRoute(route))();
   const { data, loading, error, reload } = useProjectPageData(
     routeState,
     isSystemAdmin,
@@ -208,8 +217,9 @@ export function ProjectDetailPage({
   );
 
   const project = routeState.project;
-  const updateRoute = (updates: Partial<ProjectDetailRoute>) =>
+  const updateRoute = (updates: Partial<ProjectDetailRoute>) => {
     navigate(projectSectionPath(routeState, updates));
+  };
   const breadcrumb = (name: string) => (
     <Breadcrumb
       items={[{ label: "项目中心", href: "#/projects" }, { label: name }]}
@@ -227,9 +237,9 @@ export function ProjectDetailPage({
           actions={<RefreshButton refreshing onRefresh={() => undefined} />}
         />
         {session.demo ? <DemoBanner /> : null}
-        <section className="table-shell">
-          <div className="route-loading" role="status">
-            <span className="spinner spinner-small" />
+        <section className={resolveClasses("table-shell")}>
+          <div className={resolveClasses("route-loading")} role="status">
+            <span className={resolveClasses("spinner spinner-small")} />
           </div>
         </section>
       </>
@@ -251,14 +261,17 @@ export function ProjectDetailPage({
       isSystemAdmin ||
       hasPermission(data.permissions, tab.resource, tab.action),
   );
-  const searchSection = (nextQuery: string) =>
+  const searchSection = (nextQuery: string) => {
     updateRoute({ page: 1, query: nextQuery });
-  const showPage = (page: number) => updateRoute({ page });
+  };
+  const showPage = (page: number) => {
+    updateRoute({ page });
+  };
 
   const sectionContent = () => {
     if (data.permissionDenied) {
       return (
-        <section className="table-shell">
+        <section className={resolveClasses("table-shell")}>
           <ErrorView
             title="没有访问此项目页面的权限"
             message={t("当前账号缺少 Harbor 要求的项目资源权限。")}
@@ -288,12 +301,12 @@ export function ProjectDetailPage({
             robots={data.robots}
             pagination={data.pagination}
             onPageChange={showPage}
-            onCreate={(name) =>
-              onCreateRobot(name, data.permissionMetadata?.project ?? [])
-            }
-            onEdit={(name, robot) =>
-              onEditRobot(name, robot, data.permissionMetadata?.project ?? [])
-            }
+            onCreate={(name) => {
+              onCreateRobot(name, data.permissionMetadata?.project ?? []);
+            }}
+            onEdit={(name, robot) => {
+              onEditRobot(name, robot, data.permissionMetadata?.project ?? []);
+            }}
             onResetSecret={onResetRobotSecret}
             onDelete={onDeleteRobot}
           />
@@ -305,12 +318,12 @@ export function ProjectDetailPage({
             webhooks={data.webhooks}
             pagination={data.pagination}
             onPageChange={showPage}
-            onCreate={(name) =>
-              onCreateWebhook(name, data.webhookEventMetadata)
-            }
-            onEdit={(name, webhook) =>
-              onEditWebhook(name, webhook, data.webhookEventMetadata)
-            }
+            onCreate={(name) => {
+              onCreateWebhook(name, data.webhookEventMetadata);
+            }}
+            onEdit={(name, webhook) => {
+              onEditWebhook(name, webhook, data.webhookEventMetadata);
+            }}
             onHistory={onShowWebhookHistory}
             onDelete={onDeleteWebhook}
           />
@@ -378,7 +391,9 @@ export function ProjectDetailPage({
             settings={data.settings}
             onSaved={reload}
             onNotice={onNotice}
-            onDelete={() => onDeleteProject(data.project)}
+            onDelete={() => {
+              onDeleteProject(data.project);
+            }}
           />
         );
       default:
@@ -396,21 +411,25 @@ export function ProjectDetailPage({
               savePreferences(next);
             }}
             onSearch={searchSection}
-            onSort={(sort) => updateRoute({ page: 1, sort })}
+            onSort={(sort) => {
+              updateRoute({ page: 1, sort });
+            }}
             onPageChange={showPage}
-            onPageSizeChange={(pageSize) => updateRoute({ page: 1, pageSize })}
-            onOpen={(repository) =>
+            onPageSizeChange={(pageSize) => {
+              updateRoute({ page: 1, pageSize });
+            }}
+            onOpen={(repository) => {
               navigate(
                 `projects/${encodeURIComponent(project)}/repositories/${encodeURIComponent(repository.name)}/artifacts`,
-              )
-            }
+              );
+            }}
             onShowPushCommand={(repository) => {
               if (repository) onShowPushCommand(project, repository.name);
               else onShowPushCommand(project);
             }}
-            onDeleteRepositories={(repositories) =>
-              onDeleteRepositories(project, repositories)
-            }
+            onDeleteRepositories={(repositories) => {
+              onDeleteRepositories(project, repositories);
+            }}
           />
         );
     }
@@ -435,11 +454,11 @@ export function ProjectDetailPage({
               }}
             />
             <button
-              className="button button-small"
+              className={resolveClasses("button button-small")}
               type="button"
-              onClick={() =>
-                updateRoute({ section: "settings", page: 1, query: "" })
-              }
+              onClick={() => {
+                updateRoute({ section: "settings", page: 1, query: "" });
+              }}
             >
               <Icon name="settings" />
               <span>{t("项目设置")}</span>
@@ -449,15 +468,18 @@ export function ProjectDetailPage({
       />
       {session.demo ? <DemoBanner /> : null}
       {error ? (
-        <div className="notice notice-warning" role="alert">
+        <div className={resolveClasses("notice notice-warning")} role="alert">
           <Icon name="alert" />
           <span>{error}</span>
         </div>
       ) : null}
+      {data.summaryError ? (
+        <ErrorView message={data.summaryError} retry={reload} />
+      ) : null}
       <ProjectStats data={data} />
       <nav
         ref={resourceTabsRef}
-        className="resource-tabs"
+        className={resolveClasses("resource-tabs")}
         aria-label={t("项目页面")}
       >
         {visibleTabs.map((tab) => (
@@ -468,7 +490,9 @@ export function ProjectDetailPage({
               page: 1,
               query: "",
             })}`}
-            className={routeState.section === tab.section ? "active" : ""}
+            className={resolveClasses(
+              routeState.section === tab.section ? "active" : "",
+            )}
             aria-current={
               routeState.section === tab.section ? "page" : undefined
             }
@@ -486,3 +510,36 @@ export function ProjectDetailPage({
     </>
   );
 }
+
+const resolveClasses = createClassNames({
+  high: sharedPrimitiveStyles.high,
+  breadcrumb: uiStyles0.breadcrumb,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  "stat-cell": uiStyles0.statCell,
+  "overview-stats": uiStyles0.overviewStats,
+  "table-shell": uiStyles0.tableShell,
+  "route-loading": uiStyles0.routeLoading,
+  spinner: uiStyles0.spinner,
+  "spinner-small": uiStyles0.spinnerSmall,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  notice: uiStyles0.notice,
+  "notice-warning": uiStyles0.noticeWarning,
+  "resource-tabs": uiStyles0.resourceTabs,
+  active: uiStyles0.active,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

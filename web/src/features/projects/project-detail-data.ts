@@ -1,5 +1,11 @@
-import { ApiError, controlApi } from "../../app/api-client";
+import { optionalData } from "../../app/optional-data";
+import {
+  ApiError,
+  controlApi,
+  loadAllControlItems,
+} from "../../app/api-client";
 import { auditQueryValue } from "../../app/audit-log";
+import { errorText, UserInputError } from "../../app/errors";
 import type {
   AuditLog,
   ControlPagination,
@@ -23,17 +29,17 @@ import type {
   RetentionPolicy,
   WebhookEventMetadata,
 } from "../../app/models";
+import { sortRepositories } from "../repositories/public";
 import { type ProjectAuditError } from "./project-audit-section";
-import { type ProjectSettingsData } from "./project-settings-section";
-import { sortRepositories } from "../repositories/repository-sorting";
-
 import {
   isSectionAllowed,
   type ProjectDetailRoute,
 } from "./project-detail-routing";
+import { type ProjectSettingsData } from "./project-settings-section";
 export type ProjectPageData = {
   project: ProjectSummary;
   summary: ProjectDetailSummary;
+  summaryError?: string;
   repositories: RepositorySummary[];
   members: ProjectMember[];
   robots: ProjectRobot[];
@@ -65,39 +71,18 @@ function numberValue(value: number | undefined): number {
 
 function rejectionMessage(result: PromiseSettledResult<unknown>): string {
   if (result.status === "fulfilled") return "";
-  return result.reason instanceof Error
-    ? result.reason.message
-    : String(result.reason);
+  return errorText(result.reason);
 }
 
 async function listAllRepositories(
   project: string,
   signal: AbortSignal,
 ): Promise<RepositorySummary[]> {
-  const pageSize = 100;
-  const parameters = {
-    project,
-    page: 1,
-    page_size: pageSize,
-    sort: "name",
-  };
-  const first = await controlApi.list<RepositorySummary>(
+  return loadAllControlItems<RepositorySummary>(
     "repositories",
-    parameters,
+    { project, sort: "name" },
     signal,
   );
-  const pageCount = Math.ceil(first.pagination.total / pageSize);
-  if (pageCount <= 1) return first.items;
-  const remaining = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, index) =>
-      controlApi.list<RepositorySummary>(
-        "repositories",
-        { ...parameters, page: index + 2 },
-        signal,
-      ),
-    ),
-  );
-  return first.items.concat(...remaining.map((page) => page.items));
 }
 
 async function loadRetentionMetadata(signal: AbortSignal) {
@@ -111,10 +96,7 @@ async function loadRetentionMetadata(signal: AbortSignal) {
         throw metadataError;
       }
       return {
-        load_error:
-          metadataError instanceof Error
-            ? metadataError.message
-            : String(metadataError),
+        load_error: errorText(metadataError),
       };
     });
 }
@@ -339,10 +321,7 @@ async function loadProjectAudit(
       }
       return {
         error: {
-          message:
-            auditError instanceof Error
-              ? auditError.message
-              : String(auditError),
+          message: errorText(auditError),
           status:
             auditError instanceof ApiError ? auditError.status : undefined,
         },
@@ -384,10 +363,7 @@ async function loadProjectPreheat(
         throw preheatError;
       }
       return {
-        error:
-          preheatError instanceof Error
-            ? preheatError.message
-            : String(preheatError),
+        error: errorText(preheatError),
       };
     });
   const preheatProviderRequest = controlApi
@@ -405,10 +381,7 @@ async function loadProjectPreheat(
         throw preheatError;
       }
       return {
-        error:
-          preheatError instanceof Error
-            ? preheatError.message
-            : String(preheatError),
+        error: errorText(preheatError),
       };
     });
   const [preheatPolicyResult, preheatProviderResult] = await Promise.all([
@@ -497,13 +470,19 @@ async function loadProjectSettings(
   return { settings };
 }
 
-async function loadProjectSection(
-  route: ProjectDetailRoute,
-  project: ProjectSummary,
-  signal: AbortSignal,
-  locale: string,
-  allRepositoriesRequest: Promise<RepositorySummary[]>,
-): Promise<Partial<ProjectPageData>> {
+async function loadProjectSection({
+  route,
+  project,
+  signal,
+  locale,
+  allRepositoriesRequest,
+}: {
+  route: ProjectDetailRoute;
+  project: ProjectSummary;
+  signal: AbortSignal;
+  locale: string;
+  allRepositoriesRequest: Promise<RepositorySummary[]>;
+}): Promise<Partial<ProjectPageData>> {
   switch (route.section) {
     case "repositories":
       return loadProjectRepositories(route, locale, allRepositoriesRequest);
@@ -529,27 +508,32 @@ function emptyPagination(pageSize: number): ControlPagination {
   return { page: 1, page_size: pageSize, total: 0 };
 }
 
-export async function loadProjectPage(
-  route: ProjectDetailRoute,
-  signal: AbortSignal,
-  isSystemAdmin: boolean,
-  locale: string,
-): Promise<ProjectPageData> {
+export async function loadProjectPage({
+  route,
+  signal,
+  isSystemAdmin,
+  locale,
+}: {
+  route: ProjectDetailRoute;
+  signal: AbortSignal;
+  isSystemAdmin: boolean;
+  locale: string;
+}): Promise<ProjectPageData> {
   const projectRequest = controlApi.data<ProjectSummary>(
     "project",
     { project: route.project },
     signal,
   );
-  const summaryRequest = controlApi
-    .data<ProjectDetailSummary>(
+  const summaryRequest = optionalData(
+    controlApi.data<ProjectDetailSummary>(
       "project-summary",
       { project: route.project },
       signal,
-    )
-    .catch(() => undefined);
+    ),
+  );
   const allRepositoriesRequest = listAllRepositories(route.project, signal);
   const sectionRequest = projectRequest.then(async (project) => {
-    if (!project) throw new Error("项目不存在");
+    if (!project) throw new UserInputError("项目不存在");
     const permissions = isSystemAdmin
       ? []
       : (
@@ -569,13 +553,13 @@ export async function loadProjectPage(
     );
     const sectionData = permissionDenied
       ? {}
-      : await loadProjectSection(
-          route,
-          project,
-          signal,
-          locale,
-          allRepositoriesRequest,
-        );
+      : await loadProjectSection({
+          route: route,
+          project: project,
+          signal: signal,
+          locale: locale,
+          allRepositoriesRequest: allRepositoriesRequest,
+        });
     return { project, permissions, permissionDenied, sectionData };
   });
   const [
@@ -591,8 +575,9 @@ export async function loadProjectPage(
     project,
     permissions,
     permissionDenied,
+    summaryError: summary.error,
     summary: {
-      ...summary,
+      ...summary.data,
       repo_count: allRepositories.length,
       artifact_count: allRepositories.reduce(
         (total, repository) => total + numberValue(repository.artifact_count),

@@ -1,23 +1,22 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../../app/locale-context";
 import type {
   ArtifactAccessory,
   ArtifactLabelCollection,
   ArtifactTag,
   HarborArtifact,
 } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import {
-  ArtifactAccessoriesSection,
-  ArtifactAdditionSection,
-  artifactAdditionText,
-  ArtifactLabelsSection,
-  ArtifactOverviewSection,
-  ArtifactTagsSection,
-  ArtifactVulnerabilitiesSection,
-} from "./artifact-detail-sections";
+import { IconSprite } from "../../components/icon-sprite";
+import { first } from "../../test/first";
+import { TestProviders } from "../../test/test-providers";
+import { setupUser } from "../../test/user";
+import { ArtifactAccessoriesSection } from "./artifact-accessories-section";
+import { ArtifactAdditionSection } from "./artifact-addition-section";
+import { artifactAdditionText } from "./artifact-detail-sections-support";
+import { ArtifactLabelsSection } from "./artifact-labels-section";
+import { ArtifactOverviewSection } from "./artifact-overview-section";
+import { ArtifactTagsSection } from "./artifact-tags-section";
+import { ArtifactVulnerabilitiesSection } from "./artifact-vulnerabilities-section";
 
 const digest =
   "sha256:41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4";
@@ -41,10 +40,10 @@ const artifact: HarborArtifact = {
 
 function renderSection(node: React.ReactNode) {
   return render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       {node}
-    </LocaleProvider>,
+    </TestProviders>,
   );
 }
 
@@ -54,7 +53,8 @@ afterEach(() => {
 });
 
 describe("artifact detail sections", () => {
-  it("renders legacy pull commands, annotations, and multi-platform actions", () => {
+  it("renders legacy pull commands, annotations, and multi-platform actions", async () => {
+    const user = setupUser();
     const copy = vi.fn();
     const openChild = vi.fn();
     renderSection(
@@ -73,19 +73,21 @@ describe("artifact detail sections", () => {
         "docker pull harbor.demo.local/platform/gateway:v3.18.4",
       ),
     ).toBeVisible();
-    expect(screen.getByText("v3.18.4", { selector: ".badge" })).toHaveAttribute(
-      "title",
-      "v3.18.4",
-    );
+    expect(
+      screen.getByText("v3.18.4", { selector: ".hc_8b938f52_badge" }),
+    ).toHaveAttribute("title", "v3.18.4");
     expect(screen.getByText("linux/amd64")).toBeVisible();
     expect(screen.getByText("linux/arm64/v8")).toBeVisible();
-    fireEvent.click(screen.getAllByRole("button", { name: "复制" })[0]);
+    await user.click(first(screen.getAllByRole("button", { name: "复制" })));
     expect(copy).toHaveBeenCalledWith("v3.18.4");
-    fireEvent.click(screen.getAllByRole("button", { name: "打开子清单" })[0]);
+    await user.click(
+      first(screen.getAllByRole("button", { name: "打开子清单" })),
+    );
     expect(openChild).toHaveBeenCalledWith("sha256:amd64");
   });
 
-  it("keeps tag actions and pagination wired to the shared controls", () => {
+  it("keeps tag actions and pagination wired to the shared controls", async () => {
+    const user = setupUser();
     const tag: ArtifactTag = {
       id: 1,
       name: "v3.18.4",
@@ -112,15 +114,16 @@ describe("artifact detail sections", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "添加 Tag" }));
-    fireEvent.click(screen.getByRole("button", { name: "删除 Tag" }));
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    await user.click(screen.getByRole("button", { name: "添加 Tag" }));
+    await user.click(screen.getByRole("button", { name: "删除 Tag" }));
+    await user.click(screen.getByRole("button", { name: "下一页" }));
     expect(add).toHaveBeenCalledOnce();
     expect(remove).toHaveBeenCalledWith(tag);
     expect(pageChange).toHaveBeenCalledWith(2);
   });
 
-  it("renders attached labels and exposes the exact attach and remove actions", () => {
+  it("renders attached labels and exposes the exact attach and remove actions", async () => {
+    const user = setupUser();
     const label = {
       id: 41,
       name: "production",
@@ -148,8 +151,8 @@ describe("artifact detail sections", () => {
       "production",
     );
     expect(screen.getByText(/global labels unavailable/)).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "绑定标签" }));
-    fireEvent.click(screen.getByRole("button", { name: "移除标签" }));
+    await user.click(screen.getByRole("button", { name: "绑定标签" }));
+    await user.click(screen.getByRole("button", { name: "移除标签" }));
     expect(attach).toHaveBeenCalledOnce();
     expect(remove).toHaveBeenCalledWith(label);
   });
@@ -214,7 +217,8 @@ describe("artifact detail sections", () => {
     expect(artifactAdditionText(undefined)).toBe("");
   });
 
-  it("keeps accessory open, copy, delete, and pagination callbacks distinct", () => {
+  it("keeps accessory open, copy, delete, and pagination callbacks distinct", async () => {
+    const user = setupUser();
     const accessory: ArtifactAccessory = {
       id: 7001,
       digest: "sha256:accessory",
@@ -238,10 +242,10 @@ describe("artifact detail sections", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "打开关联制品" }));
-    fireEvent.click(screen.getByRole("button", { name: "复制摘要" }));
-    fireEvent.click(screen.getByRole("button", { name: "删除关联制品" }));
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    await user.click(screen.getByRole("button", { name: "打开关联制品" }));
+    await user.click(screen.getByRole("button", { name: "复制摘要" }));
+    await user.click(screen.getByRole("button", { name: "删除关联制品" }));
+    await user.click(screen.getByRole("button", { name: "下一页" }));
     expect(open).toHaveBeenCalledWith(accessory);
     expect(copy).toHaveBeenCalledWith(accessory.digest);
     expect(remove).toHaveBeenCalledWith(accessory);

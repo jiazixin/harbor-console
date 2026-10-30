@@ -1,40 +1,48 @@
-import { useMemo, useState } from "react";
-
-import { formatNumber } from "../../app/formatters";
-import type { ConsoleRoute } from "../../app/hash-router";
+import { useState } from "react";
+import type { ConsoleRoute } from "../../app/console-route";
 import { useLocale } from "../../app/locale-context";
 import type { ProjectSummary, Session } from "../../app/models";
 import { loadPreferences, savePreferences } from "../../app/preferences";
 import { ContentTransition } from "../../components/content-transition";
-import { Pagination } from "../../components/data-table";
+import { DemoBanner } from "../../components/demo-banner";
 import { EmptyState } from "../../components/empty-state";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
-import {
-  DemoBanner,
-  PageHeader,
-  RefreshButton,
-  SectionHeading,
-} from "../../components/page-elements";
+import { ErrorView } from "../../components/error-view";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { Pagination } from "../../components/pagination";
+import { RefreshButton } from "../../components/refresh-button";
+import { SectionHeading } from "../../components/section-heading";
+import uiStyles0 from "../../components/shared-ui.module.css";
+import { createClassNames } from "../../lib/css/class-names";
+import { formatNumber } from "../../lib/format/formatters";
+import { RepositoryAssetCards } from "./repository-asset-cards";
 import {
   artifactListPath,
   pageSizeOptions,
   parseRepositoryAssetRoute,
-  type RepositoryAsset,
-  type RepositoryAssetRoute,
   repositoryAssetPath,
   useRepositoryAssetPage,
   useRepositoryAssets,
+  type RepositoryAsset,
+  type RepositoryAssetRoute,
 } from "./repository-asset-data";
-import {
-  RepositoryAssetCards,
-  RepositoryAssetStats,
-  RepositoryAssetTable,
-  RepositoryAssetToolbar,
-} from "./repository-asset-views";
+import { RepositoryAssetStats } from "./repository-asset-stats";
+import { RepositoryAssetTable } from "./repository-asset-table";
+import { RepositoryAssetToolbar } from "./repository-asset-toolbar";
+import uiStyles1 from "./shared-ui.module.css";
 
 /** Stable fallback so the filtered page is not recomputed on every render. */
 const emptyRepositories: RepositoryAsset[] = [];
+
+type RepositoriesPageProps = {
+  route: ConsoleRoute;
+  session: Session;
+  projects: ProjectSummary[];
+  refreshing: boolean;
+  navigate: (path: string) => void;
+  onRefresh: () => Promise<void>;
+  onShowPushCommand: (project: string, repository?: string) => void;
+};
 
 export function RepositoriesPage({
   route,
@@ -44,22 +52,10 @@ export function RepositoriesPage({
   navigate,
   onRefresh,
   onShowPushCommand,
-}: {
-  route: ConsoleRoute;
-  session: Session;
-  projects: ProjectSummary[];
-  refreshing: boolean;
-  navigate: (path: string) => void;
-  onRefresh: () => Promise<void>;
-  onShowPushCommand: (project: string, repository?: string) => void;
-}) {
+}: RepositoriesPageProps) {
   const { locale, t } = useLocale();
-  const routeKey = `${route.path}?${route.query.toString()}`;
   // The path and query capture every route field, so parsing reruns only on navigation.
-  const routeState = useMemo(
-    () => parseRepositoryAssetRoute(route),
-    [routeKey],
-  );
+  const routeState = (() => parseRepositoryAssetRoute(route))();
   const { data, loading, error, reload } = useRepositoryAssets(projects);
   const { visible, pagination } = useRepositoryAssetPage(
     data?.repositories ?? emptyRepositories,
@@ -69,8 +65,9 @@ export function RepositoriesPage({
   const [preferences, setPreferences] = useState(loadPreferences);
   const initialLoading = loading && !data;
 
-  const updateRoute = (updates: Partial<RepositoryAssetRoute>) =>
+  const updateRoute = (updates: Partial<RepositoryAssetRoute>) => {
     navigate(repositoryAssetPath(routeState, updates));
+  };
 
   function setViewMode(mode: "card" | "list") {
     const next = { ...preferences, repositoryView: mode };
@@ -81,8 +78,8 @@ export function RepositoriesPage({
   function renderRepositories() {
     if (initialLoading) {
       return (
-        <div className="route-loading" role="status">
-          <span className="spinner spinner-small" />
+        <div className={resolveClasses("route-loading")} role="status">
+          <span className={resolveClasses("spinner spinner-small")} />
         </div>
       );
     }
@@ -100,21 +97,24 @@ export function RepositoriesPage({
         />
       );
     }
-    const open = (repository: RepositoryAsset) =>
+    const open = (repository: RepositoryAsset) => {
       navigate(artifactListPath(repository));
+    };
     return preferences.repositoryView === "card" ? (
       <RepositoryAssetCards
         repositories={visible}
         onOpen={open}
-        onShowPushCommand={(repository) =>
-          onShowPushCommand(repository.project_name, repository.name)
-        }
+        onShowPushCommand={(repository) => {
+          onShowPushCommand(repository.project_name, repository.name);
+        }}
       />
     ) : (
       <RepositoryAssetTable
         repositories={visible}
         sort={routeState.sort}
-        onSort={(sort) => updateRoute({ page: 1, sort })}
+        onSort={(sort) => {
+          updateRoute({ page: 1, sort });
+        }}
         onOpen={open}
       />
     );
@@ -136,7 +136,7 @@ export function RepositoriesPage({
       />
       {session.demo ? <DemoBanner /> : null}
       {data?.failures.length ? (
-        <div className="notice notice-warning">
+        <div className={resolveClasses("notice notice-warning")}>
           <Icon name="alert" />
           <span>
             <strong>
@@ -161,15 +161,21 @@ export function RepositoriesPage({
         loading={initialLoading}
         error={Boolean(error)}
       />
-      <section className="table-shell">
+      <section className={resolveClasses("table-shell")}>
         <RepositoryAssetToolbar
           query={routeState.query}
           project={routeState.project}
           projects={projects}
           viewMode={preferences.repositoryView}
-          onSearch={(query) => updateRoute({ page: 1, query })}
-          onProjectChange={(project) => updateRoute({ page: 1, project })}
-          onClear={() => updateRoute({ page: 1, query: "", project: "" })}
+          onSearch={(query) => {
+            updateRoute({ page: 1, query });
+          }}
+          onProjectChange={(project) => {
+            updateRoute({ page: 1, project });
+          }}
+          onClear={() => {
+            updateRoute({ page: 1, query: "", project: "" });
+          }}
           onViewModeChange={setViewMode}
         />
         <ContentTransition mode={preferences.repositoryView}>
@@ -177,11 +183,13 @@ export function RepositoriesPage({
           {!loading && !error ? (
             <Pagination
               pagination={pagination}
-              onPageChange={(page) => updateRoute({ page })}
+              onPageChange={(page) => {
+                updateRoute({ page });
+              }}
               pageSizeOptions={pageSizeOptions}
-              onPageSizeChange={(pageSize) =>
-                updateRoute({ page: 1, pageSize })
-              }
+              onPageSizeChange={(pageSize) => {
+                updateRoute({ page: 1, pageSize });
+              }}
             />
           ) : null}
         </ContentTransition>
@@ -189,3 +197,33 @@ export function RepositoriesPage({
     </>
   );
 }
+
+const resolveClasses = createClassNames({
+  "empty-state": uiStyles0.emptyState,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  "section-heading": uiStyles0.sectionHeading,
+  "route-loading": uiStyles0.routeLoading,
+  spinner: uiStyles0.spinner,
+  "spinner-small": uiStyles0.spinnerSmall,
+  notice: uiStyles0.notice,
+  "notice-warning": uiStyles0.noticeWarning,
+  "table-shell": uiStyles0.tableShell,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+  "repository-asset-stats": uiStyles1.repositoryAssetStats,
+  "repository-asset-table": uiStyles1.repositoryAssetTable,
+  "repository-asset-toolbar": uiStyles1.repositoryAssetToolbar,
+});

@@ -4,17 +4,15 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useState,
 } from "react";
-
-import { englishMessages, englishTemplates } from "./locale-messages";
-import { createEnglishTranslator } from "./message-templates";
-import type { Locale } from "./models";
 import {
   readStoredItem,
   writeStoredItem,
 } from "../lib/browser-storage/storage";
+import { englishMessages, englishTemplates } from "./locale-messages";
+import { createEnglishTranslator } from "./message-templates";
+import type { Locale } from "./models";
 
 const storageKey = "harbor-console-language";
 const translateToEnglish = createEnglishTranslator([
@@ -36,16 +34,13 @@ export function readStoredLocale(): Locale {
     : "zh-CN";
 }
 
-export function LocaleProvider({ children }: { children: ReactNode }) {
+type LocaleProviderProps = { children: ReactNode };
+
+export function LocaleProvider({ children }: LocaleProviderProps) {
   const [locale, updateLocale] = useState<Locale>(readStoredLocale);
   const setLocale = useCallback((next: Locale) => {
-    document.documentElement.classList.add("language-reload-in");
     writeStoredItem("localStorage", storageKey, next);
     updateLocale(next);
-    window.setTimeout(
-      () => document.documentElement.classList.remove("language-reload-in"),
-      340,
-    );
   }, []);
   const t = useCallback(
     (source: string) =>
@@ -54,13 +49,14 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    const previous = document.documentElement.lang;
     document.documentElement.lang = locale;
+    return () => {
+      document.documentElement.lang = previous;
+    };
   }, [locale]);
 
-  const value = useMemo(
-    () => ({ locale, setLocale, t }),
-    [locale, setLocale, t],
-  );
+  const value = (() => ({ locale, setLocale, t }))();
   return (
     <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
   );

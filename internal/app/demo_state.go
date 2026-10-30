@@ -7,7 +7,12 @@ import (
 	"time"
 )
 
+// demoState owns one isolated fixture. mu protects every mutable field; now is immutable.
 type demoState struct {
+	mutationCount      int
+	mutationBytes      int
+	now                func() time.Time
+	nextArtifactID     int64
 	mu                 sync.Mutex
 	projects           []map[string]any
 	repositories       map[string][]map[string]any
@@ -85,14 +90,17 @@ type demoState struct {
 }
 
 func newDemoState() *demoState {
+	now := time.Now
 	state := &demoState{
+		now:             now,
+		nextArtifactID:  10_000,
 		projects:        mapsFromAny(demoProjects()),
 		repositories:    make(map[string][]map[string]any),
 		artifacts:       make(map[string][]map[string]any),
 		members:         make(map[string][]map[string]any),
 		projectScanners: make(map[string]string),
 		retentions: []map[string]any{
-			{"id": 31, "algorithm": "or", "rules": []any{map[string]any{"id": 1, "priority": 1, "disabled": false, "action": "retain", "template": "latestPushedK", "params": map[string]any{"latestPushedK": 10}, "tag_selectors": []any{map[string]any{"kind": "doublestar", "decoration": "excludes", "pattern": "scratch-*", "extras": `{"untagged":true,"future_extra":"preserve-me"}`}}, "scope_selectors": map[string]any{"repository": []any{map[string]any{"kind": "doublestar", "decoration": "repoExcludes", "pattern": "sandbox/**"}}}, "future_field": "preserve-me"}}, "trigger": map[string]any{"kind": "Schedule", "settings": map[string]any{"cron": "0 0 2 * * *"}}, "scope": map[string]any{"level": "project", "ref": 1}, "creation_time": "2026-03-18T08:00:00Z", "update_time": "2026-07-20T02:00:00Z"},
+			{"id": 31, "algorithm": "or", "rules": []any{map[string]any{"id": 1, "priority": 1, "disabled": false, "action": "retain", "template": "latestPushedK", "params": map[string]any{"latestPushedK": 10}, "tag_selectors": []any{map[string]any{"kind": "doublestar", "decoration": "excludes", "pattern": "scratch-*", "extras": `{"untagged":true,"future_extra":"preserve-me"}`}}, "scope_selectors": map[string]any{"repository": []any{map[string]any{"kind": "doublestar", "decoration": "repoExcludes", "pattern": "sandbox/**"}}}, "future_field": "preserve-me"}}, "trigger": map[string]any{"kind": "Schedule", "settings": map[string]any{"cron": "0 0 2 * * *"}}, "scope": map[string]any{"level": "project", "ref": 1}, "creation_time": "2026-03-18T08:00:00.000Z", "update_time": "2026-07-20T02:00:00.000Z"},
 		},
 		retentionMetadata: map[string]any{
 			"templates": []any{
@@ -106,12 +114,12 @@ func newDemoState() *demoState {
 			"tag_selectors":   []any{map[string]any{"kind": "doublestar", "decorations": []any{"matches", "excludes"}}},
 		},
 		retentionRuns: map[int64][]map[string]any{
-			31: {{"id": 71, "policy_id": 31, "status": "Succeed", "trigger": "Manual", "dry_run": true, "start_time": "2026-07-27T02:00:00Z", "end_time": "2026-07-27T02:00:18Z"}},
+			31: {{"id": 71, "policy_id": 31, "status": "Succeed", "trigger": "Manual", "dry_run": true, "start_time": "2026-07-27T02:00:00.000Z", "end_time": "2026-07-27T02:00:18.000Z"}},
 		},
 		retentionTasks: map[int64][]map[string]any{
 			71: {
-				{"id": 171, "execution_id": 71, "repository": "platform/gateway", "job_id": "retention-job-171", "status": "Succeed", "status_code": 200, "status_revision": 1, "start_time": "2026-07-27T02:00:01Z", "end_time": "2026-07-27T02:00:09Z", "total": 28, "retained": 10},
-				{"id": 172, "execution_id": 71, "repository": "platform/worker", "job_id": "retention-job-172", "status": "Succeed", "status_code": 200, "status_revision": 1, "start_time": "2026-07-27T02:00:09Z", "end_time": "2026-07-27T02:00:18Z", "total": 16, "retained": 10},
+				{"id": 171, "execution_id": 71, "repository": "platform/gateway", "job_id": "retention-job-171", "status": "Succeed", "status_code": 200, "status_revision": 1, "start_time": "2026-07-27T02:00:01.000Z", "end_time": "2026-07-27T02:00:09.000Z", "total": 28, "retained": 10},
+				{"id": 172, "execution_id": 71, "repository": "platform/worker", "job_id": "retention-job-172", "status": "Succeed", "status_code": 200, "status_revision": 1, "start_time": "2026-07-27T02:00:09.000Z", "end_time": "2026-07-27T02:00:18.000Z", "total": 16, "retained": 10},
 			},
 		},
 		retentionLogs: map[string]string{
@@ -122,15 +130,15 @@ func newDemoState() *demoState {
 		executions: mapsFromAny(demoReplications()),
 		replicationTasks: map[int64][]map[string]any{
 			904: {
-				{"id": 1904, "execution_id": 904, "status": "Succeed", "job_id": "demo-job-1904", "operation": "copy", "resource_type": "image", "src_resource": "platform/gateway:v3.18.4", "dst_resource": "registry.prod.internal/platform/gateway:v3.18.4", "start_time": "2026-07-28T06:00:01Z", "end_time": "2026-07-28T06:00:19Z"},
-				{"id": 1905, "execution_id": 904, "status": "Succeed", "job_id": "demo-job-1905", "operation": "copy", "resource_type": "image", "src_resource": "commerce/checkout:v8.2.1", "dst_resource": "registry.prod.internal/commerce/checkout:v8.2.1", "start_time": "2026-07-28T06:00:20Z", "end_time": "2026-07-28T06:00:41Z"},
+				{"id": 1904, "execution_id": 904, "status": "Succeed", "job_id": "demo-job-1904", "operation": "copy", "resource_type": "image", "src_resource": "platform/gateway:v3.18.4", "dst_resource": "registry.prod.internal/platform/gateway:v3.18.4", "start_time": "2026-07-28T06:00:01.000Z", "end_time": "2026-07-28T06:00:19.000Z"},
+				{"id": 1905, "execution_id": 904, "status": "Succeed", "job_id": "demo-job-1905", "operation": "copy", "resource_type": "image", "src_resource": "commerce/checkout:v8.2.1", "dst_resource": "registry.prod.internal/commerce/checkout:v8.2.1", "start_time": "2026-07-28T06:00:20.000Z", "end_time": "2026-07-28T06:00:41.000Z"},
 			},
 			903: {
-				{"id": 1903, "execution_id": 903, "status": "Succeed", "job_id": "demo-job-1903", "operation": "copy", "resource_type": "image", "src_resource": "docker.io/library/nginx:1.29", "dst_resource": "edge/nginx:1.29", "start_time": "2026-07-28T05:09:22Z", "end_time": "2026-07-28T05:09:31Z"},
-				{"id": 1906, "execution_id": 903, "status": "InProgress", "job_id": "demo-job-1906", "operation": "copy", "resource_type": "image", "src_resource": "docker.io/library/redis:8", "dst_resource": "edge/redis:8", "start_time": "2026-07-28T05:09:32Z", "end_time": ""},
+				{"id": 1903, "execution_id": 903, "status": "Succeed", "job_id": "demo-job-1903", "operation": "copy", "resource_type": "image", "src_resource": "docker.io/library/nginx:1.29", "dst_resource": "edge/nginx:1.29", "start_time": "2026-07-28T05:09:22.000Z", "end_time": "2026-07-28T05:09:31.000Z"},
+				{"id": 1906, "execution_id": 903, "status": "InProgress", "job_id": "demo-job-1906", "operation": "copy", "resource_type": "image", "src_resource": "docker.io/library/redis:8", "dst_resource": "edge/redis:8", "start_time": "2026-07-28T05:09:32.000Z", "end_time": ""},
 			},
 			901: {
-				{"id": 1901, "execution_id": 901, "status": "Failed", "job_id": "demo-job-1901", "operation": "copy", "resource_type": "image", "src_resource": "edge/agent:v2.7.0", "dst_resource": "registry.prod.internal/edge/agent:v2.7.0", "start_time": "2026-07-27T22:15:19Z", "end_time": "2026-07-27T22:16:03Z"},
+				{"id": 1901, "execution_id": 901, "status": "Failed", "job_id": "demo-job-1901", "operation": "copy", "resource_type": "image", "src_resource": "edge/agent:v2.7.0", "dst_resource": "registry.prod.internal/edge/agent:v2.7.0", "start_time": "2026-07-27T22:15:19.000Z", "end_time": "2026-07-27T22:16:03.000Z"},
 			},
 		},
 		replicationLogs: map[string]string{
@@ -147,16 +155,16 @@ func newDemoState() *demoState {
 		webhooks:       make(map[string][]map[string]any),
 		webhookExecutions: map[int64][]map[string]any{
 			41: {
-				{"id": 91, "vendor_type": "WEBHOOK", "vendor_id": 41, "status": "Success", "status_message": "", "metrics": map[string]any{"task_count": 2, "success_task_count": 2, "error_task_count": 0, "pending_task_count": 0, "running_task_count": 0, "scheduled_task_count": 0, "stopped_task_count": 0}, "trigger": "Event_based", "extra_attrs": map[string]any{"event_type": "PUSH_ARTIFACT"}, "start_time": "2026-07-28T06:42:05Z", "end_time": "2026-07-28T06:42:06Z"},
-				{"id": 90, "vendor_type": "WEBHOOK", "vendor_id": 41, "status": "Error", "status_message": "target returned HTTP 503", "metrics": map[string]any{"task_count": 1, "success_task_count": 0, "error_task_count": 1, "pending_task_count": 0, "running_task_count": 0, "scheduled_task_count": 0, "stopped_task_count": 0}, "trigger": "Event_based", "extra_attrs": map[string]any{"event_type": "SCANNING_COMPLETED"}, "start_time": "2026-07-27T05:58:56Z", "end_time": "2026-07-27T05:58:58Z"},
+				{"id": 91, "vendor_type": "WEBHOOK", "vendor_id": 41, "status": "Success", "status_message": "", "metrics": map[string]any{"task_count": 2, "success_task_count": 2, "error_task_count": 0, "pending_task_count": 0, "running_task_count": 0, "scheduled_task_count": 0, "stopped_task_count": 0}, "trigger": "Event_based", "extra_attrs": map[string]any{"event_type": "PUSH_ARTIFACT"}, "start_time": "2026-07-28T06:42:05.000Z", "end_time": "2026-07-28T06:42:06.000Z"},
+				{"id": 90, "vendor_type": "WEBHOOK", "vendor_id": 41, "status": "Error", "status_message": "target returned HTTP 503", "metrics": map[string]any{"task_count": 1, "success_task_count": 0, "error_task_count": 1, "pending_task_count": 0, "running_task_count": 0, "scheduled_task_count": 0, "stopped_task_count": 0}, "trigger": "Event_based", "extra_attrs": map[string]any{"event_type": "SCANNING_COMPLETED"}, "start_time": "2026-07-27T05:58:56.000Z", "end_time": "2026-07-27T05:58:58.000Z"},
 			},
 		},
 		webhookTasks: map[int64][]map[string]any{
 			91: {
-				{"id": 191, "execution_id": 91, "status": "Success", "status_message": "", "run_count": 1, "extra_attrs": map[string]any{"event_type": "PUSH_ARTIFACT", "resource": "platform/gateway:v3.18.4", "destination": "https://hooks.demo.local/harbor"}, "creation_time": "2026-07-28T06:42:05Z", "update_time": "2026-07-28T06:42:06Z", "start_time": "2026-07-28T06:42:05Z", "end_time": "2026-07-28T06:42:06Z"},
-				{"id": 192, "execution_id": 91, "status": "Success", "status_message": "", "run_count": 1, "extra_attrs": map[string]any{"event_type": "PUSH_ARTIFACT", "resource": "platform/gateway:v3.18.4", "destination": "https://audit.demo.local/events"}, "creation_time": "2026-07-28T06:42:05Z", "update_time": "2026-07-28T06:42:06Z", "start_time": "2026-07-28T06:42:05Z", "end_time": "2026-07-28T06:42:06Z"},
+				{"id": 191, "execution_id": 91, "status": "Success", "status_message": "", "run_count": 1, "extra_attrs": map[string]any{"event_type": "PUSH_ARTIFACT", "resource": "platform/gateway:v3.18.4", "destination": "https://hooks.demo.local/harbor"}, "creation_time": "2026-07-28T06:42:05.000Z", "update_time": "2026-07-28T06:42:06.000Z", "start_time": "2026-07-28T06:42:05.000Z", "end_time": "2026-07-28T06:42:06.000Z"},
+				{"id": 192, "execution_id": 91, "status": "Success", "status_message": "", "run_count": 1, "extra_attrs": map[string]any{"event_type": "PUSH_ARTIFACT", "resource": "platform/gateway:v3.18.4", "destination": "https://audit.demo.local/events"}, "creation_time": "2026-07-28T06:42:05.000Z", "update_time": "2026-07-28T06:42:06.000Z", "start_time": "2026-07-28T06:42:05.000Z", "end_time": "2026-07-28T06:42:06.000Z"},
 			},
-			90: {{"id": 190, "execution_id": 90, "status": "Error", "status_message": "target returned HTTP 503", "run_count": 3, "extra_attrs": map[string]any{"event_type": "SCANNING_COMPLETED", "resource": "platform/runtime-base:v4.5", "destination": "https://hooks.demo.local/harbor"}, "creation_time": "2026-07-27T05:58:56Z", "update_time": "2026-07-27T05:58:58Z", "start_time": "2026-07-27T05:58:56Z", "end_time": "2026-07-27T05:58:58Z"}},
+			90: {{"id": 190, "execution_id": 90, "status": "Error", "status_message": "target returned HTTP 503", "run_count": 3, "extra_attrs": map[string]any{"event_type": "SCANNING_COMPLETED", "resource": "platform/runtime-base:v4.5", "destination": "https://hooks.demo.local/harbor"}, "creation_time": "2026-07-27T05:58:56.000Z", "update_time": "2026-07-27T05:58:58.000Z", "start_time": "2026-07-27T05:58:56.000Z", "end_time": "2026-07-27T05:58:58.000Z"}},
 		},
 		webhookLogs: map[string]string{
 			"91:191": "2026-07-28T06:42:05Z [INFO] dispatching PUSH_ARTIFACT to https://hooks.demo.local/harbor\n2026-07-28T06:42:06Z [INFO] webhook delivered with HTTP 200\n",
@@ -168,25 +176,25 @@ func newDemoState() *demoState {
 			{"id": "kraken", "name": "Kraken", "version": "v1", "maintainers": []any{"Uber"}, "source": "https://github.com/uber/kraken"},
 		},
 		preheatInstances: []map[string]any{
-			{"id": 61, "name": "dragonfly-shanghai", "description": "上海生产集群预热服务", "vendor": "dragonfly", "endpoint": "https://dragonfly.demo.local", "auth_mode": "BASIC", "auth_info": map[string]any{}, "status": "Healthy", "enabled": true, "default": true, "insecure": false, "setup_timestamp": time.Now().Add(-90 * 24 * time.Hour).Unix()},
+			{"id": 61, "name": "dragonfly-shanghai", "description": "上海生产集群预热服务", "vendor": "dragonfly", "endpoint": "https://dragonfly.demo.local", "auth_mode": "BASIC", "auth_info": map[string]any{}, "status": "Healthy", "enabled": true, "default": true, "insecure": false, "setup_timestamp": now().Add(-90 * 24 * time.Hour).Unix()},
 		},
 		preheatPolicies: map[string][]map[string]any{
-			"platform": {{"id": 81, "name": "release-images", "description": "预热平台发布镜像", "project_id": 1, "provider_id": 61, "filters": `[{"type":"repository","value":"**"},{"type":"tag","value":"release-*"}]`, "trigger": `{"type":"scheduled","trigger_setting":{"cron":"0 0 2 * * *"}}`, "enabled": true, "extra_attrs": `{"scope":"all_seed_peers","cluster_ids":[1,2]}`, "creation_time": "2026-05-11T08:00:00Z", "update_time": "2026-07-28T02:00:00Z"}},
+			"platform": {{"id": 81, "name": "release-images", "description": "预热平台发布镜像", "project_id": 1, "provider_id": 61, "filters": `[{"type":"repository","value":"**"},{"type":"tag","value":"release-*"}]`, "trigger": `{"type":"scheduled","trigger_setting":{"cron":"0 0 2 * * *"}}`, "enabled": true, "extra_attrs": `{"scope":"all_seed_peers","cluster_ids":[1,2]}`, "creation_time": "2026-05-11T08:00:00.000Z", "update_time": "2026-07-28T02:00:00.000Z"}},
 		},
 		preheatExecutions: map[string][]map[string]any{
-			"platform/release-images": {{"id": 8101, "vendor_type": "PREHEAT", "vendor_id": 81, "status": "Success", "status_message": "", "metrics": map[string]any{"task_count": 2, "success_task_count": 2, "error_task_count": 0, "pending_task_count": 0, "running_task_count": 0, "scheduled_task_count": 0, "stopped_task_count": 0}, "trigger": "Manual", "extra_attrs": map[string]any{}, "start_time": "2026-07-28T02:00:00Z", "end_time": "2026-07-28T02:00:21Z"}},
+			"platform/release-images": {{"id": 8101, "vendor_type": "PREHEAT", "vendor_id": 81, "status": "Success", "status_message": "", "metrics": map[string]any{"task_count": 2, "success_task_count": 2, "error_task_count": 0, "pending_task_count": 0, "running_task_count": 0, "scheduled_task_count": 0, "stopped_task_count": 0}, "trigger": "Manual", "extra_attrs": map[string]any{}, "start_time": "2026-07-28T02:00:00.000Z", "end_time": "2026-07-28T02:00:21.000Z"}},
 		},
 		preheatTasks: map[int64][]map[string]any{
-			8101: {{"id": 8201, "execution_id": 8101, "status": "Success", "status_message": "", "run_count": 1, "extra_attrs": map[string]any{"artifact": "platform/gateway:v3.18.4", "digest": "sha256:41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4", "kind": "IMAGE"}, "creation_time": "2026-07-28T02:00:00Z", "update_time": "2026-07-28T02:00:12Z", "start_time": "2026-07-28T02:00:01Z", "end_time": "2026-07-28T02:00:12Z"}, {"id": 8202, "execution_id": 8101, "status": "Success", "status_message": "", "run_count": 1, "extra_attrs": map[string]any{"artifact": "platform/worker:v2.8.0", "digest": "sha256:9fbc61f1d0ee55d7d0485ca645fd73ec56ae6eea483a8514cf6b611fc4b66f9e", "kind": "IMAGE"}, "creation_time": "2026-07-28T02:00:00Z", "update_time": "2026-07-28T02:00:21Z", "start_time": "2026-07-28T02:00:01Z", "end_time": "2026-07-28T02:00:21Z"}},
+			8101: {{"id": 8201, "execution_id": 8101, "status": "Success", "status_message": "", "run_count": 1, "extra_attrs": map[string]any{"artifact": "platform/gateway:v3.18.4", "digest": "sha256:41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4", "kind": "IMAGE"}, "creation_time": "2026-07-28T02:00:00.000Z", "update_time": "2026-07-28T02:00:12.000Z", "start_time": "2026-07-28T02:00:01.000Z", "end_time": "2026-07-28T02:00:12.000Z"}, {"id": 8202, "execution_id": 8101, "status": "Success", "status_message": "", "run_count": 1, "extra_attrs": map[string]any{"artifact": "platform/worker:v2.8.0", "digest": "sha256:9fbc61f1d0ee55d7d0485ca645fd73ec56ae6eea483a8514cf6b611fc4b66f9e", "kind": "IMAGE"}, "creation_time": "2026-07-28T02:00:00.000Z", "update_time": "2026-07-28T02:00:21.000Z", "start_time": "2026-07-28T02:00:01.000Z", "end_time": "2026-07-28T02:00:21.000Z"}},
 		},
 		preheatLogs: map[string]string{
 			"8101:8201": "2026-07-28T02:00:01Z [INFO] 开始预热 platform/gateway:v3.18.4\n2026-07-28T02:00:12Z [INFO] Dragonfly 预热完成\n",
 			"8101:8202": "2026-07-28T02:00:01Z [INFO] 开始预热 platform/worker:v2.8.0\n2026-07-28T02:00:21Z [INFO] Dragonfly 预热完成\n",
 		},
 		users: []map[string]any{
-			{"user_id": 1, "username": "demo-admin", "email": "admin@example.com", "realname": "平台管理员", "comment": "Harbor 系统管理员", "sysadmin_flag": true, "creation_time": "2026-01-12T08:00:00Z"},
-			{"user_id": 2, "username": "release-engineer", "email": "release@example.com", "realname": "发布工程师", "comment": "负责版本发布", "sysadmin_flag": false, "creation_time": "2026-02-04T09:20:00Z"},
-			{"user_id": 3, "username": "security-reviewer", "email": "security@example.com", "realname": "安全审核员", "comment": "负责漏洞审核", "sysadmin_flag": false, "creation_time": "2026-02-18T03:10:00Z"},
+			{"user_id": 1, "username": "demo-admin", "email": "admin@example.com", "realname": "平台管理员", "comment": "Harbor 系统管理员", "sysadmin_flag": true, "creation_time": "2026-01-12T08:00:00.000Z"},
+			{"user_id": 2, "username": "release-engineer", "email": "release@example.com", "realname": "发布工程师", "comment": "负责版本发布", "sysadmin_flag": false, "creation_time": "2026-02-04T09:20:00.000Z"},
+			{"user_id": 3, "username": "security-reviewer", "email": "security@example.com", "realname": "安全审核员", "comment": "负责漏洞审核", "sysadmin_flag": false, "creation_time": "2026-02-18T03:10:00.000Z"},
 		},
 		userGroups: []map[string]any{
 			{"id": 11, "group_name": "platform-ops", "group_type": 3, "ldap_group_dn": ""},
@@ -203,30 +211,30 @@ func newDemoState() *demoState {
 			{"group_name": "security-reviewers", "group_type": 1, "ldap_group_dn": "cn=security-reviewers,ou=groups,dc=demo,dc=local"},
 		},
 		quotas: []map[string]any{
-			{"id": 1, "ref": map[string]any{"id": 1, "name": "platform", "owner_name": "demo-admin"}, "hard": map[string]any{"storage": int64(50 * 1024 * 1024 * 1024)}, "used": map[string]any{"storage": int64(18 * 1024 * 1024 * 1024)}, "creation_time": "2026-01-12T08:00:00Z"},
-			{"id": 2, "ref": map[string]any{"id": 2, "name": "commerce", "owner_name": "demo-admin"}, "hard": map[string]any{"storage": int64(100 * 1024 * 1024 * 1024)}, "used": map[string]any{"storage": int64(63 * 1024 * 1024 * 1024)}, "creation_time": "2026-01-12T08:00:00Z"},
+			{"id": 1, "ref": map[string]any{"id": 1, "name": "platform", "owner_name": "demo-admin"}, "hard": map[string]any{"storage": int64(50 * 1024 * 1024 * 1024)}, "used": map[string]any{"storage": int64(18 * 1024 * 1024 * 1024)}, "creation_time": "2026-01-12T08:00:00.000Z"},
+			{"id": 2, "ref": map[string]any{"id": 2, "name": "commerce", "owner_name": "demo-admin"}, "hard": map[string]any{"storage": int64(100 * 1024 * 1024 * 1024)}, "used": map[string]any{"storage": int64(63 * 1024 * 1024 * 1024)}, "creation_time": "2026-01-12T08:00:00.000Z"},
 		},
 		scanners: []map[string]any{
-			{"uuid": "00000000-0000-4000-8000-000000000001", "name": "Trivy", "description": "默认漏洞扫描器", "url": "http://harbor-scanner-trivy:8080", "disabled": false, "is_default": true, "auth": "", "skip_certVerify": false, "use_internal_addr": true, "health": "healthy", "adapter": "Trivy", "vendor": "Aqua Security", "version": "0.57.1", "create_time": "2026-01-12T08:00:00Z"},
+			{"uuid": "00000000-0000-4000-8000-000000000001", "name": "Trivy", "description": "默认漏洞扫描器", "url": "http://harbor-scanner-trivy:8080", "disabled": false, "is_default": true, "auth": "", "skip_certVerify": false, "use_internal_addr": true, "health": "healthy", "adapter": "Trivy", "vendor": "Aqua Security", "version": "0.57.1", "create_time": "2026-01-12T08:00:00.000Z"},
 		},
 		gcHistory: []map[string]any{
-			{"id": 301, "job_name": "GARBAGE_COLLECTION", "job_kind": "GARBAGE_COLLECTION", "job_status": "Success", "deleted": false, "schedule": map[string]any{"type": "Manual"}, "job_parameters": `{"delete_untagged":true,"delete_tag":false,"workers":1,"dry_run":false,"purged_blobs":84,"purged_manifests":17,"freed_space":287309824}`, "creation_time": "2026-07-27T02:00:00Z", "update_time": "2026-07-27T02:04:18Z"},
+			{"id": 301, "job_name": "GARBAGE_COLLECTION", "job_kind": "GARBAGE_COLLECTION", "job_status": "Success", "deleted": false, "schedule": map[string]any{"type": "Manual"}, "job_parameters": `{"delete_untagged":true,"delete_tag":false,"workers":1,"dry_run":false,"purged_blobs":84,"purged_manifests":17,"freed_space":287309824}`, "creation_time": "2026-07-27T02:00:00.000Z", "update_time": "2026-07-27T02:04:18.000Z"},
 		},
-		gcSchedule: map[string]any{"id": 21, "status": "Scheduled", "schedule": map[string]any{"type": "Daily", "cron": "0 0 2 * * *", "next_scheduled_time": "2026-07-29T02:00:00Z"}, "parameters": map[string]any{"delete_untagged": true, "delete_tag": false, "workers": 1, "dry_run": false}},
+		gcSchedule: map[string]any{"id": 21, "status": "Scheduled", "schedule": map[string]any{"type": "Daily", "cron": "0 0 2 * * *", "next_scheduled_time": "2026-07-29T02:00:00.000Z"}, "parameters": map[string]any{"delete_untagged": true, "delete_tag": false, "workers": 1, "dry_run": false}},
 		purgeHistory: []map[string]any{
-			{"id": 401, "job_name": "PURGE_AUDIT", "job_kind": "Manual", "job_parameters": `{"audit_retention_hour":720,"dry_run":false,"include_event_types":"create_artifact,delete_artifact,pull_artifact"}`, "job_status": "Success", "deleted": true, "creation_time": "2026-07-26T01:00:00Z", "update_time": "2026-07-26T01:00:08Z"},
+			{"id": 401, "job_name": "PURGE_AUDIT", "job_kind": "Manual", "job_parameters": `{"audit_retention_hour":720,"dry_run":false,"include_event_types":"create_artifact,delete_artifact,pull_artifact"}`, "job_status": "Success", "deleted": true, "creation_time": "2026-07-26T01:00:00.000Z", "update_time": "2026-07-26T01:00:08.000Z"},
 		},
-		purgeSchedule: map[string]any{"id": 23, "status": "Scheduled", "schedule": map[string]any{"type": "Weekly", "cron": "0 0 1 * * 0", "next_scheduled_time": "2026-08-02T01:00:00Z"}, "parameters": map[string]any{"audit_retention_hour": 720, "dry_run": false, "include_event_types": "create_artifact,delete_artifact,pull_artifact"}},
+		purgeSchedule: map[string]any{"id": 23, "status": "Scheduled", "schedule": map[string]any{"type": "Weekly", "cron": "0 0 1 * * 0", "next_scheduled_time": "2026-08-02T01:00:00.000Z"}, "parameters": map[string]any{"audit_retention_hour": 720, "dry_run": false, "include_event_types": "create_artifact,delete_artifact,pull_artifact"}},
 		purgeLogs: map[int64]string{
 			401: "2026-07-26T01:00:00Z [INFO] starting audit log purge\n2026-07-26T01:00:01Z [INFO] retention threshold: 720 hours\n2026-07-26T01:00:08Z [INFO] deleted 1842 audit log records\n",
 		},
 		jobPools: []map[string]any{
-			{"pid": 27, "worker_pool_id": "job-service-pool-1", "start_at": "2026-07-20T00:00:00Z", "heartbeat_at": "2026-07-30T03:10:00Z", "concurrency": 10, "host": "harbor-jobservice-6d8b7d8c7c-q2m5k"},
+			{"pid": 27, "worker_pool_id": "job-service-pool-1", "start_at": "2026-07-20T00:00:00.000Z", "heartbeat_at": "2026-07-30T03:10:00.000Z", "concurrency": 10, "host": "harbor-jobservice-6d8b7d8c7c-q2m5k"},
 		},
 		jobWorkers: map[string][]map[string]any{
 			"job-service-pool-1": {
-				{"id": "worker-01", "pool_id": "job-service-pool-1", "job_name": "IMAGE_SCAN", "job_id": "job-scan-1001", "start_at": "2026-07-30T03:08:00Z", "check_in": "running", "checkin_at": "2026-07-30T03:10:00Z"},
-				{"id": "worker-02", "pool_id": "job-service-pool-1", "job_name": "", "job_id": "", "start_at": nil, "check_in": "idle", "checkin_at": "2026-07-30T03:10:00Z"},
+				{"id": "worker-01", "pool_id": "job-service-pool-1", "job_name": "IMAGE_SCAN", "job_id": "job-scan-1001", "start_at": "2026-07-30T03:08:00.000Z", "check_in": "running", "checkin_at": "2026-07-30T03:10:00.000Z"},
+				{"id": "worker-02", "pool_id": "job-service-pool-1", "job_name": "", "job_id": "", "start_at": nil, "check_in": "idle", "checkin_at": "2026-07-30T03:10:00.000Z"},
 			},
 		},
 		jobQueues: []map[string]any{
@@ -235,22 +243,22 @@ func newDemoState() *demoState {
 			{"job_type": "GARBAGE_COLLECTION", "count": 0, "latency": 0, "paused": false},
 		},
 		jobSchedules: []map[string]any{
-			{"id": 21, "vendor_type": "GARBAGE_COLLECTION", "vendor_id": 21, "cron": "0 0 2 * * *", "update_time": "2026-07-28T02:00:00Z"},
-			{"id": 22, "vendor_type": "SCAN_ALL", "vendor_id": 22, "cron": "0 0 3 * * *", "update_time": "2026-07-28T03:00:00Z"},
-			{"id": 23, "vendor_type": "PURGE_AUDIT", "vendor_id": 23, "cron": "0 0 1 * * 0", "update_time": "2026-07-27T01:00:00Z"},
+			{"id": 21, "vendor_type": "GARBAGE_COLLECTION", "vendor_id": 21, "cron": "0 0 2 * * *", "update_time": "2026-07-28T02:00:00.000Z"},
+			{"id": 22, "vendor_type": "SCAN_ALL", "vendor_id": 22, "cron": "0 0 3 * * *", "update_time": "2026-07-28T03:00:00.000Z"},
+			{"id": 23, "vendor_type": "PURGE_AUDIT", "vendor_id": 23, "cron": "0 0 1 * * 0", "update_time": "2026-07-27T01:00:00.000Z"},
 		},
 		jobLogs: map[string]string{
 			"job-scan-1001": "2026-07-30T03:08:00Z [INFO] starting image scan\n2026-07-30T03:09:12Z [INFO] vulnerability database loaded\n2026-07-30T03:10:00Z [INFO] scanning layer 8/12\n",
 		},
-		scanSchedule: map[string]any{"id": 22, "status": "Scheduled", "schedule": map[string]any{"type": "Daily", "cron": "0 0 3 * * *", "next_scheduled_time": "2026-07-29T03:00:00Z"}},
+		scanSchedule: map[string]any{"id": 22, "status": "Scheduled", "schedule": map[string]any{"type": "Daily", "cron": "0 0 3 * * *", "next_scheduled_time": "2026-07-29T03:00:00.000Z"}},
 		scanMetrics:  map[string]any{"total": 24, "completed": 24, "metrics": map[string]any{"Success": 22, "Error": 2}},
 		securityVuls: demoSecurityVulnerabilities(),
 		systemCVEAllowlist: map[string]any{"id": 1, "project_id": 0, "expires_at": nil, "items": []any{
 			map[string]any{"cve_id": "CVE-2025-52881"},
-		}, "creation_time": "2026-01-12T08:00:00Z", "update_time": "2026-07-18T09:30:00Z"},
+		}, "creation_time": "2026-01-12T08:00:00.000Z", "update_time": "2026-07-18T09:30:00.000Z"},
 		cveExports: []map[string]any{
-			{"id": 501, "user_id": 1, "user_name": "demo-admin", "status": "Success", "trigger": "Manual", "start_time": "2026-07-27T09:00:00Z", "end_time": "2026-07-27T09:00:07Z", "status_text": "", "file_present": true},
-			{"id": 500, "user_id": 1, "user_name": "demo-admin", "status": "Error", "trigger": "Manual", "start_time": "2026-07-26T08:00:00Z", "end_time": "2026-07-26T08:00:03Z", "status_text": "扫描报告数据暂不可用", "file_present": false},
+			{"id": 501, "user_id": 1, "user_name": "demo-admin", "status": "Success", "trigger": "Manual", "start_time": "2026-07-27T09:00:00.000Z", "end_time": "2026-07-27T09:00:07.000Z", "status_text": "", "file_present": true},
+			{"id": 500, "user_id": 1, "user_name": "demo-admin", "status": "Error", "trigger": "Manual", "start_time": "2026-07-26T08:00:00.000Z", "end_time": "2026-07-26T08:00:03.000Z", "status_text": "扫描报告数据暂不可用", "file_present": false},
 		},
 		cveExportFiles: map[int64]string{501: demoCVEExportCSV()},
 		configurations: map[string]any{
@@ -342,8 +350,8 @@ func newDemoState() *demoState {
 				"name":           fmt.Sprintf("%s/service-%02d", name, repositoryIndex-4),
 				"artifact_count": 0,
 				"pull_count":     (projectIndex + 2) * (repositoryIndex + 1) * 137,
-				"creation_time":  "2026-04-08T08:24:00Z",
-				"update_time":    "2026-07-23T06:42:00Z",
+				"creation_time":  "2026-04-08T08:24:00.000Z",
+				"update_time":    "2026-07-23T06:42:00.000Z",
 			})
 		}
 		state.repositories[name] = repositories
@@ -379,20 +387,20 @@ func newDemoState() *demoState {
 		metadata["retention_id"] = "31"
 	}
 	state.robots = []map[string]any{
-		{"id": 41, "name": "robot$platform+ci-release", "description": "发布流水线", "level": "project", "duration": 365, "disable": false, "expires_at": time.Now().Add(180 * 24 * time.Hour).Unix(), "project_id": 1, "permissions": demoRobotPermissions("platform", true), "creation_time": "2026-03-18T08:00:00Z"},
-		{"id": 42, "name": "robot$global-mirror", "description": "跨项目镜像同步", "level": "system", "duration": 365, "disable": false, "expires_at": time.Now().Add(240 * 24 * time.Hour).Unix(), "project_id": 0, "permissions": []any{map[string]any{"kind": "project", "namespace": "*", "access": []any{map[string]any{"resource": "repository", "action": "pull", "effect": "allow"}, map[string]any{"resource": "repository", "action": "read", "effect": "allow"}}}, map[string]any{"kind": "system", "namespace": "/", "access": []any{map[string]any{"resource": "replication", "action": "read", "effect": "allow"}, map[string]any{"resource": "replication", "action": "list", "effect": "allow"}}}}, "creation_time": "2026-04-12T08:00:00Z"},
+		{"id": 41, "name": "robot$platform+ci-release", "description": "发布流水线", "level": "project", "duration": 365, "disable": false, "expires_at": now().Add(180 * 24 * time.Hour).Unix(), "project_id": 1, "permissions": demoRobotPermissions("platform", true), "creation_time": "2026-03-18T08:00:00.000Z"},
+		{"id": 42, "name": "robot$global-mirror", "description": "跨项目镜像同步", "level": "system", "duration": 365, "disable": false, "expires_at": now().Add(240 * 24 * time.Hour).Unix(), "project_id": 0, "permissions": []any{map[string]any{"kind": "project", "namespace": "*", "access": []any{map[string]any{"resource": "repository", "action": "pull", "effect": "allow"}, map[string]any{"resource": "repository", "action": "read", "effect": "allow"}}}, map[string]any{"kind": "system", "namespace": "/", "access": []any{map[string]any{"resource": "replication", "action": "read", "effect": "allow"}, map[string]any{"resource": "replication", "action": "list", "effect": "allow"}}}}, "creation_time": "2026-04-12T08:00:00.000Z"},
 	}
 	state.labels = []map[string]any{
-		{"id": 41, "name": "生产", "description": "生产环境制品", "color": "#168352", "scope": "p", "project_id": 1, "creation_time": "2026-03-18T08:00:00Z"},
-		{"id": 42, "name": "候选", "description": "待发布验证", "color": "#3569a8", "scope": "p", "project_id": 1, "creation_time": "2026-03-18T08:00:00Z"},
-		{"id": 43, "name": "已签核", "description": "已通过平台安全签核", "color": "#7a4ca0", "scope": "g", "project_id": 0, "creation_time": "2026-03-18T08:00:00Z"},
+		{"id": 41, "name": "生产", "description": "生产环境制品", "color": "#168352", "scope": "p", "project_id": 1, "creation_time": "2026-03-18T08:00:00.000Z"},
+		{"id": 42, "name": "候选", "description": "待发布验证", "color": "#3569a8", "scope": "p", "project_id": 1, "creation_time": "2026-03-18T08:00:00.000Z"},
+		{"id": 43, "name": "已签核", "description": "已通过平台安全签核", "color": "#7a4ca0", "scope": "g", "project_id": 0, "creation_time": "2026-03-18T08:00:00.000Z"},
 	}
 	if artifacts := state.artifacts["platform/gateway"]; len(artifacts) > 0 {
 		artifacts[0]["labels"] = []any{cloneMap(state.labels[0]), cloneMap(state.labels[2])}
 		artifacts[0]["sbom_overview"] = map[string]any{"application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0": map[string]any{"scan_status": "Success", "report_id": "demo-sbom-1001", "duration": 8}}
 		artifacts[0]["accessories"] = []any{
-			map[string]any{"id": 7001, "artifact_id": 7101, "subject_artifact_id": 1001, "subject_artifact_digest": artifacts[0]["digest"], "subject_artifact_repo": "platform/gateway", "size": 28419, "digest": "sha256:713832a739f26bd20c82cebbf72f6bf97f0fc023908470350d563235063ca541", "type": "signature.cosign", "creation_time": "2026-07-28T06:43:00Z"},
-			map[string]any{"id": 7002, "artifact_id": 7102, "subject_artifact_id": 1001, "subject_artifact_digest": artifacts[0]["digest"], "subject_artifact_repo": "platform/gateway", "size": 19812, "digest": "sha256:4da7d3d4f71d0518d51bd1f9c20c3c510db4e36ea6d671e244c43aa4ac41cf95", "type": "signature.notation", "creation_time": "2026-07-28T06:44:00Z"},
+			map[string]any{"id": 7001, "artifact_id": 7101, "subject_artifact_id": 1001, "subject_artifact_digest": artifacts[0]["digest"], "subject_artifact_repo": "platform/gateway", "size": 28419, "digest": "sha256:713832a739f26bd20c82cebbf72f6bf97f0fc023908470350d563235063ca541", "type": "signature.cosign", "creation_time": "2026-07-28T06:43:00.000Z"},
+			map[string]any{"id": 7002, "artifact_id": 7102, "subject_artifact_id": 1001, "subject_artifact_digest": artifacts[0]["digest"], "subject_artifact_repo": "platform/gateway", "size": 19812, "digest": "sha256:4da7d3d4f71d0518d51bd1f9c20c3c510db4e36ea6d671e244c43aa4ac41cf95", "type": "signature.notation", "creation_time": "2026-07-28T06:44:00.000Z"},
 		}
 	}
 	if artifacts := state.artifacts["platform/gateway"]; len(artifacts) > 2 {
@@ -402,7 +410,7 @@ func newDemoState() *demoState {
 		{"id": 41, "priority": 0, "disabled": false, "action": "immutable", "template": "immutable_template", "params": map[string]any{}, "tag_selectors": []any{map[string]any{"kind": "doublestar", "decoration": "matches", "pattern": "release-*"}}, "scope_selectors": map[string]any{"repository": []any{map[string]any{"kind": "doublestar", "decoration": "repoMatches", "pattern": "**"}}}},
 	}
 	state.webhooks["platform"] = []map[string]any{
-		{"id": 41, "name": "deploy-events", "description": "推送发布事件", "project_id": 1, "targets": []any{map[string]any{"type": "http", "address": "https://hooks.demo.local/harbor", "auth_header": "", "skip_cert_verify": false, "payload_format": "Default"}}, "event_types": []any{"PUSH_ARTIFACT", "SCANNING_COMPLETED"}, "enabled": true, "creation_time": "2026-03-18T08:00:00Z"},
+		{"id": 41, "name": "deploy-events", "description": "推送发布事件", "project_id": 1, "targets": []any{map[string]any{"type": "http", "address": "https://hooks.demo.local/harbor", "auth_header": "", "skip_cert_verify": false, "payload_format": "Default"}}, "event_types": []any{"PUSH_ARTIFACT", "SCANNING_COMPLETED"}, "enabled": true, "creation_time": "2026-03-18T08:00:00.000Z"},
 	}
 	return state
 }
@@ -464,18 +472,18 @@ func cloneMaps(input []map[string]any) []any {
 	return result
 }
 
-func (state *demoState) dashboard() map[string]any {
-	state.mu.Lock()
-	defer state.mu.Unlock()
-	dashboard := demoDashboard()
+func (ds *demoState) dashboard() map[string]any {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	dashboard := demoDashboard(ds.now())
 	if systemInfo, ok := dashboard["systeminfo"].(map[string]any); ok {
 		for _, key := range []string{"auth_mode", "project_creation_restriction", "self_registration", "read_only", "banner_message"} {
-			if item, ok := state.configurations[key].(map[string]any); ok {
+			if item, ok := ds.configurations[key].(map[string]any); ok {
 				systemInfo[key] = item["value"]
 			}
 		}
 	}
-	projects := cloneMaps(state.projects)
+	projects := cloneMaps(ds.projects)
 	for _, rawProject := range projects {
 		project, ok := rawProject.(map[string]any)
 		if !ok {
@@ -485,8 +493,8 @@ func (state *demoState) dashboard() map[string]any {
 		artifactCount := 0
 		tagCount := 0
 		storageUsed := int64(0)
-		for _, repository := range state.repositories[name] {
-			for _, artifactItem := range demoVisibleArtifacts(state.artifacts[stringValue(repository["name"])]) {
+		for _, repository := range ds.repositories[name] {
+			for _, artifactItem := range demoVisibleArtifacts(ds.artifacts[stringValue(repository["name"])]) {
 				artifactCount++
 				tagCount += len(tagsOf(artifactItem))
 				storageUsed += numberValue(artifactItem["size"])
@@ -497,22 +505,22 @@ func (state *demoState) dashboard() map[string]any {
 		project["storage_used"] = storageUsed
 	}
 	dashboard["projects"] = projects
-	dashboard["replications"] = cloneMaps(state.executions)
-	dashboard["replication_policies"] = cloneMaps(state.policies)
-	dashboard["registries"] = cloneMaps(state.registries)
+	dashboard["replications"] = cloneMaps(ds.executions)
+	dashboard["replication_policies"] = cloneMaps(ds.policies)
+	dashboard["registries"] = cloneMaps(ds.registries)
 	statistics := dashboard["statistics"].(map[string]any)
-	statistics["total_project_count"] = len(state.projects)
+	statistics["total_project_count"] = len(ds.projects)
 	privateCount := 0
 	publicCount := 0
 	repositoryCount := 0
-	for _, project := range state.projects {
+	for _, project := range ds.projects {
 		metadata, _ := project["metadata"].(map[string]any)
 		if stringValue(metadata["public"]) == "true" {
 			publicCount++
 		} else {
 			privateCount++
 		}
-		repositoryCount += len(state.repositories[stringValue(project["name"])])
+		repositoryCount += len(ds.repositories[stringValue(project["name"])])
 	}
 	statistics["public_project_count"] = publicCount
 	statistics["private_project_count"] = privateCount

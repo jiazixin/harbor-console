@@ -6,9 +6,9 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../../app/locale-context";
 import type { PublicCatalogState } from "../../app/models";
+import { TestProviders } from "../../test/test-providers";
+import { setupUser } from "../../test/user";
 import {
   createPublicCatalogState,
   normalizePublicCatalogState,
@@ -112,13 +112,17 @@ describe("public catalog state", () => {
 
 describe("PublicCatalogView", () => {
   it("navigates projects, repositories, and artifacts using anonymous APIs", async () => {
+    const user = setupUser();
     const fetchMock = vi.fn<typeof fetch>((input) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url;
+      const url = (() => {
+        if (typeof input === "string") {
+          return input;
+        }
+        if (input instanceof URL) {
+          return input.href;
+        }
+        return input.url;
+      })();
       if (url.endsWith("/projects")) {
         return Promise.resolve(
           jsonResponse({
@@ -163,19 +167,19 @@ describe("PublicCatalogView", () => {
     );
     openPublicCatalogHistory(initial);
     render(
-      <LocaleProvider>
+      <TestProviders>
         <PublicCatalogView
           initialCatalog={initial}
           onClose={vi.fn()}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     const project = await screen.findByText("library", { exact: true });
     const projectRow = project.closest("tr");
     expect(projectRow).not.toBeNull();
-    if (projectRow) fireEvent.click(projectRow);
+    if (projectRow) await user.click(projectRow);
     expect(
       await screen.findByRole("heading", { name: "library" }),
     ).toBeInTheDocument();
@@ -183,7 +187,7 @@ describe("PublicCatalogView", () => {
     const repository = await screen.findByText("alpine", { exact: true });
     const repositoryRow = repository.closest("tr");
     expect(repositoryRow).not.toBeNull();
-    if (repositoryRow) fireEvent.click(repositoryRow);
+    if (repositoryRow) await user.click(repositoryRow);
     expect(
       await screen.findByRole("heading", { name: "alpine" }),
     ).toBeInTheDocument();
@@ -192,14 +196,20 @@ describe("PublicCatalogView", () => {
       screen.queryByRole("searchbox", { name: "搜索镜像仓库" }),
     ).not.toBeInTheDocument();
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
     expect(
       fetchMock.mock.calls.map(([input]) =>
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url,
+        (() => {
+          if (typeof input === "string") {
+            return input;
+          }
+          if (input instanceof URL) {
+            return input.href;
+          }
+          return input.url;
+        })(),
       ),
     ).toEqual([
       "/api/public/projects",
@@ -211,6 +221,7 @@ describe("PublicCatalogView", () => {
       expect(init?.credentials).toBe("omit");
     }
 
+    // A page unload is not a user-event interaction.
     fireEvent(window, new Event("beforeunload"));
     expect(
       JSON.parse(window.sessionStorage.getItem(reloadKey) ?? "null"),
@@ -241,13 +252,13 @@ describe("PublicCatalogView", () => {
     const onClose = vi.fn();
     openPublicCatalogHistory(initial);
     render(
-      <LocaleProvider>
+      <TestProviders>
         <PublicCatalogView
           initialCatalog={initial}
           onClose={onClose}
           onNotice={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
     await screen.findByRole("heading", { name: "没有公开项目" });
 
@@ -271,9 +282,11 @@ describe("PublicCatalogView", () => {
     );
 
     window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledOnce();
+    });
     expect(onClose).toHaveBeenCalledWith(
-      expect.objectContaining({ project: "restored-project" }),
+      expect.objectContaining({ project: "restored-project" }) as unknown,
     );
   });
 });

@@ -1,0 +1,661 @@
+/* Replication policies and executions styles. */
+
+@media (max-width: 820px) {
+  .replicationPoliciesSection :global(.hc_8b938f52_tableToolbar) {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .replicationPoliciesSection :global(.hc_8b938f52_toolbarField) {
+    flex: 1 1 150px;
+  }
+
+  .replicationPoliciesSection
+    :global(.hc_8b938f52_toolbarField)
+    :global(.hc_8b938f52_toolbarSelect) {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.replicationPolicyForm {
+  display: grid;
+  gap: 28px;
+}
+
+.replicationCapabilityWarning {
+  margin: 0 0 18px;
+}
+
+.policyFormSection {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.policyFormSection + .policyFormSection {
+  padding-top: 27px;
+  border-top: 1px solid var(--line-strong);
+}
+
+:global(.hc_8b938f52_controlDialog) .policySectionHeading,
+:global(.hc_8b938f52_controlDialog) .policyGroupHeading,
+:global(.hc_8b938f52_controlDialog) .policyNestedHeading {
+  display: grid;
+  align-items: initial;
+  justify-content: initial;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.policySectionHeading {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  margin-bottom: 20px;
+  padding-left: 15px;
+}
+
+:global(.hc_8b938f52_controlDialog) .policySectionHeading,
+:global(.hc_8b938f52_controlDialog) .policyGroupHeading {
+  gap: 3px;
+}
+
+:global(.hc_8b938f52_controlDialog) .policySectionHeading {
+  padding-left: 15px;
+}
+
+:global(.hc_8b938f52_controlDialog) .policyNestedHeading {
+  gap: 2px;
+}
+
+.policySectionHeading::before {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--orange);
+  content: "";
+}
+
+.policySectionHeading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.policySectionHeading p,
+.policyGroupHeading p {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.policySectionContent {
+  min-width: 0;
+  padding-left: 15px;
+}
+
+.policyFormGroup {
+  min-width: 0;
+}
+
+.policyFormGroup + .policyFormGroup {
+  margin-top: 26px;
+  padding-top: 23px;
+  border-top: 1px solid var(--line);
+}
+
+.policyGroupHeading {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  margin-bottom: 15px;
+}
+
+.policyGroupHeading h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.4;
+}
+
+.policyFormSection :global(.hc_8b938f52_field) > small {
+  color: var(--ink-faint);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.policyStatusToggle {
+  min-height: 58px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+}
+
+.policyChoiceField {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  margin-bottom: 16px;
+}
+
+.policyFieldLabel,
+.policyFlowPreview > span {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.policyChoiceGrid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.policyTriggerChoices {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.policyChoiceGrid label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.policyChoiceGrid input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  opacity: 0;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.policyChoiceGrid label > span {
+  min-height: 58px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background var(--motion-fast) var(--motion-ease);
+}
+
+.policyChoiceGrid label:hover > span {
+  border-color: var(--line-strong);
+}
+
+.policyChoiceGrid label:has(input:checked) > span {
+  border-color: color-mix(in srgb, var(--orange) 62%, var(--line));
+  background: var(--orange-soft);
+}
+
+.policyChoiceGrid input:focus-visible + span {
+  outline: 2px solid var(--orange-strong);
+  outline-offset: 2px;
+}
+
+.policyChoiceGrid strong {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.policyChoiceGrid small {
+  color: var(--ink-faint);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.policySourceGrid {
+  align-items: end;
+}
+
+.policyFlowPreview {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.policyFlowPreview > div {
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.policyFlowPreview strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.policyFlowPreview :global(.hc_8b938f52_icon) {
+  width: 14px;
+  height: 14px;
+  color: var(--orange-strong);
+}
+
+.policyCapabilityNote {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-left: 2px solid color-mix(in srgb, var(--orange) 55%, var(--line));
+  background: var(--surface-subtle);
+  color: var(--ink-faint);
+}
+
+.policyCapabilityNote :global(.hc_8b938f52_icon) {
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  color: var(--orange-strong);
+}
+
+.policyCapabilityNote p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.policyNestedGroup {
+  min-width: 0;
+  margin-top: 18px;
+  padding-left: 14px;
+  border-left: 2px solid var(--line);
+}
+
+.policyNestedHeading {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.policyNestedHeading strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.policyNestedHeading small {
+  color: var(--ink-faint);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.policyCronField {
+  align-content: start;
+}
+
+.policyTriggerSettings:has(.policyCronField[hidden]) {
+  display: none;
+}
+
+.replicationFilterFields {
+  margin-top: 0;
+}
+
+.replicationExecutionTable {
+  min-width: 950px;
+  table-layout: fixed;
+}
+
+.replicationExecutionTable :is(th, td) {
+  padding-inline: 10px;
+}
+
+.replicationExecutionTable :is(th, td):nth-child(1) {
+  width: 108px;
+}
+
+.replicationExecutionTable :is(th, td):nth-child(3) {
+  width: 112px;
+}
+
+.replicationExecutionTable :is(th, td):nth-child(4) {
+  width: 120px;
+}
+
+.replicationExecutionTable :is(th, td):nth-child(5) {
+  width: 140px;
+}
+
+.replicationExecutionTable :is(th, td):nth-child(6) {
+  width: 142px;
+}
+
+.replicationExecutionTable :is(th, td):nth-child(7) {
+  width: 104px;
+}
+
+.replicationExecutionTable :is(th, td):last-child {
+  width: 48px;
+}
+
+.replicationExecutionTable :is(th, td):not(:nth-child(2)) {
+  white-space: nowrap;
+}
+
+.replicationExecutionTable :is(th, td):nth-child(3),
+.replicationExecutionTable :is(th, td):nth-child(6),
+.replicationExecutionTable :is(th, td):nth-child(7) {
+  white-space: nowrap;
+}
+
+.replicationPolicyTable {
+  min-width: 920px;
+  table-layout: fixed;
+}
+
+.replicationPolicyTable :is(th, td):nth-child(1) {
+  width: 248px;
+}
+
+.replicationPolicyTable :is(th, td):nth-child(2) {
+  width: 112px;
+}
+
+.replicationPolicyTable :is(th, td):nth-child(3) {
+  width: 146px;
+}
+
+.replicationPolicyTable :is(th, td):nth-child(4) {
+  width: 100px;
+}
+
+.replicationPolicyTable :is(th, td):nth-child(5) {
+  width: 98px;
+}
+
+.replicationPolicyTable :is(th, td):last-child {
+  width: 184px;
+}
+
+.replicationPolicyTable :is(th, td):not(:first-child) {
+  white-space: nowrap;
+}
+
+.replicationPolicyTable td:first-child :global(.hc_8b938f52_cellTitle) {
+  min-width: 0;
+}
+
+.replicationPolicyRemote {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replicationPolicyTable :is(th, td):last-child,
+.replicationExecutionTable :is(th, td):last-child {
+  padding-inline: 0;
+  text-align: center;
+}
+
+.replicationPolicyTable td:last-child :global(.hc_8b938f52_rowActions) {
+  justify-content: center;
+}
+
+.replicationExecutionTable td:last-child :global(.hc_8b938f52_iconButton) {
+  margin-inline: auto;
+}
+
+.replicationExecutionPolicySelect {
+  width: 180px;
+  min-width: 180px;
+}
+
+.replicationFilterRow {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 1.2fr);
+  align-items: center;
+  gap: 18px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.replicationFilterRow > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.replicationFilterRow strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.replicationFilterRow small,
+.replicationFilterEmpty,
+.replicationLabelEmpty {
+  color: var(--ink-faint);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.replicationFilterControl {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: var(--space-control);
+}
+
+.replicationFilterControl > input:only-child,
+.replicationFilterControl > select:only-child,
+.replicationFilterControl > .replicationLabelGrid,
+.replicationFilterControl > .replicationLabelEmpty {
+  grid-column: 1 / -1;
+}
+
+.replicationLabelGrid {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.replicationLabelGrid label {
+  min-width: 0;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.replicationLabelGrid label:has(input:checked) {
+  border-color: color-mix(in srgb, var(--orange) 55%, var(--line));
+  background: var(--orange-soft);
+  color: var(--ink);
+}
+
+.replicationLabelGrid input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--orange);
+}
+
+.replicationLabelGrid label:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--orange) 55%, transparent);
+  outline-offset: 1px;
+}
+
+.replicationFilterEmpty,
+.replicationLabelEmpty {
+  padding: 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+}
+
+.policyTriggerOptions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.policySpeedInput {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  gap: 8px;
+}
+
+.policyTransferFlags {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.policyTransferFlags :global(.hc_8b938f52_checkRow),
+.policyTriggerOptions :global(.hc_8b938f52_checkRow) {
+  min-width: 0;
+  min-height: 62px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+}
+
+.policyTransferFlags :global(.hc_8b938f52_checkRow):has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+@media (max-width: 620px) {
+  .replicationPolicyForm {
+    gap: 24px;
+  }
+
+  .policyFormSection + .policyFormSection {
+    padding-top: 23px;
+  }
+
+  .policySectionContent {
+    padding-left: 0;
+  }
+
+  .policyChoiceGrid,
+  .policyTriggerChoices {
+    grid-template-columns: 1fr;
+  }
+
+  .policyChoiceGrid label > span {
+    min-height: 52px;
+  }
+
+  .policyNestedGroup {
+    padding-left: 10px;
+  }
+}
+
+:global(.hc_8b938f52_controlDialog)
+  .policyTransferFlags
+  :global(.hc_8b938f52_checkRow),
+:global(.hc_8b938f52_controlDialog)
+  .policyTriggerOptions
+  :global(.hc_8b938f52_checkRow) {
+  min-height: 62px;
+  padding: 10px 12px;
+}
+
+.replicationTaskTableGrid {
+  table-layout: fixed;
+}
+
+.replicationTaskTableGrid :is(th, td) {
+  padding-inline: 10px;
+}
+
+.replicationTaskTableGrid :global(.hc_8b938f52_idColumn) {
+  width: 76px;
+}
+
+.replicationTaskTableGrid :is(.replicationTaskSource, .replicationTaskTarget) {
+  width: 190px;
+}
+
+.replicationTaskTableGrid .replicationTaskOperation {
+  width: 78px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.replicationTaskTableGrid .replicationTaskStatus {
+  width: 100px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.replicationTaskTableGrid
+  .replicationTaskStatus
+  :global(.hc_8b938f52_statusBadge) {
+  margin-inline: auto;
+}
+
+.replicationTaskTableGrid
+  :is(.replicationTaskStartTime, .replicationTaskEndTime) {
+  width: 130px;
+}
+
+.replicationTaskTableGrid .replicationTaskLog {
+  width: 48px;
+  padding-inline: 0;
+  text-align: center;
+}
+
+@media (max-width: 620px) {
+  .replicationFilterRow,
+  .replicationFilterControl,
+  .policySpeedInput,
+  .policyTransferFlags {
+    grid-template-columns: 1fr;
+  }
+
+  .replicationFilterRow {
+    align-items: stretch;
+    gap: 9px;
+  }
+
+  .replicationFilterControl > * {
+    grid-column: 1;
+  }
+}

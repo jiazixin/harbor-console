@@ -146,12 +146,17 @@ export function artifactArchitectureSummary(
   locale: Locale = "zh-CN",
 ): string {
   const platforms = artifactPlatforms(artifact);
-  if (!platforms.length) return locale === "en-US" ? "None" : "暂无";
-  return platforms.length > 1
-    ? locale === "en-US"
-      ? `Multi-architecture · ${String(platforms.length)} platforms`
-      : `多架构 · ${String(platforms.length)} 个平台`
-    : artifactPlatformLabel(platforms[0]);
+  const [first] = platforms;
+  if (!first) return locale === "en-US" ? "None" : "暂无";
+  return (() => {
+    if (platforms.length > 1) {
+      if (locale === "en-US") {
+        return `Multi-architecture · ${String(platforms.length)} platforms`;
+      }
+      return `多架构 · ${String(platforms.length)} 个平台`;
+    }
+    return artifactPlatformLabel(first);
+  })();
 }
 
 function fullRepositoryName(project: string, repository: string): string {

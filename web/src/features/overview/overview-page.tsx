@@ -1,12 +1,5 @@
-import { useMemo, useState } from "react";
-
-import {
-  formatBytes,
-  formatDate,
-  formatDuration,
-  formatNumber,
-  instanceHost,
-} from "../../app/formatters";
+import { useState } from "react";
+import { describeDashboardWarning } from "../../app/api-errors";
 import { useLocale } from "../../app/locale-context";
 import type {
   Dashboard,
@@ -14,20 +7,35 @@ import type {
   ReplicationPolicy,
   Session,
 } from "../../app/models";
+import { displayTimeZone } from "../../app/preferences";
+import { DemoBanner } from "../../components/demo-banner";
 import { EmptyState } from "../../components/empty-state";
-import { Icon } from "../../components/icons";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { RefreshButton } from "../../components/refresh-button";
 import {
-  DemoBanner,
-  PageHeader,
-  RefreshButton,
-  StatCell,
-} from "../../components/page-elements";
+  default as sharedPrimitiveStyles,
+  default as uiStyles0,
+} from "../../components/shared-ui.module.css";
+import { StatCell } from "../../components/stat-cell";
+import { StatusBadge } from "../../components/status-badge";
+import { triggerLabel } from "../../components/status-badge-support";
 import { UnifiedSelect } from "../../components/unified-select";
-import { StatusBadge, triggerLabel } from "../../components/status-badge";
+import { createClassNames } from "../../lib/css/class-names";
+import {
+  formatBytes,
+  formatDate,
+  formatDuration,
+  formatNumber,
+  instanceHost,
+} from "../../lib/format/formatters";
+import styles from "./overview.module.css";
 
 type AssetMetricName = "storage" | "repositories" | "images";
 
-function RiskRing({ demo }: { demo: boolean }) {
+type RiskRingProps = { demo: boolean };
+
+function RiskRing({ demo }: RiskRingProps) {
   const { locale, t } = useLocale();
   const risks = demo
     ? { critical: 3, high: 12, medium: 28, total: 156 }
@@ -48,22 +56,24 @@ function RiskRing({ demo }: { demo: boolean }) {
     ],
   ] as const;
   return (
-    <div className="risk-layout">
+    <div className={resolveClasses(styles.riskLayout)}>
       <div
-        className="risk-ring"
+        className={resolveClasses(styles.riskRing)}
         role="img"
         aria-label={`${t("漏洞风险")}：${t("严重")} ${formatNumber(risks.critical, locale)}，${t("高危")} ${formatNumber(risks.high, locale)}，${t("中危")} ${formatNumber(risks.medium, locale)}`}
       >
         <svg viewBox="0 0 120 120" aria-hidden="true">
           <circle
-            className="risk-ring-track"
+            className={resolveClasses(styles.riskRingTrack)}
             cx="60"
             cy="60"
             r="52"
             pathLength="100"
           />
           <circle
-            className="risk-ring-segment risk-ring-critical"
+            className={resolveClasses(
+              `${styles.riskRingSegment} ${styles.riskRingCritical}`,
+            )}
             cx="60"
             cy="60"
             r="52"
@@ -71,7 +81,9 @@ function RiskRing({ demo }: { demo: boolean }) {
             strokeDasharray={`${critical.toFixed(2)} ${(100 - critical).toFixed(2)}`}
           />
           <circle
-            className="risk-ring-segment risk-ring-high"
+            className={resolveClasses(
+              `${styles.riskRingSegment} ${styles.riskRingHigh}`,
+            )}
             cx="60"
             cy="60"
             r="52"
@@ -80,7 +92,9 @@ function RiskRing({ demo }: { demo: boolean }) {
             strokeDashoffset={(-critical).toFixed(2)}
           />
           <circle
-            className="risk-ring-segment risk-ring-medium"
+            className={resolveClasses(
+              `${styles.riskRingSegment} ${styles.riskRingMedium}`,
+            )}
             cx="60"
             cy="60"
             r="52"
@@ -89,15 +103,15 @@ function RiskRing({ demo }: { demo: boolean }) {
             strokeDashoffset={(-(critical + high)).toFixed(2)}
           />
         </svg>
-        <div className="risk-ring-label">
+        <div className={resolveClasses(styles.riskRingLabel)}>
           <strong>{formatNumber(risks.total, locale)}</strong>
           <span>{t("漏洞总数")}</span>
         </div>
       </div>
-      <div className="risk-legend">
+      <div className={resolveClasses(styles.riskLegend)}>
         {rows.map(([label, className, value]) => (
-          <div className="legend-row" key={label}>
-            <i className={className} />
+          <div className={resolveClasses(styles.legendRow)} key={label}>
+            <i className={resolveClasses(className)} />
             <span>{t(label)}</span>
             <strong>{formatNumber(value, locale)}</strong>
           </div>
@@ -107,13 +121,12 @@ function RiskRing({ demo }: { demo: boolean }) {
   );
 }
 
-function ReplicationTable({
-  executions,
-  policies,
-}: {
+type ReplicationTableProps = {
   executions: ReplicationExecution[];
   policies: ReplicationPolicy[];
-}) {
+};
+
+function ReplicationTable({ executions, policies }: ReplicationTableProps) {
   const { locale, t } = useLocale();
   const policyNames = new Map(
     policies.map((policy) => [String(policy.id), policy.name]),
@@ -130,13 +143,15 @@ function ReplicationTable({
     <table>
       <thead>
         <tr>
-          <th className="id-column">{t("执行编号")}</th>
+          <th className={resolveClasses("id-column")}>{t("执行编号")}</th>
           <th>{t("策略")}</th>
-          <th className="table-cell-center">{t("触发方式")}</th>
-          <th className="table-cell-center">{t("状态")}</th>
+          <th className={resolveClasses("table-cell-center")}>
+            {t("触发方式")}
+          </th>
+          <th className={resolveClasses("table-cell-center")}>{t("状态")}</th>
           <th>{t("任务统计")}</th>
-          <th className="table-cell-time">{t("开始时间")}</th>
-          <th className="table-cell-time">{t("耗时")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("开始时间")}</th>
+          <th className={resolveClasses("table-cell-time")}>{t("耗时")}</th>
         </tr>
       </thead>
       <tbody>
@@ -148,38 +163,45 @@ function ReplicationTable({
             }`;
           return (
             <tr key={item.id}>
-              <td className="id-cell">#{item.id}</td>
+              <td className={resolveClasses("id-cell")}>#{item.id}</td>
               <td>
-                <div className="replication-execution-policy-cell">
+                <div
+                  className={resolveClasses(
+                    "replication-execution-policy-cell",
+                  )}
+                >
                   <strong
-                    className="replication-execution-policy"
+                    className={resolveClasses("replication-execution-policy")}
                     title={policy}
                   >
                     {policy}
                   </strong>
                 </div>
               </td>
-              <td className="table-cell-center">
+              <td className={resolveClasses("table-cell-center")}>
                 {triggerLabel(item.trigger, t)}
               </td>
-              <td className="table-cell-center">
+              <td className={resolveClasses("table-cell-center")}>
                 <StatusBadge status={item.status} />
               </td>
               <td>
-                <span className="execution-counts">
-                  <b className="success-text">
+                <span className={resolveClasses("execution-counts")}>
+                  <b className={resolveClasses("success-text")}>
                     {formatNumber(item.succeed, locale)}
                   </b>
-                  <b className="danger-text">
+                  <b className={resolveClasses("danger-text")}>
                     {formatNumber(item.failed, locale)}
                   </b>
                   <span>{formatNumber(item.in_progress, locale)}</span>
                 </span>
               </td>
-              <td className="table-cell-time">
-                {formatDate(item.start_time, locale)}
+              <td className={resolveClasses("table-cell-time")}>
+                {formatDate(item.start_time, {
+                  locale: locale,
+                  timeZone: displayTimeZone(),
+                })}
               </td>
-              <td className="table-cell-time">
+              <td className={resolveClasses("table-cell-time")}>
                 {formatDuration(item.start_time, item.end_time, locale)}
               </td>
             </tr>
@@ -190,17 +212,19 @@ function ReplicationTable({
   );
 }
 
+type OverviewPageProps = {
+  session: Session;
+  dashboard: Dashboard;
+  refreshing: boolean;
+  onRefresh: () => void;
+};
+
 export function OverviewPage({
   session,
   dashboard,
   refreshing,
   onRefresh,
-}: {
-  session: Session;
-  dashboard: Dashboard;
-  refreshing: boolean;
-  onRefresh: () => void;
-}) {
+}: OverviewPageProps) {
   const { locale, t } = useLocale();
   const [assetSort, setAssetSort] = useState<AssetMetricName>("storage");
   const projects = dashboard.projects ?? [];
@@ -208,31 +232,26 @@ export function OverviewPage({
   const hasTagCounts = projects.some(
     (project) => project.tag_count !== undefined,
   );
-  const metrics = useMemo(
-    () => ({
-      storage: {
-        key: "storage_used" as const,
-        label: "存储占用",
-        subtitle: "按项目存储占用排序",
-        format: (value: number) => formatBytes(value, locale),
-      },
-      repositories: {
-        key: "repo_count" as const,
-        label: "仓库数量",
-        subtitle: "按镜像仓库数量排序",
-        format: (value: number) => formatNumber(value, locale),
-      },
-      images: {
-        key: hasTagCounts
-          ? ("tag_count" as const)
-          : ("artifact_count" as const),
-        label: hasTagCounts ? "Tag 数量" : "制品数量",
-        subtitle: hasTagCounts ? "按镜像 Tag 数量排序" : "按镜像制品数量排序",
-        format: (value: number) => formatNumber(value, locale),
-      },
-    }),
-    [hasTagCounts, locale],
-  );
+  const metrics = (() => ({
+    storage: {
+      key: "storage_used" as const,
+      label: "存储占用",
+      subtitle: "按项目存储占用排序",
+      format: (value: number) => formatBytes(value, locale),
+    },
+    repositories: {
+      key: "repo_count" as const,
+      label: "仓库数量",
+      subtitle: "按镜像仓库数量排序",
+      format: (value: number) => formatNumber(value, locale),
+    },
+    images: {
+      key: hasTagCounts ? ("tag_count" as const) : ("artifact_count" as const),
+      label: hasTagCounts ? "Tag 数量" : "制品数量",
+      subtitle: hasTagCounts ? "按镜像 Tag 数量排序" : "按镜像制品数量排序",
+      format: (value: number) => formatNumber(value, locale),
+    },
+  }))();
   const metric = metrics[assetSort];
   const valueFor = (project: (typeof projects)[number]) => {
     const value = project[metric.key];
@@ -264,14 +283,21 @@ export function OverviewPage({
       />
       {session.demo ? <DemoBanner /> : null}
       {(dashboard.warnings ?? []).map((warning) => (
-        <div className="notice notice-warning" key={warning}>
+        <div
+          className={resolveClasses("notice notice-warning")}
+          key={`${warning.source}:${warning.code}`}
+        >
           <Icon name="alert" />
           <span>
-            <strong>{t("部分数据未载入。")}</strong> {warning}
+            <strong>{t("部分数据未载入。")}</strong>{" "}
+            {describeDashboardWarning(warning, locale)}
           </span>
         </div>
       ))}
-      <section className="overview-stats" aria-label={t("实例统计")}>
+      <section
+        className={resolveClasses("overview-stats")}
+        aria-label={t("实例统计")}
+      >
         <StatCell
           label={t("项目总数")}
           value={formatNumber(
@@ -300,17 +326,17 @@ export function OverviewPage({
           icon="shield"
         />
       </section>
-      <div className="dashboard-grid">
-        <section className="panel">
-          <div className="panel-head">
+      <div className={resolveClasses(styles.dashboardGrid)}>
+        <section className={resolveClasses("panel")}>
+          <div className={resolveClasses("panel-head")}>
             <div>
               <h2>{t("项目资产分布")}</h2>
               <p>{t(metric.subtitle)}</p>
             </div>
-            <div className="panel-actions">
+            <div className={resolveClasses(styles.panelActions)}>
               <UnifiedSelect
                 ariaLabel={t("项目资产排序")}
-                className="toolbar-select"
+                className={resolveClasses("toolbar-select")}
                 value={assetSort}
                 onChange={setAssetSort}
                 options={[
@@ -319,29 +345,34 @@ export function OverviewPage({
                   { value: "images", label: t(metrics.images.label) },
                 ]}
               />
-              <a className="panel-link" href="#/projects">
+              <a className={resolveClasses(styles.panelLink)} href="#/projects">
                 {t("查看全部")} <Icon name="arrow-right" />
               </a>
             </div>
           </div>
-          <div className="asset-chart">
+          <div className={resolveClasses(styles.assetChart)}>
             {sorted.length ? (
               sorted.slice(0, 6).map((project) => {
                 const value = valueFor(project);
                 const label =
                   value === null ? t("暂无数据") : metric.format(value);
                 return (
-                  <div className="asset-row" key={project.name}>
+                  <div
+                    className={resolveClasses(styles.assetRow)}
+                    key={project.name}
+                  >
                     <span title={project.name}>{project.name}</span>
                     {value === null ? (
                       <div
-                        className="bar-track bar-track-unavailable"
+                        className={resolveClasses(
+                          `${styles.barTrack} ${styles.barTrackUnavailable}`,
+                        )}
                         role="img"
                         aria-label={`${project.name} ${t(metric.label)}${t("暂无数据")}`}
                       />
                     ) : (
                       <progress
-                        className="bar-track"
+                        className={resolveClasses(styles.barTrack)}
                         max={max || 1}
                         value={value}
                         aria-label={`${project.name} ${t(metric.label)}`}
@@ -350,9 +381,9 @@ export function OverviewPage({
                       </progress>
                     )}
                     <strong
-                      className={
-                        value === null ? "asset-value-unavailable" : ""
-                      }
+                      className={resolveClasses(
+                        value === null ? styles.assetValueUnavailable : "",
+                      )}
                     >
                       {label}
                     </strong>
@@ -360,35 +391,35 @@ export function OverviewPage({
                 );
               })
             ) : (
-              <div className="muted">{t("暂无项目数据")}</div>
+              <div className={resolveClasses("muted")}>{t("暂无项目数据")}</div>
             )}
           </div>
         </section>
-        <section className="panel risk-panel">
-          <div className="panel-head">
+        <section className={resolveClasses(`panel ${styles.riskPanel}`)}>
+          <div className={resolveClasses("panel-head")}>
             <div>
               <h2>{t("漏洞风险")}</h2>
               <p>{t(session.demo ? "最近扫描制品汇总" : "查看扫描结果")}</p>
             </div>
-            <a className="panel-link" href="#/security">
+            <a className={resolveClasses(styles.panelLink)} href="#/security">
               {t("查看详情")} <Icon name="arrow-right" />
             </a>
           </div>
           <RiskRing demo={session.demo} />
         </section>
       </div>
-      <section className="section-block">
-        <div className="section-heading">
+      <section className={resolveClasses(styles.sectionBlock)}>
+        <div className={resolveClasses("section-heading")}>
           <div>
             <h2>{t("最近复制活动")}</h2>
             <p>{t("实例间镜像同步执行记录")}</p>
           </div>
-          <a className="panel-link" href="#/replication">
+          <a className={resolveClasses(styles.panelLink)} href="#/replication">
             {t("打开复制管理")} <Icon name="arrow-right" />
           </a>
         </div>
-        <div className="table-shell">
-          <div className="table-scroll">
+        <div className={resolveClasses("table-shell")}>
+          <div className={resolveClasses("table-scroll")}>
             <ReplicationTable
               executions={(dashboard.replications ?? []).slice(0, 6)}
               policies={dashboard.replication_policies ?? []}
@@ -399,3 +430,48 @@ export function OverviewPage({
     </>
   );
 }
+
+const resolveClasses = createClassNames({
+  critical: sharedPrimitiveStyles.critical,
+  high: sharedPrimitiveStyles.high,
+  medium: sharedPrimitiveStyles.medium,
+  "empty-state": uiStyles0.emptyState,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  "stat-cell": uiStyles0.statCell,
+  "status-badge": uiStyles0.statusBadge,
+  "unified-select": uiStyles0.unifiedSelect,
+  "id-column": uiStyles0.idColumn,
+  "table-cell-center": uiStyles0.tableCellCenter,
+  "table-cell-time": uiStyles0.tableCellTime,
+  "id-cell": uiStyles0.idCell,
+  "replication-execution-policy-cell": uiStyles0.replicationExecutionPolicyCell,
+  "replication-execution-policy": uiStyles0.replicationExecutionPolicy,
+  "execution-counts": uiStyles0.executionCounts,
+  "success-text": uiStyles0.successText,
+  "danger-text": uiStyles0.dangerText,
+  notice: uiStyles0.notice,
+  "notice-warning": uiStyles0.noticeWarning,
+  "overview-stats": uiStyles0.overviewStats,
+  panel: uiStyles0.panel,
+  "panel-head": uiStyles0.panelHead,
+  "toolbar-select": uiStyles0.toolbarSelect,
+  muted: uiStyles0.muted,
+  "section-heading": uiStyles0.sectionHeading,
+  "table-shell": uiStyles0.tableShell,
+  "table-scroll": uiStyles0.tableScroll,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

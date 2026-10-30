@@ -1,5 +1,5 @@
-import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import type { Locator, Page } from "@playwright/test";
+import { expect, replicationTable, test } from "./fixtures";
 
 const artifactDigest =
   "sha256:41bf0e3b54f9a760a6c1f0b170507173bf6d95f2e8db4dd79f858f31f36c28a4";
@@ -77,9 +77,11 @@ async function enterDemo(
 ) {
   await page.goto("/#/overview");
   await expect(page).toHaveTitle(/Harbor/);
-  await expect(page.locator(".app-shell")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: /主导航|Main navigation/ }),
+  ).toBeVisible();
   await expect(page).toHaveURL(/#\/overview$/);
-  await expect(page.locator("main h1").first()).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
 
   if (locale === "en-US") {
     await page.getByRole("button", { name: "Switch to English" }).click();
@@ -94,12 +96,14 @@ async function verifyRoute(page: Page, route: string) {
   await expect(page).toHaveURL(
     new RegExp(`#/${route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
   );
-  await expect(page.locator("main")).toBeVisible();
+  await expect(page.getByRole("main")).toBeVisible();
   await expect(
-    page.locator("main .loading-state, main .route-loading"),
+    page.locator(
+      "main .hc_8b938f52_loadingState, main .hc_8b938f52_routeLoading",
+    ),
   ).toHaveCount(0);
-  await expect(page.locator("main .error-state")).toHaveCount(0);
-  await expect(page.locator("main h1").first()).toBeVisible();
+  await expect(page.locator("main .hc_eea89a65_errorState")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
 
   const overflow = await page.evaluate(() => {
     const main = document.querySelector<HTMLElement>("main");
@@ -121,7 +125,12 @@ async function verifyRoute(page: Page, route: string) {
       if (firstRow?.children.length !== headers.length) return [];
       return headers.flatMap((header, column) => {
         const headerAlign = getComputedStyle(header).textAlign;
-        const cellAlign = getComputedStyle(firstRow.children[column]).textAlign;
+        const cell = firstRow.children[column];
+        if (!cell)
+          return [
+            `${table.className} column ${String(column + 1)}: missing cell`,
+          ];
+        const cellAlign = getComputedStyle(cell).textAlign;
         return headerAlign === cellAlign
           ? []
           : [
@@ -154,9 +163,9 @@ async function verifyPaginationSelectPlacement(page: Page, locale: string) {
   await verifyRoute(page, "repositories");
   const label = locale === "en-US" ? "Items per page" : "每页条数";
   const trigger = page.getByRole("button", { name: label });
-  await trigger.evaluate((element) =>
-    element.scrollIntoView({ block: "end", inline: "nearest" }),
-  );
+  await trigger.evaluate((element) => {
+    element.scrollIntoView({ block: "end", inline: "nearest" });
+  });
   await trigger.click();
   const menu = page.getByRole("listbox", { name: label });
   await expect(menu).toBeVisible();
@@ -186,16 +195,16 @@ async function verifyPaginationSelectPlacement(page: Page, locale: string) {
 }
 
 async function verifyCenteredColumn(
-  page: Page,
-  tableSelector: string,
+  table: Locator,
+  tableName: string,
   column: number,
 ) {
-  const metrics = await page.locator(tableSelector).evaluate((table, index) => {
+  const metrics = await table.evaluate((table, index) => {
     const header = table.querySelector<HTMLElement>(
       `thead th:nth-child(${String(index)})`,
     );
     const label = header?.querySelector<HTMLElement>(
-      ".table-sort-button > span:first-child",
+      ".hc_3644f5ee_tableSortButton > span:first-child",
     );
     const cell = table.querySelector<HTMLElement>(
       `tbody tr:first-child td:nth-child(${String(index)})`,
@@ -206,7 +215,9 @@ async function verifyCenteredColumn(
     const cellRect = cell?.getBoundingClientRect();
     const headerStyle = header ? window.getComputedStyle(header) : undefined;
     const cellStyle = cell ? window.getComputedStyle(cell) : undefined;
-    const sortButton = header?.querySelector<HTMLElement>(".table-sort-button");
+    const sortButton = header?.querySelector<HTMLElement>(
+      ".hc_3644f5ee_tableSortButton",
+    );
     let contentRect = child?.getBoundingClientRect();
     if (!contentRect && cell) {
       const range = document.createRange();
@@ -240,7 +251,7 @@ async function verifyCenteredColumn(
     };
   }, column);
   expect(metrics).not.toBeNull();
-  const context = `${tableSelector} column ${String(column)}`;
+  const context = `${tableName} column ${String(column)}`;
   expect(
     Math.abs(metrics?.headerDelta ?? Infinity),
     context,
@@ -278,7 +289,7 @@ async function verifySemanticColumnPairing(page: Page, tableSelector: string) {
         header.classList.contains(name),
       );
       const bodySemantic = semanticClasses.find((name) =>
-        body.classList.contains(name),
+        body?.classList.contains(name),
       );
       return headerSemantic && headerSemantic !== bodySemantic
         ? [{ index: index + 1, headerSemantic, bodySemantic }]
@@ -293,26 +304,35 @@ async function verifySemanticColumnPairing(page: Page, tableSelector: string) {
 async function verifyReplicationColumnAlignment(page: Page) {
   await verifyRoute(page, "replication");
   for (const column of [2, 4, 5]) {
-    await verifyCenteredColumn(page, ".replication-policy-table", column);
+    await verifyCenteredColumn(
+      replicationTable(page, "policies"),
+      "policies",
+      column,
+    );
   }
   await verifyRoute(page, "replication?tab=executions");
   for (const column of [3, 4, 5, 6, 7]) {
-    await verifyCenteredColumn(page, ".replication-execution-table", column);
+    await verifyCenteredColumn(
+      replicationTable(page, "executions"),
+      "executions",
+      column,
+    );
   }
 }
 
 async function verifyProjectsColumnAlignment(page: Page) {
   await verifyRoute(page, "projects");
-  await verifySemanticColumnPairing(page, ".project-select-table");
+  await verifySemanticColumnPairing(page, ".hc_ee6a4dd5_projectSelectTable");
   const identityColumns = await page
-    .locator(".project-select-table")
+    .locator(".hc_ee6a4dd5_projectSelectTable")
     .evaluate((table) =>
       Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody tr")).map(
         (row) => {
           const identity = row.cells[1];
-          const visibility = row.cells[2].querySelector<HTMLElement>(".badge");
-          const name = identity.querySelector<HTMLElement>("strong");
-          if (!name || !visibility) return null;
+          const visibility =
+            row.cells[2]?.querySelector<HTMLElement>(".hc_8b938f52_badge");
+          const name = identity?.querySelector<HTMLElement>("strong");
+          if (!identity || !name || !visibility) return null;
           const identityStyle = getComputedStyle(identity);
           const identityRect = identity.getBoundingClientRect();
           return {
@@ -340,7 +360,11 @@ async function verifyProjectsColumnAlignment(page: Page) {
     ).toBeLessThanOrEqual((column?.visibilityLeft ?? 0) - 8);
   }
   for (const column of [3, 5, 6]) {
-    await verifyCenteredColumn(page, ".project-select-table", column);
+    await verifyCenteredColumn(
+      page.locator(".hc_ee6a4dd5_projectSelectTable"),
+      "projects",
+      column,
+    );
   }
 }
 
@@ -351,7 +375,9 @@ for (const locale of ["zh-CN", "en-US"] as const) {
     await page.setViewportSize({ width: 720, height: 450 });
     await enterDemo(page, locale);
     await verifyProjectsColumnAlignment(page);
-    const scroll = page.locator(".project-select-table").locator("..");
+    const scroll = page
+      .locator(".hc_ee6a4dd5_projectSelectTable")
+      .locator("..");
     const tableWidth = await scroll.evaluate((element) => ({
       content: element.scrollWidth,
       viewport: element.clientWidth,

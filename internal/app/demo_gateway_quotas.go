@@ -2,36 +2,32 @@ package app
 
 import (
 	"net/http"
-	"net/url"
-	"time"
+
+	"harbor-console/internal/timefmt"
 )
 
-func (state *demoState) handleQuotaControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleQuotaControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "quotas":
-		state.writeList(w, state.quotas, query)
+		ds.writeList(w, ds.quotas, query)
 		return
 
 	case "quota":
-		index, found := findMapNumber(state.quotas, "id", query.Get("id"))
+		index, found := findMapNumber(ds.quotas, "id", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "配额不存在"
+			errStatus, errMessage = http.StatusNotFound, "quota not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.quotas[index]
+			data = ds.quotas[index]
 		} else {
-			state.quotas[index]["hard"] = cloneMap(body["hard"].(map[string]any))
-			state.quotas[index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
-			data = state.quotas[index]
+			ds.quotas[index]["hard"] = cloneMap(body["hard"].(map[string]any))
+			ds.quotas[index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+			data = ds.quotas[index]
 		}
 
 	default:

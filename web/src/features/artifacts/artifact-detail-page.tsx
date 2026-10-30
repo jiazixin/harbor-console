@@ -1,22 +1,31 @@
-import { useMemo, useRef } from "react";
-
+import { useRef } from "react";
+import type { ConsoleRoute } from "../../app/console-route";
 import { downloadText } from "../../app/download-text";
-import { formatBytes, formatDate, formatNumber } from "../../app/formatters";
-import type { ConsoleRoute } from "../../app/hash-router";
 import { useLocale } from "../../app/locale-context";
 import type { HarborArtifact, Session } from "../../app/models";
+import { displayTimeZone } from "../../app/preferences";
+import { Breadcrumb } from "../../components/breadcrumb";
 import { ContentTransition } from "../../components/content-transition";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
+import { DemoBanner } from "../../components/demo-banner";
+import { ErrorView } from "../../components/error-view";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { RefreshButton } from "../../components/refresh-button";
 import {
-  Breadcrumb,
-  DemoBanner,
-  PageHeader,
-  RefreshButton,
-  StatCell,
-} from "../../components/page-elements";
-import { severityLabel } from "../../components/status-badge";
+  default as sharedPrimitiveStyles,
+  default as uiStyles0,
+} from "../../components/shared-ui.module.css";
+import { StatCell } from "../../components/stat-cell";
+import { severityLabel } from "../../components/status-badge-support";
 import { useCenterActiveTab } from "../../components/use-center-active-tab";
+import { createClassNames } from "../../lib/css/class-names";
+import {
+  formatBytes,
+  formatDate,
+  formatNumber,
+} from "../../lib/format/formatters";
+import { ArtifactAccessoriesSection } from "./artifact-accessories-section";
+import { ArtifactAdditionSection } from "./artifact-addition-section";
 import {
   type ArtifactActionContext,
   type ArtifactDetailAction,
@@ -31,17 +40,14 @@ import {
   useArtifactDetail,
 } from "./artifact-detail-data";
 import {
-  ArtifactAccessoriesSection,
-  ArtifactAdditionSection,
   artifactAdditionTabs,
   artifactAdditionText,
   artifactHasAddition,
-  ArtifactLabelsSection,
-  ArtifactOverviewSection,
-  ArtifactTagsSection,
-  ArtifactVulnerabilitiesSection,
   LabelChip,
-} from "./artifact-detail-sections";
+} from "./artifact-detail-sections-support";
+import { ArtifactLabelsSection } from "./artifact-labels-section";
+import { ArtifactOverviewSection } from "./artifact-overview-section";
+import { ArtifactTagsSection } from "./artifact-tags-section";
 import {
   artifactArchitectureSummary,
   artifactScanState,
@@ -49,6 +55,8 @@ import {
   repositoryDisplayName,
   shortDigest,
 } from "./artifact-utils";
+import { ArtifactVulnerabilitiesSection } from "./artifact-vulnerabilities-section";
+import styles from "./artifacts.module.css";
 
 function scanStatusLabel(status: string): string {
   return (
@@ -78,30 +86,36 @@ function emptyCollection() {
   };
 }
 
+type ArtifactHeaderActionsProps = {
+  context: ArtifactActionContext;
+  onAction: (action: ArtifactDetailAction) => void;
+};
+
 function ArtifactHeaderActions({
   context,
   onAction,
-}: {
-  context: ArtifactActionContext;
-  onAction: (action: ArtifactDetailAction) => void;
-}) {
+}: ArtifactHeaderActionsProps) {
   const { t } = useLocale();
   const scan = artifactScanState(context.artifact);
   const sbom = artifactScanState(context.artifact, "sbom");
-  const runningScan = isStoppableScanStatus(scan.status)
-    ? ("vulnerability" as const)
-    : isStoppableScanStatus(sbom.status)
-      ? ("sbom" as const)
-      : undefined;
+  const runningScan = (() => {
+    if (isStoppableScanStatus(scan.status)) {
+      return "vulnerability" as const;
+    }
+    if (isStoppableScanStatus(sbom.status)) {
+      return "sbom" as const;
+    }
+    return undefined;
+  })();
   return (
     <>
       {scan.reportId ? (
         <button
-          className="button button-small"
+          className={resolveClasses("button button-small")}
           type="button"
-          onClick={() =>
-            onAction({ ...context, kind: "scan-log", reportId: scan.reportId })
-          }
+          onClick={() => {
+            onAction({ ...context, kind: "scan-log", reportId: scan.reportId });
+          }}
         >
           <Icon name="terminal" />
           <span>{t("扫描日志")}</span>
@@ -109,44 +123,52 @@ function ArtifactHeaderActions({
       ) : null}
       {runningScan ? (
         <button
-          className="button button-small button-danger"
+          className={resolveClasses("button button-small button-danger")}
           type="button"
-          onClick={() =>
-            onAction({ ...context, kind: "stop-scan", scanType: runningScan })
-          }
+          onClick={() => {
+            onAction({ ...context, kind: "stop-scan", scanType: runningScan });
+          }}
         >
           <Icon name="x" />
           <span>{t(runningScan === "sbom" ? "停止 SBOM" : "停止扫描")}</span>
         </button>
       ) : null}
       <button
-        className="button button-small"
+        className={resolveClasses("button button-small")}
         type="button"
-        onClick={() => onAction({ ...context, kind: "scan" })}
+        onClick={() => {
+          onAction({ ...context, kind: "scan" });
+        }}
       >
         <Icon name="shield" />
         <span>{t("扫描 / SBOM")}</span>
       </button>
       <button
-        className="button button-small"
+        className={resolveClasses("button button-small")}
         type="button"
-        onClick={() => onAction({ ...context, kind: "copy" })}
+        onClick={() => {
+          onAction({ ...context, kind: "copy" });
+        }}
       >
         <Icon name="copy" />
         <span>{t("复制制品")}</span>
       </button>
       <button
-        className="button button-small"
+        className={resolveClasses("button button-small")}
         type="button"
-        onClick={() => onAction({ ...context, kind: "add-tag" })}
+        onClick={() => {
+          onAction({ ...context, kind: "add-tag" });
+        }}
       >
         <Icon name="tag" />
         <span>{t("添加 Tag")}</span>
       </button>
       <button
-        className="button button-small button-danger"
+        className={resolveClasses("button button-small button-danger")}
         type="button"
-        onClick={() => onAction({ ...context, kind: "delete" })}
+        onClick={() => {
+          onAction({ ...context, kind: "delete" });
+        }}
       >
         <Icon name="trash" />
         <span>{t("删除制品")}</span>
@@ -155,21 +177,22 @@ function ArtifactHeaderActions({
   );
 }
 
-function ArtifactIdentity({
-  artifact,
-  onCopy,
-}: {
+type ArtifactIdentityProps = {
   artifact: HarborArtifact;
   onCopy: (value: string) => void;
-}) {
+};
+
+function ArtifactIdentity({ artifact, onCopy }: ArtifactIdentityProps) {
   const { t } = useLocale();
   return (
-    <section className="artifact-identity">
+    <section className={resolveClasses(styles.artifactIdentity)}>
       <div>
-        <span className="eyebrow">{t("制品摘要")}</span>
-        <strong className="mono digest-full">{artifact.digest}</strong>
+        <span className={resolveClasses("eyebrow")}>{t("制品摘要")}</span>
+        <strong className={resolveClasses(`mono ${styles.digestFull}`)}>
+          {artifact.digest}
+        </strong>
         {artifact.labels?.length ? (
-          <span className="artifact-identity-labels">
+          <span className={resolveClasses(styles.artifactIdentityLabels)}>
             {artifact.labels.map((label) => (
               <LabelChip key={label.id} label={label} />
             ))}
@@ -177,9 +200,11 @@ function ArtifactIdentity({
         ) : null}
       </div>
       <button
-        className="button button-small"
+        className={resolveClasses("button button-small")}
         type="button"
-        onClick={() => onCopy(artifact.digest)}
+        onClick={() => {
+          onCopy(artifact.digest);
+        }}
       >
         <Icon name="copy" />
         <span>{t("复制摘要")}</span>
@@ -188,13 +213,15 @@ function ArtifactIdentity({
   );
 }
 
-function ArtifactStats({ artifact }: { artifact: HarborArtifact }) {
+type ArtifactStatsProps = { artifact: HarborArtifact };
+
+function ArtifactStats({ artifact }: ArtifactStatsProps) {
   const { locale, t } = useLocale();
   const scan = artifactScanState(artifact);
   const highestRisk = t(severityLabel(scan.severity));
   return (
     <section
-      className="overview-stats project-stats"
+      className={resolveClasses("overview-stats project-stats")}
       aria-label={t("制品统计")}
     >
       <StatCell
@@ -221,21 +248,27 @@ function ArtifactStats({ artifact }: { artifact: HarborArtifact }) {
       />
       <StatCell
         label={t("推送时间")}
-        value={formatDate(artifact.push_time, locale, false)}
-        foot={formatDate(artifact.push_time, locale)}
+        value={formatDate(artifact.push_time, {
+          locale: locale,
+          timeZone: displayTimeZone(),
+          includeTime: false,
+        })}
+        foot={formatDate(artifact.push_time, {
+          locale: locale,
+          timeZone: displayTimeZone(),
+        })}
         icon="history"
       />
     </section>
   );
 }
 
-function ArtifactTabs({
-  artifact,
-  routeState,
-}: {
+type ArtifactTabsProps = {
   artifact: HarborArtifact;
   routeState: ArtifactRouteState;
-}) {
+};
+
+function ArtifactTabs({ artifact, routeState }: ArtifactTabsProps) {
   const { t } = useLocale();
   const tabsRef = useRef<HTMLElement>(null);
   useCenterActiveTab(tabsRef, routeState.tab);
@@ -252,14 +285,16 @@ function ArtifactTabs({
   return (
     <nav
       ref={tabsRef}
-      className="resource-tabs artifact-tabs"
+      className={resolveClasses(`resource-tabs ${styles.artifactTabs}`)}
       aria-label={t("制品页面")}
     >
       {visibleTabs.map((tab) => (
         <a
           key={tab.key}
           href={`#/${artifactPath(routeState, { tab: tab.key, page: 1 })}`}
-          className={routeState.tab === tab.key ? "active" : undefined}
+          className={resolveClasses(
+            routeState.tab === tab.key ? "active" : undefined,
+          )}
           aria-current={routeState.tab === tab.key ? "page" : undefined}
         >
           <Icon name={tab.icon} />
@@ -271,6 +306,16 @@ function ArtifactTabs({
 }
 
 /** The content of the selected artifact tab. */
+type ArtifactTabContentProps = {
+  data: ArtifactDetailData;
+  routeState: ArtifactRouteState;
+  session: Session;
+  navigate: (path: string) => void;
+  onAction: (action: ArtifactDetailAction) => void;
+  onCopy: (value: string) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
+
 function ArtifactTabContent({
   data,
   routeState,
@@ -279,22 +324,16 @@ function ArtifactTabContent({
   onAction,
   onCopy,
   onNotice,
-}: {
-  data: ArtifactDetailData;
-  routeState: ArtifactRouteState;
-  session: Session;
-  navigate: (path: string) => void;
-  onAction: (action: ArtifactDetailAction) => void;
-  onCopy: (value: string) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: ArtifactTabContentProps) {
   const { project, repository, tab } = routeState;
   const artifact = data.artifact;
   const context: ArtifactActionContext = { project, repository, artifact };
-  const openReference = (reference: string) =>
+  const openReference = (reference: string) => {
     navigate(artifactPath(routeState, { reference, tab: "overview", page: 1 }));
-  const changePage = (page: number) =>
+  };
+  const changePage = (page: number) => {
     navigate(artifactPath(routeState, { page }));
+  };
 
   if (tab === "tags") {
     return (
@@ -304,9 +343,13 @@ function ArtifactTabContent({
         repository={repository}
         instanceUrl={session.instance_url}
         collection={data.tags ?? emptyCollection()}
-        onAdd={() => onAction({ ...context, kind: "add-tag" })}
+        onAdd={() => {
+          onAction({ ...context, kind: "add-tag" });
+        }}
         onCopy={onCopy}
-        onDelete={(tag) => onAction({ ...context, kind: "delete-tag", tag })}
+        onDelete={(tag) => {
+          onAction({ ...context, kind: "delete-tag", tag });
+        }}
         onPageChange={changePage}
       />
     );
@@ -330,9 +373,9 @@ function ArtifactTabContent({
           }
           onAction({ ...context, kind: "attach-label", labels: attachable });
         }}
-        onRemove={(label) =>
-          onAction({ ...context, kind: "remove-label", label })
-        }
+        onRemove={(label) => {
+          onAction({ ...context, kind: "remove-label", label });
+        }}
       />
     );
   }
@@ -350,11 +393,13 @@ function ArtifactTabContent({
       <ArtifactAccessoriesSection
         collection={data.accessories ?? emptyCollection()}
         loadError={data.accessoryError}
-        onOpen={(accessory) => openReference(accessory.digest)}
+        onOpen={(accessory) => {
+          openReference(accessory.digest);
+        }}
         onCopy={onCopy}
-        onDelete={(accessory) =>
-          onAction({ ...context, kind: "delete-accessory", accessory })
-        }
+        onDelete={(accessory) => {
+          onAction({ ...context, kind: "delete-accessory", accessory });
+        }}
         onPageChange={changePage}
       />
     );
@@ -368,7 +413,9 @@ function ArtifactTabContent({
         tab={additionTab}
         value={data.addition}
         loadError={data.additionError}
-        onCopy={() => onCopy(text)}
+        onCopy={() => {
+          onCopy(text);
+        }}
         onDownload={() => {
           downloadText(
             text,
@@ -391,6 +438,16 @@ function ArtifactTabContent({
   );
 }
 
+type ArtifactDetailPageProps = {
+  route: ConsoleRoute;
+  session: Session;
+  refreshing: boolean;
+  navigate: (path: string) => void;
+  onRefresh: () => Promise<void>;
+  onAction: (action: ArtifactDetailAction) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
+
 export function ArtifactDetailPage({
   route,
   session,
@@ -399,31 +456,21 @@ export function ArtifactDetailPage({
   onRefresh,
   onAction,
   onNotice,
-}: {
-  route: ConsoleRoute;
-  session: Session;
-  refreshing: boolean;
-  navigate: (path: string) => void;
-  onRefresh: () => Promise<void>;
-  onAction: (action: ArtifactDetailAction) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: ArtifactDetailPageProps) {
   const { locale, t } = useLocale();
   const project = route.segments[1] ?? "";
   const repository = route.segments[3] ?? "";
   const reference = route.segments[5] ?? "";
   const tabValue = route.query.get("tab");
   const pageValue = route.query.get("page");
-  const routeState = useMemo<ArtifactRouteState>(
-    () => ({
+  const routeState = ((): ArtifactRouteState =>
+    (() => ({
       project,
       repository,
       reference,
       tab: artifactTab(tabValue),
       page: positiveInteger(pageValue),
-    }),
-    [pageValue, project, reference, repository, tabValue],
-  );
+    }))())();
   const { data, loading, error, reload } = useArtifactDetail(routeState);
 
   async function copyValue(value: string) {
@@ -463,10 +510,10 @@ export function ArtifactDetailPage({
           actions={<RefreshButton refreshing onRefresh={() => undefined} />}
         />
         {session.demo ? <DemoBanner /> : null}
-        <section className="table-shell">
-          <div className="loading-state">
+        <section className={resolveClasses("table-shell")}>
+          <div className={resolveClasses("loading-state")}>
             <div>
-              <span className="spinner" />
+              <span className={resolveClasses("spinner")} />
             </div>
           </div>
         </section>
@@ -493,7 +540,7 @@ export function ArtifactDetailPage({
         subtitle={`${displayRepository} · ${formatBytes(artifact.size, locale)} · ${artifactArchitectureSummary(artifact, locale)}`}
         breadcrumb={breadcrumb}
         actions={
-          <div className="artifact-detail-actions">
+          <div className={resolveClasses(styles.artifactDetailActions)}>
             <RefreshButton
               refreshing={refreshing || loading}
               onRefresh={() => {
@@ -528,3 +575,38 @@ export function ArtifactDetailPage({
     </>
   );
 }
+
+const resolveClasses = createClassNames({
+  critical: sharedPrimitiveStyles.critical,
+  high: sharedPrimitiveStyles.high,
+  breadcrumb: uiStyles0.breadcrumb,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  "stat-cell": uiStyles0.statCell,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "button-danger": uiStyles0.buttonDanger,
+  tag: uiStyles0.tag,
+  eyebrow: uiStyles0.eyebrow,
+  mono: uiStyles0.mono,
+  "overview-stats": uiStyles0.overviewStats,
+  "resource-tabs": uiStyles0.resourceTabs,
+  active: uiStyles0.active,
+  "table-shell": uiStyles0.tableShell,
+  "loading-state": uiStyles0.loadingState,
+  spinner: uiStyles0.spinner,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

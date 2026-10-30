@@ -1,0 +1,88 @@
+@layer ui-dialogs {
+  .controlDialogBackdrop {
+    align-items: center;
+    padding-top: 18px;
+  }
+}
+
+@layer ui-dialogs {
+  .controlDialogHeader,
+  .controlDialogFooter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 17px;
+  }
+}
+
+@layer ui-dialogs {
+  .controlDialogHeader {
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@layer ui-dialogs {
+  .controlDialogHeader > div {
+    min-width: 0;
+  }
+}
+
+@layer ui-dialogs {
+  .controlDialogFooter {
+    justify-content: flex-end;
+    border-top: 1px solid var(--line);
+    background: var(--surface-subtle);
+  }
+}
+
+@layer ui-dialogs {
+  .controlDialogTitle {
+    margin: 0;
+    overflow: hidden;
+    font-size: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@layer ui-dialogs {
+  .controlDialogHeader p {
+    margin: 2px 0 0;
+    overflow: hidden;
+    color: var(--ink-faint);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@layer ui-dialogs {
+  .controlDialogBody {
+    min-width: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 18px;
+  }
+}
+
+@layer ui-dialogs {
+  @media (max-width: 620px) {
+    .controlDialogBackdrop {
+      align-items: flex-end;
+      padding: 8px;
+    }
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.controlDialogBackdrop {
+}
+.controlDialogHeader {
+}
+.controlDialogFooter {
+}
+.controlDialogTitle {
+}
+.controlDialogBody {
+}

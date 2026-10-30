@@ -1,0 +1,30 @@
+@layer ui-feedback {
+  .toast {
+    width: min(370px, calc(100vw - 36px));
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 13px;
+    border: 1px solid var(--line-strong);
+    border-left: 3px solid var(--green);
+    border-radius: var(--radius-panel);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow);
+    color: var(--ink-soft);
+    font-size: 11px;
+    animation: global(motion-surface-in) var(--motion-standard)
+      var(--motion-ease);
+  }
+}
+
+@layer ui-feedback {
+  .toastError {
+    border-left-color: var(--red);
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.toast {
+}
+.toastError {
+}

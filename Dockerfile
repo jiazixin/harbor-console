@@ -23,8 +23,8 @@ COPY --from=build /out/harbor-console /harbor-console
 COPY configs/config.example.yaml /etc/harbor-console/config.yaml
 
 ENV CONFIG_FILE=/etc/harbor-console/config.yaml \
-    LISTEN=0.0.0.0 \
-    PORT=8080
+    HARBOR_CONSOLE_SERVER__LISTEN=0.0.0.0 \
+    HARBOR_CONSOLE_SERVER__PORT=8080
 
 EXPOSE 8080
 USER nonroot:nonroot

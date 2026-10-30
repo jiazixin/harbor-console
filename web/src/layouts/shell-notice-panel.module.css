@@ -1,0 +1,467 @@
+@layer ui-shell {
+  .instanceAvatar,
+  :global(.hc_8b938f52_userAvatar) {
+    display: grid;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    font-family: var(--font-mono);
+    font-weight: 800;
+  }
+}
+
+@layer ui-shell {
+  .instanceAvatar {
+    width: 32px;
+    height: 32px;
+    border-color: var(--orange);
+    background: var(--orange-soft);
+    color: var(--orange-strong);
+  }
+}
+
+@layer ui-dialogs {
+  .noticePanel[data-panel="operations"] {
+    width: min(440px, calc(100vw - 32px));
+    max-height: calc(100dvh - 70px);
+    overflow: hidden;
+  }
+}
+
+@layer ui-dialogs {
+  .operationCenterHead > div {
+    display: grid;
+    gap: 2px;
+  }
+}
+
+@layer ui-dialogs {
+  .operationCenterHead > div > span {
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .operationWarningList {
+    max-height: 150px;
+    overflow-y: auto;
+    border-bottom: 1px solid var(--line);
+    background: var(--amber-soft);
+  }
+}
+
+@layer ui-dialogs {
+  .operationWarningList > strong {
+    display: block;
+    padding: 9px 15px 0;
+    color: var(--amber);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+}
+
+@layer ui-dialogs {
+  .operationWarningList .noticeItem:last-child {
+    border-bottom: 0;
+  }
+}
+
+@layer ui-dialogs {
+  .operationList {
+    max-height: min(510px, calc(100dvh - 190px));
+    overflow-y: auto;
+  }
+}
+
+@layer ui-dialogs {
+  .operationEmpty {
+    min-height: 170px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 7px;
+    padding: 24px;
+    color: var(--ink-faint);
+    text-align: center;
+  }
+}
+
+@layer ui-dialogs {
+  .operationEmpty :global(.hc_8b938f52_icon) {
+    width: 24px;
+    height: 24px;
+    color: var(--green);
+  }
+}
+
+@layer ui-dialogs {
+  .operationEmpty strong {
+    color: var(--ink);
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .operationEmpty span {
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .noticePanel {
+    position: fixed;
+    z-index: 80;
+    top: 53px;
+    right: 16px;
+    width: min(360px, calc(100vw - 32px));
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-panel);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow);
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuHead {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 15px;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuHead :global(.hc_8b938f52_userAvatar) {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    margin-top: 0;
+    color: var(--blue);
+    font-size: 13px;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuHead > div,
+  .accountMenuHead strong,
+  .accountMenuHead span {
+    min-width: 0;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuHead strong,
+  .accountMenuHead span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuHead strong {
+    font-size: 12px;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuHead span {
+    margin-top: 2px;
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuDetails {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-subtle);
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuDetails div {
+    min-width: 0;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuDetails dt {
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuDetails dd {
+    margin: 3px 0 0;
+    overflow: hidden;
+    color: var(--ink-soft);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuActions {
+    display: grid;
+    padding: 6px;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuActions > button {
+    min-height: 42px;
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) 14px;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 9px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--ink-soft);
+    text-align: left;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuActions > button:not(:disabled):hover {
+    background: var(--surface-subtle);
+    color: var(--ink);
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuActions > button:disabled {
+    opacity: 0.46;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuActions :global(.hc_8b938f52_icon) {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuActions span,
+  .accountMenuActions strong,
+  .accountMenuActions small {
+    min-width: 0;
+    display: block;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuActions strong {
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .accountMenuActions small {
+    margin-top: 2px;
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .noticeHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 15px;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@layer ui-dialogs {
+  .noticeHead h2 {
+    margin: 0;
+    font-size: 13px;
+  }
+}
+
+@layer ui-dialogs {
+  .noticeItem {
+    display: grid;
+    grid-template-columns: 8px 1fr;
+    gap: 10px;
+    padding: 13px 15px;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@layer ui-dialogs {
+  .noticeItem:last-child {
+    border-bottom: 0;
+  }
+}
+
+@layer ui-dialogs {
+  .noticeItem i {
+    width: 7px;
+    height: 7px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: var(--orange);
+  }
+}
+
+@layer ui-dialogs {
+  .noticeItem strong {
+    display: block;
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .noticeItem span {
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuList {
+    max-height: min(430px, calc(100dvh - 150px));
+    overflow-y: auto;
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 34px;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuRow > button:first-child {
+    min-width: 0;
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 7px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--ink);
+    text-align: left;
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuRow > button:first-child:not(:disabled):hover {
+    background: var(--surface-subtle);
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuRow:global(.hc_8b938f52_active) {
+    background: color-mix(in srgb, var(--orange-soft) 58%, var(--surface));
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuMeta {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuMeta strong,
+  .instanceMenuMeta small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuMeta strong {
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuMeta small {
+    color: var(--ink-faint);
+    font-size: 11px;
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuRow > button:first-child > :global(.hc_8b938f52_icon) {
+    width: 13px;
+    height: 13px;
+    color: var(--ink-faint);
+  }
+}
+
+@layer ui-dialogs {
+  .instanceMenuFooter {
+    padding: 10px;
+    background: var(--surface-subtle);
+  }
+}
+
+@layer ui-dialogs {
+  .noticePanel:not([hidden]),
+  :global(.hc_71599926_unifiedSelectMenu) {
+    animation: global(motion-fade-in) var(--motion-fast) var(--motion-ease);
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.instanceAvatar {
+}
+.accountMenuHead {
+}
+.noticePanel {
+}
+.accountMenuActions {
+}
+.instanceMenuRow {
+}
+.operationCenterHead {
+}
+.operationWarningList {
+}
+.noticeItem {
+}
+.operationList {
+}
+.operationEmpty {
+}
+.accountMenuDetails {
+}
+.noticeHead {
+}
+.instanceMenuList {
+}
+.instanceMenuMeta {
+}
+.instanceMenuFooter {
+}

@@ -2,7 +2,8 @@ package app
 
 import (
 	"strings"
-	"time"
+
+	"harbor-console/internal/timefmt"
 )
 
 func splitDemoArtifactSource(source string) (string, string, bool) {
@@ -42,8 +43,8 @@ func labelsOf(artifactItem map[string]any) []map[string]any {
 func demoArtifactAddition(addition string) (any, bool) {
 	additions := map[string]any{
 		"build_history": []any{
-			map[string]any{"created": "2026-07-28T06:38:14Z", "created_by": "/bin/sh -c #(nop)  ENTRYPOINT [\"/gateway\"]", "empty_layer": true},
-			map[string]any{"created": "2026-07-28T06:37:52Z", "created_by": "/bin/sh -c COPY gateway /gateway # buildkit", "empty_layer": false},
+			map[string]any{"created": "2026-07-28T06:38:14.000Z", "created_by": "/bin/sh -c #(nop)  ENTRYPOINT [\"/gateway\"]", "empty_layer": true},
+			map[string]any{"created": "2026-07-28T06:37:52.000Z", "created_by": "/bin/sh -c COPY gateway /gateway # buildkit", "empty_layer": false},
 		},
 		"values.yaml": "replicaCount: 3\nimage:\n  repository: harbor.example.com/platform/gateway\n  tag: v3.18.4\nservice:\n  type: ClusterIP\n  port: 8080\n",
 		"readme.md":   "# Gateway\n\n平台统一入口服务。\n\n## 部署\n\n使用 Helm values 配置副本数、镜像和服务端口。\n",
@@ -59,9 +60,17 @@ func demoArtifactAddition(addition string) (any, bool) {
 	return value, ok
 }
 
-func updateDemoArtifactCount(repositories map[string][]map[string]any, project, repository string, count int) {
+func (ds *demoState) updateArtifactCount(options demoArtifactCount) {
+	repositories, project, repository, count := options.repositories, options.project, options.repository, options.count
 	if index, found := findMap(repositories[project], "name", repository); found {
 		repositories[project][index]["artifact_count"] = count
-		repositories[project][index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
+		repositories[project][index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
 	}
+}
+
+type demoArtifactCount struct {
+	repositories map[string][]map[string]any
+	project      string
+	repository   string
+	count        int
 }

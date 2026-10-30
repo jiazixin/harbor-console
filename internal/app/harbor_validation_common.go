@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -13,34 +12,35 @@ import (
 func validateAllowedFields(body map[string]any, allowed ...string) error {
 	for key := range body {
 		if !slicesContain(allowed, key) {
-			return fmt.Errorf("请求体包含不允许的字段 %s", key)
+			return invalidField(key, "unknown_field", "is not an allowed field")
 		}
 	}
 	return nil
 }
 
-func validateHTTPURL(raw any, label string) error {
+func validateHTTPURL(raw any, path string) error {
 	value, _ := raw.(string)
 	parsed, err := url.Parse(strings.TrimSpace(value))
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return fmt.Errorf("%s 必须是完整的 http:// 或 https:// URL", label)
+		return invalidField(path, "invalid_url", "must be a complete http:// or https:// URL")
 	}
 	if parsed.User != nil || parsed.Fragment != "" {
-		return fmt.Errorf("%s 不能包含凭据或片段", label)
+		return invalidField(path, "url_has_credentials", "must not contain credentials or a fragment")
 	}
 	return nil
 }
 
-func validateResourceName(value, label string, maximum int, allowSpaces bool) error {
+func validateResourceName(options resourceNameValidation) error {
+	value, path, maximum, allowSpaces := options.value, options.path, options.maximum, options.allowSpaces
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return errors.New(label + "不能为空")
+		return invalidField(path, "required", "is required")
 	}
 	if exceedsCharacterLimit(value, maximum) || strings.ContainsAny(value, "\r\n\x00/") {
-		return fmt.Errorf("%s 包含无效字符或超过 %d 个字符", label, maximum)
+		return invalidField(path, "invalid_text", fmt.Sprintf("contains invalid characters or exceeds %d characters", maximum))
 	}
 	if !allowSpaces && strings.ContainsAny(value, " \t") {
-		return errors.New(label + "不能包含空格")
+		return invalidField(path, "contains_whitespace", "must not contain spaces")
 	}
 	return nil
 }
@@ -84,10 +84,17 @@ func integerNumberValue(value any) (int64, bool) {
 	}
 }
 
-func validatePositiveInteger(value any, field string) error {
+func validatePositiveInteger(value any, path string) error {
 	number, valid := integerNumberValue(value)
 	if !valid || number <= 0 {
-		return fmt.Errorf("%s 必须是正整数", field)
+		return invalidField(path, "not_positive_integer", "must be a positive integer")
 	}
 	return nil
+}
+
+type resourceNameValidation struct {
+	value       string
+	path        string
+	maximum     int
+	allowSpaces bool
 }

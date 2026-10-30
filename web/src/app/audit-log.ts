@@ -112,24 +112,6 @@ const tokenTranslations: Record<string, string> = {
 const eastAsianText =
   /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]/;
 
-export function formatAuditDate(
-  value: string | undefined,
-  locale: Locale,
-): string {
-  if (!value) return locale === "en-US" ? "N/A" : "暂无";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(date);
-}
-
 export function auditResourceTypeLabel(
   value: string | undefined,
   translate: Translate,
@@ -161,13 +143,19 @@ function translateAuditText(value: string | undefined): string {
   return tokens.map((token) => tokenTranslations[token]).join("");
 }
 
-function auditBilingualText(
-  value: string | undefined,
-  locale: Locale,
-  translate: Translate,
+function auditBilingualText({
+  value,
+  locale,
+  translate,
   fallbackTranslation = "",
   untranslated = "",
-): string {
+}: {
+  value: string | undefined;
+  locale: Locale;
+  translate: Translate;
+  fallbackTranslation?: string;
+  untranslated?: string;
+}): string {
   const original = value?.trim() ?? "";
   if (!original) return translate("暂无");
   if (locale === "en-US") {
@@ -188,13 +176,13 @@ export function globalAuditOperationLabel(
   locale: Locale,
   translate: Translate,
 ): string {
-  return auditBilingualText(
-    value,
-    locale,
-    translate,
-    "",
-    "Untranslated audit event",
-  );
+  return auditBilingualText({
+    value: value,
+    locale: locale,
+    translate: translate,
+    fallbackTranslation: "",
+    untranslated: "Untranslated audit event",
+  });
 }
 
 function auditResourceTranslation(value: string | undefined): string {
@@ -224,13 +212,13 @@ export function globalAuditDescriptionLabel(
   const description = log.operation_description?.trim() ?? "";
   if (!description) return translate("暂无操作说明");
   const fallback = `${translateAuditText(log.operation)}${auditResourceTranslation(log.resource_type)}`;
-  return auditBilingualText(
-    description,
-    locale,
-    translate,
-    fallback,
-    "Untranslated audit description",
-  );
+  return auditBilingualText({
+    value: description,
+    locale: locale,
+    translate: translate,
+    fallbackTranslation: fallback,
+    untranslated: "Untranslated audit description",
+  });
 }
 
 export function projectAuditOperationLabel(

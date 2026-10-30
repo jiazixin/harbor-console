@@ -1,21 +1,13 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
 import type { ProjectMember } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import {
-  AddProjectMemberDialog,
-  DeleteProjectMemberDialog,
-  EditProjectMemberDialog,
-} from "./project-member-dialogs";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { AddProjectMemberDialog } from "./add-project-member-dialog";
+import { DeleteProjectMemberDialog } from "./delete-project-member-dialog";
+import { EditProjectMemberDialog } from "./edit-project-member-dialog";
 
 const member: ProjectMember = {
   id: 7,
@@ -32,6 +24,7 @@ afterEach(() => {
 
 describe("project member dialogs", () => {
   it("searches the Harbor directory and creates a user member", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "list").mockResolvedValue({
       items: [
         {
@@ -48,7 +41,7 @@ describe("project member dialogs", () => {
     const onCreated = vi.fn();
 
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <AddProjectMemberDialog
           project="platform"
@@ -57,33 +50,40 @@ describe("project member dialogs", () => {
           onClose={vi.fn()}
           onCreated={onCreated}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.change(screen.getByRole("searchbox", { name: "Harbor 用户名" }), {
-      target: { value: "release" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "搜索目录" }));
+    await replaceText(
+      user,
+      screen.getByRole("searchbox", { name: "Harbor 用户名" }),
+      "release",
+    );
+    await user.click(screen.getByRole("button", { name: "搜索目录" }));
     expect(await screen.findByText("release-user")).toBeVisible();
-    fireEvent.click(screen.getByRole("radio", { name: /release-user/ }));
-    fireEvent.click(screen.getByRole("button", { name: "添加成员" }));
+    await user.click(screen.getByRole("radio", { name: /release-user/ }));
+    await user.click(screen.getByRole("button", { name: "添加成员" }));
 
-    await waitFor(() => expect(onCreated).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "project-members",
-      { project: "platform" },
-      "POST",
-      { role_id: 2, member_user: { username: "release-user" } },
-    );
+    await waitFor(() => {
+      expect(onCreated).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "project-members",
+      parameters: { project: "platform" },
+      method: "POST",
+      payload: { role_id: 2, member_user: { username: "release-user" } },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
+    });
   });
 
   it("updates only the role field", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
     const onUpdated = vi.fn();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <EditProjectMemberDialog
           project="platform"
@@ -91,29 +91,34 @@ describe("project member dialogs", () => {
           onClose={vi.fn()}
           onUpdated={onUpdated}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "项目角色" }));
-    fireEvent.click(screen.getByRole("option", { name: "项目管理员" }));
-    fireEvent.click(screen.getByRole("button", { name: "保存角色" }));
+    await user.click(screen.getByRole("button", { name: "项目角色" }));
+    await user.click(screen.getByRole("option", { name: "项目管理员" }));
+    await user.click(screen.getByRole("button", { name: "保存角色" }));
 
-    await waitFor(() => expect(onUpdated).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "project-member",
-      { project: "platform", member: 7 },
-      "PUT",
-      { role_id: 1 },
-    );
+    await waitFor(() => {
+      expect(onUpdated).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "project-member",
+      parameters: { project: "platform", member: 7 },
+      method: "PUT",
+      payload: { role_id: 1 },
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 
   it("deletes the selected member after confirmation", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
     const onDeleted = vi.fn();
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <DeleteProjectMemberDialog
           project="platform"
@@ -121,19 +126,23 @@ describe("project member dialogs", () => {
           onClose={vi.fn()}
           onDeleted={onDeleted}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(
       screen.getByText("将从项目 platform 中移除 release-team。"),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "删除成员" }));
+    await user.click(screen.getByRole("button", { name: "删除成员" }));
 
-    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "project-member",
-      { project: "platform", member: 7 },
-      "DELETE",
-    );
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "project-member",
+      parameters: { project: "platform", member: 7 },
+      method: "DELETE",
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 });

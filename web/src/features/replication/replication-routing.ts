@@ -1,5 +1,5 @@
-import { createSortValues } from "../../components/data-table";
-import type { ConsoleRoute } from "../../app/hash-router";
+import type { ConsoleRoute } from "../../app/console-route";
+import { createSortValues } from "../../components/data-table-support";
 
 export type ReplicationTab = "executions" | "policies";
 
@@ -80,12 +80,17 @@ export function sortQueryValue(tab: ReplicationTab, sort: string): string {
   return sort === defaultSorts[tab] ? "" : sort;
 }
 
-export function replicationPath(
-  tab: ReplicationTab,
+export function replicationPath({
+  tab,
   page = 1,
   pageSize = defaultPageSize,
-  values: Record<string, string | number | undefined> = {},
-): string {
+  values = {},
+}: {
+  tab: ReplicationTab;
+  page?: number;
+  pageSize?: number;
+  values?: Record<string, string | number | undefined>;
+}): string {
   const query = new URLSearchParams();
   if (tab !== "policies") query.set("tab", tab);
   if (page > 1) query.set("page", String(page));

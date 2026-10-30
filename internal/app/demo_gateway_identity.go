@@ -2,18 +2,14 @@ package app
 
 import (
 	"net/http"
-	"net/url"
 	"strings"
-	"time"
+
+	"harbor-console/internal/timefmt"
 )
 
 // handleIdentityControl serves the signed-in account and its permissions.
-func (state *demoState) handleIdentityControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleIdentityControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	operation, query := request.operation, request.query
 	handled = true
 	status = http.StatusOK
 
@@ -22,12 +18,12 @@ func (state *demoState) handleIdentityControl(
 		data = demoPermissionMetadata()
 
 	case "current-user":
-		if len(state.users) == 0 {
-			errStatus, errMessage = http.StatusUnauthorized, "当前用户不存在"
+		if len(ds.users) == 0 {
+			errStatus, errMessage = http.StatusUnauthorized, "current user not found"
 			break
 		}
-		current := cloneMap(state.users[0])
-		current["oidc_user_meta"] = map[string]any{"id": 1, "user_id": current["user_id"], "creation_time": "2026-01-12T08:00:00Z", "update_time": current["update_time"]}
+		current := cloneMap(ds.users[0])
+		current["oidc_user_meta"] = map[string]any{"id": 1, "user_id": current["user_id"], "creation_time": "2026-01-12T08:00:00.000Z", "update_time": current["update_time"]}
 		data = current
 
 	case "current-permissions":
@@ -54,7 +50,7 @@ func (state *demoState) handleIdentityControl(
 				map[string]any{"resource": "member", "action": "delete"},
 			}
 		}
-		state.writeListAny(w, permissions, query)
+		ds.writeListAny(w, permissions, query)
 		return
 
 	default:
@@ -64,92 +60,88 @@ func (state *demoState) handleIdentityControl(
 }
 
 // handleUserControl serves local users and their credentials.
-func (state *demoState) handleUserControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleUserControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "users":
 		if method == http.MethodGet {
-			items := state.users
+			items := ds.users
 			if queryText := demoQueryString(query.Get("q"), "username"); queryText != "" {
 				items = filterMaps(items, queryText, "username")
 			}
-			state.writeList(w, items, query)
+			ds.writeList(w, items, query)
 			return
 		}
 		username := stringValue(body["username"])
-		if _, found := findMap(state.users, "username", username); found {
-			errStatus, errMessage = http.StatusConflict, "用户名已经存在"
+		if _, found := findMap(ds.users, "username", username); found {
+			errStatus, errMessage = http.StatusConflict, "username already exists"
 			break
 		}
-		state.nextUserID++
+		ds.nextUserID++
 		user := cloneMap(body)
 		delete(user, "password")
-		user["user_id"] = state.nextUserID
+		user["user_id"] = ds.nextUserID
 		user["sysadmin_flag"] = false
-		user["creation_time"] = time.Now().UTC().Format(time.RFC3339)
-		state.users = append(state.users, user)
+		user["creation_time"] = ds.now().UTC().Format(timefmt.Layout)
+		ds.users = append(ds.users, user)
 		status, data = http.StatusCreated, user
 
 	case "users-search":
-		state.writeList(w, filterMaps(state.users, query.Get("username"), "username"), query)
+		ds.writeList(w, filterMaps(ds.users, query.Get("username"), "username"), query)
 		return
 
 	case "user":
-		index, found := findMapNumber(state.users, "user_id", query.Get("id"))
+		index, found := findMapNumber(ds.users, "user_id", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "用户不存在"
+			errStatus, errMessage = http.StatusNotFound, "user not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.users[index]
+			data = ds.users[index]
 		} else if method == http.MethodPut {
 			for _, field := range []string{"email", "realname", "comment"} {
 				if value, ok := body[field]; ok {
-					state.users[index][field] = value
+					ds.users[index][field] = value
 				}
 			}
-			state.users[index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
-			data = state.users[index]
+			ds.users[index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+			data = ds.users[index]
 		} else {
-			if stringValue(state.users[index]["username"]) == "demo-admin" {
-				errStatus, errMessage = http.StatusForbidden, "不能删除当前演示管理员"
+			if stringValue(ds.users[index]["username"]) == "demo-admin" {
+				errStatus, errMessage = http.StatusForbidden, "cannot delete the current demo administrator"
 				break
 			}
-			state.users = append(state.users[:index], state.users[index+1:]...)
+			ds.users = append(ds.users[:index], ds.users[index+1:]...)
 		}
 
 	case "user-sysadmin":
-		index, found := findMapNumber(state.users, "user_id", query.Get("id"))
+		index, found := findMapNumber(ds.users, "user_id", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "用户不存在"
+			errStatus, errMessage = http.StatusNotFound, "user not found"
 			break
 		}
-		state.users[index]["sysadmin_flag"] = body["sysadmin_flag"]
-		state.users[index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
-		data = state.users[index]
+		ds.users[index]["sysadmin_flag"] = body["sysadmin_flag"]
+		ds.users[index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+		data = ds.users[index]
 
 	case "user-password", "current-user-password":
-		if _, found := findMapNumber(state.users, "user_id", query.Get("id")); !found {
-			errStatus, errMessage = http.StatusNotFound, "用户不存在"
+		if _, found := findMapNumber(ds.users, "user_id", query.Get("id")); !found {
+			errStatus, errMessage = http.StatusNotFound, "user not found"
 			break
 		}
 		data = map[string]any{"updated": true}
 
 	case "user-cli-secret", "current-user-cli-secret":
-		index, found := findMapNumber(state.users, "user_id", query.Get("id"))
+		index, found := findMapNumber(ds.users, "user_id", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "用户不存在"
+			errStatus, errMessage = http.StatusNotFound, "user not found"
 			break
 		}
-		state.users[index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
-		state.users[index]["has_cli_secret"] = true
+		ds.users[index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+		ds.users[index]["has_cli_secret"] = true
 		data = map[string]any{"updated": true}
 
 	default:
@@ -159,46 +151,42 @@ func (state *demoState) handleUserControl(
 }
 
 // handleUserGroupControl serves user groups.
-func (state *demoState) handleUserGroupControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleUserGroupControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "user-groups":
 		if method == http.MethodGet {
-			state.writeList(w, filterMaps(state.userGroups, query.Get("group_name"), "group_name"), query)
+			ds.writeList(w, filterMaps(ds.userGroups, query.Get("group_name"), "group_name"), query)
 			return
 		}
-		state.nextGroupID++
+		ds.nextGroupID++
 		group := cloneMap(body)
-		group["id"] = state.nextGroupID
-		state.userGroups = append(state.userGroups, group)
+		group["id"] = ds.nextGroupID
+		ds.userGroups = append(ds.userGroups, group)
 		status, data = http.StatusCreated, group
 
 	case "user-groups-search":
-		state.writeList(w, filterMaps(state.userGroups, query.Get("groupname"), "group_name"), query)
+		ds.writeList(w, filterMaps(ds.userGroups, query.Get("groupname"), "group_name"), query)
 		return
 
 	case "user-group":
-		index, found := findMapNumber(state.userGroups, "id", query.Get("id"))
+		index, found := findMapNumber(ds.userGroups, "id", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "用户组不存在"
+			errStatus, errMessage = http.StatusNotFound, "user group not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.userGroups[index]
+			data = ds.userGroups[index]
 		} else if method == http.MethodPut {
-			id := state.userGroups[index]["id"]
-			state.userGroups[index] = cloneMap(body)
-			state.userGroups[index]["id"] = id
-			data = state.userGroups[index]
+			id := ds.userGroups[index]["id"]
+			ds.userGroups[index] = cloneMap(body)
+			ds.userGroups[index]["id"] = id
+			data = ds.userGroups[index]
 		} else {
-			state.userGroups = append(state.userGroups[:index], state.userGroups[index+1:]...)
+			ds.userGroups = append(ds.userGroups[:index], ds.userGroups[index+1:]...)
 		}
 
 	default:

@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
-
-import { formatDuration, formatNumber } from "../app/formatters";
 import { useLocale } from "../app/locale-context";
+import { createClassNames } from "../lib/css/class-names";
+import { formatDuration, formatNumber } from "../lib/format/formatters";
+import uiStyles1 from "./execution-summary.module.css";
+import uiStyles0 from "./shared-ui.module.css";
 import { StatusBadge } from "./status-badge";
 
 /** One counter of an execution, such as its failed tasks. */
@@ -14,18 +16,20 @@ type ExecutionStat = {
 const toneClasses = { danger: "danger-text", success: "success-text" };
 
 /** Harbor's explanation for an execution result, such as why a run failed. */
+type ExecutionStatusMessageProps = {
+  message?: string;
+  status?: string;
+};
+
 function ExecutionStatusMessage({
   message,
   status,
-}: {
-  message?: string;
-  status?: string;
-}) {
+}: ExecutionStatusMessageProps) {
   const text = message?.trim();
   if (!text) return null;
   return (
     <p
-      className="execution-status-text"
+      className={resolveClasses("execution-status-text")}
       role={status?.toLowerCase() === "failed" ? "alert" : undefined}
     >
       {text}
@@ -37,16 +41,7 @@ function ExecutionStatusMessage({
  * The header of an execution detail view: status, trigger details, task
  * counters, duration and Harbor's status message.
  */
-export function ExecutionSummary({
-  status,
-  details,
-  stats,
-  startTime,
-  endTime,
-  statusMessage,
-  leading,
-  action,
-}: {
+type ExecutionSummaryProps = {
   status: string | undefined;
   /** Short facts shown after the status, such as the trigger and start time. */
   details: ReactNode[];
@@ -59,11 +54,22 @@ export function ExecutionSummary({
   leading?: ReactNode;
   /** Shown at the end of the header, such as a stop button. */
   action?: ReactNode;
-}) {
+};
+
+export function ExecutionSummary({
+  status,
+  details,
+  stats,
+  startTime,
+  endTime,
+  statusMessage,
+  leading,
+  action,
+}: ExecutionSummaryProps) {
   const { locale, t } = useLocale();
   return (
-    <section className="execution-summary">
-      <div className="execution-summary-head">
+    <section className={resolveClasses("execution-summary")}>
+      <div className={resolveClasses("execution-summary-head")}>
         <div>
           {leading}
           <StatusBadge status={status} />
@@ -73,11 +79,13 @@ export function ExecutionSummary({
         </div>
         {action}
       </div>
-      <dl className="execution-stats">
+      <dl className={resolveClasses("execution-stats")}>
         {stats.map(({ label, value, tone }) => (
           <div key={label}>
             <dt>{t(label)}</dt>
-            <dd className={tone ? toneClasses[tone] : undefined}>
+            <dd
+              className={resolveClasses(tone ? toneClasses[tone] : undefined)}
+            >
               {formatNumber(value, locale)}
             </dd>
           </div>
@@ -94,37 +102,25 @@ export function ExecutionSummary({
   );
 }
 
-/** A titled list inside an execution dialog, such as its tasks. */
-export function ExecutionSection({
-  title,
-  summary,
-  children,
-}: {
-  title: string;
-  summary: string;
-  children: ReactNode;
-}) {
-  const { t } = useLocale();
-  return (
-    <section className="replication-task-section">
-      <div className="section-heading compact-heading">
-        <div>
-          <h3>{t(title)}</h3>
-          <p>{summary}</p>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-/** The loading state inside a dialog body. */
-export function DialogLoading({ message }: { message: string }) {
-  const { t } = useLocale();
-  return (
-    <div className="dialog-loading" role="status">
-      <span className="spinner" />
-      <span>{t(message)}</span>
-    </div>
-  );
-}
+const resolveClasses = createClassNames({
+  "status-badge": uiStyles0.statusBadge,
+  "danger-text": uiStyles0.dangerText,
+  "success-text": uiStyles0.successText,
+  "execution-summary": uiStyles0.executionSummary,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+  "execution-status-text": uiStyles1.executionStatusText,
+  "execution-summary-head": uiStyles1.executionSummaryHead,
+  "execution-stats": uiStyles1.executionStats,
+});

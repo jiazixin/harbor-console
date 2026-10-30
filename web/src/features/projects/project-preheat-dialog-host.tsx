@@ -1,22 +1,22 @@
-import {
-  DeletePreheatPolicyDialog,
-  PreheatPolicyDialog,
-  RunPreheatPolicyDialog,
-} from "../projects/project-preheat-dialogs";
 import { PreheatExecutionsDialog } from "../projects/project-preheat-executions";
 import type { ProjectPreheatAction } from "../projects/project-preheat-section";
+import { DeletePreheatPolicyDialog } from "./delete-preheat-policy-dialog";
+import { PreheatPolicyDialog } from "./preheat-policy-dialog";
+import { RunPreheatPolicyDialog } from "./run-preheat-policy-dialog";
+
+type PreheatDialogHostProps = {
+  action: ProjectPreheatAction;
+  onClose: () => void;
+  onChanged: (message: string) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
 
 export function PreheatDialogHost({
   action,
   onClose,
   onChanged,
   onNotice,
-}: {
-  action: ProjectPreheatAction;
-  onClose: () => void;
-  onChanged: (message: string) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: PreheatDialogHostProps) {
   switch (action.kind) {
     case "create":
     case "edit":
@@ -27,11 +27,11 @@ export function PreheatDialogHost({
           providers={action.providers}
           policy={action.kind === "edit" ? action.policy : undefined}
           onClose={onClose}
-          onSaved={() =>
+          onSaved={() => {
             onChanged(
               action.kind === "edit" ? "预热策略已更新" : "预热策略已创建",
-            )
-          }
+            );
+          }}
         />
       );
     case "delete":
@@ -40,7 +40,9 @@ export function PreheatDialogHost({
           project={action.project}
           policy={action.policy}
           onClose={onClose}
-          onDeleted={() => onChanged("预热策略已删除")}
+          onDeleted={() => {
+            onChanged("预热策略已删除");
+          }}
         />
       );
     case "run":
@@ -49,7 +51,9 @@ export function PreheatDialogHost({
           project={action.project}
           policy={action.policy}
           onClose={onClose}
-          onStarted={() => onChanged("P2P 预热执行已启动")}
+          onStarted={() => {
+            onChanged("P2P 预热执行已启动");
+          }}
         />
       );
     case "executions":

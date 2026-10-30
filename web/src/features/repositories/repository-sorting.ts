@@ -11,12 +11,17 @@ export function repositoryTimestamp(value: string | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function compareRepositories(
-  left: SortableRepository,
-  right: SortableRepository,
-  sort: string,
-  locale: string,
-): number {
+export function compareRepositories({
+  left,
+  right,
+  sort,
+  locale,
+}: {
+  left: SortableRepository;
+  right: SortableRepository;
+  sort: string;
+  locale: string;
+}): number {
   const descending = sort.startsWith("-");
   const field = sort.replace(/^-/, "");
   let comparison: number;
@@ -45,6 +50,11 @@ export function sortRepositories<T extends SortableRepository>(
   locale: string,
 ): T[] {
   return [...repositories].sort((left, right) =>
-    compareRepositories(left, right, sort, locale),
+    compareRepositories({
+      left: left,
+      right: right,
+      sort: sort,
+      locale: locale,
+    }),
   );
 }

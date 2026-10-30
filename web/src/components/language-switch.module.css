@@ -1,0 +1,25 @@
+@layer ui-shell {
+  .languageSwitchCompact {
+    height: 34px;
+  }
+}
+
+@layer ui-shell {
+  .languageSwitchCompact button {
+    min-width: 52px;
+    height: 28px;
+    padding: 0 6px;
+  }
+}
+
+@layer ui-shell {
+  @media (max-width: 560px) {
+    .languageSwitchCompact button {
+      min-width: 52px;
+      padding: 0 6px;
+    }
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.languageSwitchCompact {
+}

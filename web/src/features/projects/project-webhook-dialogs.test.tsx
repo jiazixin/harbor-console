@@ -1,25 +1,17 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { LocaleProvider } from "../../app/locale-context";
 import type {
   ProjectWebhook,
   WebhookEventMetadata,
   WebhookExecution,
   WebhookTask,
 } from "../../app/models";
-import { IconSprite } from "../../components/icons";
-import {
-  DeleteProjectWebhookDialog,
-  ProjectWebhookDialog,
-} from "./project-webhook-dialogs";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { replaceText, setupUser } from "../../test/user";
+import { DeleteProjectWebhookDialog } from "./delete-project-webhook-dialog";
+import { ProjectWebhookDialog } from "./project-webhook-dialog";
 import { WebhookHistoryDialog } from "./project-webhook-history";
 
 const metadata: WebhookEventMetadata = {
@@ -53,10 +45,10 @@ const webhook: ProjectWebhook = {
 
 function renderDialog(content: React.ReactNode) {
   return render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       {content}
-    </LocaleProvider>,
+    </TestProviders>,
   );
 }
 
@@ -68,6 +60,7 @@ afterEach(() => {
 
 describe("project webhook dialogs", () => {
   it("creates a webhook with the exact Harbor payload", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -82,31 +75,40 @@ describe("project webhook dialogs", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "名称" }), {
-      target: { value: " release-events " },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "目标地址" }), {
-      target: { value: " https://hooks.example.com/releases " },
-    });
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "Authorization 请求头" }),
-      { target: { value: "Bearer release-token" } },
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "名称" }),
+      " release-events ",
     );
-    fireEvent.change(screen.getByRole("textbox", { name: "描述" }), {
-      target: { value: " Release automation " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "负载格式" }));
-    fireEvent.click(screen.getByRole("option", { name: "CloudEvents" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /启用 Webhook/ }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /跳过 TLS 验证/ }));
-    fireEvent.click(screen.getByRole("button", { name: "创建 Webhook" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "目标地址" }),
+      " https://hooks.example.com/releases ",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "Authorization 请求头" }),
+      "Bearer release-token",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "描述" }),
+      " Release automation ",
+    );
+    await user.click(screen.getByRole("button", { name: "负载格式" }));
+    await user.click(screen.getByRole("option", { name: "CloudEvents" }));
+    await user.click(screen.getByRole("checkbox", { name: /启用 Webhook/ }));
+    await user.click(screen.getByRole("checkbox", { name: /跳过 TLS 验证/ }));
+    await user.click(screen.getByRole("button", { name: "创建 Webhook" }));
 
-    await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "webhooks",
-      { project: "platform" },
-      "POST",
-      {
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "webhooks",
+      parameters: { project: "platform" },
+      method: "POST",
+      payload: {
         name: "release-events",
         description: "Release automation",
         enabled: false,
@@ -121,10 +123,13 @@ describe("project webhook dialogs", () => {
           },
         ],
       },
-    );
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: expect.any(String) as unknown,
+    });
   });
 
   it("rejects an empty event selection and never submits hidden defaults", async () => {
+    const user = setupUser();
     const mutation = vi.spyOn(controlApi, "mutate");
 
     renderDialog(
@@ -136,19 +141,24 @@ describe("project webhook dialogs", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "名称" }), {
-      target: { value: "quota-events" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "目标地址" }), {
-      target: { value: "https://hooks.example.com/quota" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "创建 Webhook" }));
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "名称" }),
+      "quota-events",
+    );
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "目标地址" }),
+      "https://hooks.example.com/quota",
+    );
+    await user.click(screen.getByRole("button", { name: "创建 Webhook" }));
 
     expect(await screen.findByText("请至少选择一种事件类型")).toBeVisible();
     expect(mutation).not.toHaveBeenCalled();
   });
 
   it("updates only the editable webhook policy fields", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -164,20 +174,24 @@ describe("project webhook dialogs", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: "描述" }), {
-      target: { value: "Updated release event" },
-    });
-    fireEvent.click(
+    await replaceText(
+      user,
+      screen.getByRole("textbox", { name: "描述" }),
+      "Updated release event",
+    );
+    await user.click(
       screen.getByRole("checkbox", { name: /扫描完成.*SCANNING_COMPLETED/ }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "保存 Webhook" }));
+    await user.click(screen.getByRole("button", { name: "保存 Webhook" }));
 
-    await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "webhook",
-      { project: "platform", id: 41 },
-      "PUT",
-      {
+    await waitFor(() => {
+      expect(onSaved).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "webhook",
+      parameters: { project: "platform", id: 41 },
+      method: "PUT",
+      payload: {
         name: "deploy-events",
         description: "Updated release event",
         enabled: true,
@@ -192,10 +206,13 @@ describe("project webhook dialogs", () => {
           },
         ],
       },
-    );
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 
   it("loads filtered execution history, tasks, and structured task logs", async () => {
+    const user = setupUser();
     const execution: WebhookExecution = {
       id: 77,
       status: "Success",
@@ -255,21 +272,21 @@ describe("project webhook dialogs", () => {
         sort: "-start_time",
         q: "",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "状态" }));
-    fireEvent.click(screen.getByRole("option", { name: "异常" }));
-    await waitFor(() =>
+    await user.click(screen.getByRole("button", { name: "状态" }));
+    await user.click(screen.getByRole("option", { name: "异常" }));
+    await waitFor(() => {
       expect(list).toHaveBeenCalledWith(
         "webhook-executions",
-        expect.objectContaining({ q: "status=Error" }),
-        expect.any(AbortSignal),
-      ),
-    );
+        expect.objectContaining({ q: "status=Error" }) as unknown,
+        expect.any(AbortSignal) as unknown,
+      );
+    });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "查看 Webhook 执行任务" }),
+    await user.click(
+      await screen.findByRole("button", { name: "查看 Webhook 执行任务" }),
     );
     expect(await screen.findByText("platform/api:v1")).toBeVisible();
     expect(list).toHaveBeenCalledWith(
@@ -282,10 +299,10 @@ describe("project webhook dialogs", () => {
         page_size: 20,
         sort: "-start_time",
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(
+    await user.click(
       screen.getByRole("button", { name: "查看 Webhook 任务日志" }),
     );
     expect(await screen.findByText("webhook delivered")).toBeVisible();
@@ -298,9 +315,9 @@ describe("project webhook dialogs", () => {
         execution: 77,
         task: 88,
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
-    fireEvent.click(screen.getByRole("button", { name: "UTC" }));
+    await user.click(screen.getByRole("button", { name: "UTC" }));
     expect(screen.getByRole("button", { name: "UTC" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -308,6 +325,7 @@ describe("project webhook dialogs", () => {
   });
 
   it("deletes the selected webhook policy", async () => {
+    const user = setupUser();
     const mutation = vi
       .spyOn(controlApi, "mutate")
       .mockResolvedValue(undefined);
@@ -325,13 +343,17 @@ describe("project webhook dialogs", () => {
     expect(
       screen.getByText("Webhook deploy-events 将停止发送事件。"),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "删除 Webhook" }));
+    await user.click(screen.getByRole("button", { name: "删除 Webhook" }));
 
-    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
-    expect(mutation).toHaveBeenCalledWith(
-      "webhook",
-      { project: "platform", id: 41 },
-      "DELETE",
-    );
+    await waitFor(() => {
+      expect(onDeleted).toHaveBeenCalled();
+    });
+    expect(mutation).toHaveBeenCalledWith({
+      operation: "webhook",
+      parameters: { project: "platform", id: 41 },
+      method: "DELETE",
+      signal: expect.any(AbortSignal) as unknown,
+      idempotencyKey: undefined,
+    });
   });
 });

@@ -1,154 +1,140 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { ApiError, dashboardApi, identityApi, sessionApi } from "./api-client";
+import { errorText } from "./errors";
 import type {
   Dashboard,
   HarborIdentity,
   HarborPermission,
   Session,
 } from "./models";
+import { sessionEvents } from "./session-events";
 
 export type ConsoleData = {
   dashboard: Dashboard;
-  identity?: HarborIdentity;
+  identity: HarborIdentity;
   permissions: HarborPermission[];
 };
 
-async function loadConsoleData(signal?: AbortSignal): Promise<ConsoleData> {
+const sessionKeys = {
+  current: ["session", "current"] as const,
+  console: (connection: string | undefined) =>
+    ["session", "console", connection] as const,
+};
+
+async function loadConsoleData(signal: AbortSignal): Promise<ConsoleData> {
   const [dashboard, identity, permissions] = await Promise.all([
     dashboardApi.load(signal),
-    identityApi.current(signal).catch(() => undefined),
-    identityApi.permissions(signal).catch(() => []),
+    identityApi.current(signal),
+    identityApi.permissions(signal),
   ]);
   return { dashboard, identity, permissions };
 }
 
+/** Owns the authenticated session and its queries, cancelling old-instance work. */
 export function useConsoleSession(navigate: (path: string) => void) {
-  const [session, setSession] = useState<Session>();
-  const [consoleData, setConsoleData] = useState<ConsoleData>();
-  const [sessionError, setSessionError] = useState("");
-  const [isBooting, setIsBooting] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const activeRequest = useRef<AbortController | undefined>(undefined);
-  const activeSession = useRef<Session | undefined>(undefined);
-  const refreshRequest = useRef<AbortController | undefined>(undefined);
-  const startRequest = useCallback(() => {
-    activeRequest.current?.abort();
-    const controller = new AbortController();
-    activeRequest.current = controller;
-    refreshRequest.current = undefined;
-    setIsRefreshing(false);
-    return controller;
-  }, []);
-  const refresh = useCallback(
-    async (currentSession: Session, controller: AbortController) => {
-      setSessionError("");
-      try {
-        const loadedConsoleData = await loadConsoleData(controller.signal);
-        if (controller.signal.aborted || activeRequest.current !== controller)
-          return;
-        setConsoleData(loadedConsoleData);
-        setSession(currentSession);
-      } catch (loadError) {
-        if (controller.signal.aborted || activeRequest.current !== controller)
-          return;
-        if (
-          loadError instanceof DOMException &&
-          loadError.name === "AbortError"
-        )
-          return;
-        if (loadError instanceof ApiError && loadError.status === 401) {
-          activeSession.current = undefined;
-          setSession(undefined);
-          setConsoleData(undefined);
-          return;
-        }
-        setSessionError(
-          loadError instanceof Error ? loadError.message : String(loadError),
-        );
-      }
-    },
-    [],
-  );
+  const client = useQueryClient();
+  const isLoggingOut = useRef(false);
+  const sessionQuery = useQuery({
+    queryKey: sessionKeys.current,
+    queryFn: ({ signal }) => sessionApi.current(signal),
+    staleTime: Infinity,
+  });
+  const session = sessionQuery.data ?? undefined;
+  const consoleQuery = useQuery({
+    queryKey: sessionKeys.console(session?.connection_id),
+    queryFn: ({ signal }) => loadConsoleData(signal),
+    enabled: !!session,
+    staleTime: 5_000,
+  });
+  const logoutMutation = useMutation({
+    mutationFn: (signal: AbortSignal) => sessionApi.logout(signal),
+  });
+  const logoutController = useRef<AbortController | undefined>(undefined);
 
   useEffect(() => {
-    const controller = startRequest();
-    void sessionApi
-      .current(controller.signal)
-      .then(async (current) => {
-        if (controller.signal.aborted || activeRequest.current !== controller)
-          return;
-        activeSession.current = current;
-        setSession(current);
-        await refresh(current, controller);
-      })
-      .catch((loadError: unknown) => {
-        if (controller.signal.aborted || activeRequest.current !== controller)
-          return;
-        if (!(loadError instanceof ApiError && loadError.status === 401)) {
-          setSessionError(
-            loadError instanceof Error ? loadError.message : String(loadError),
-          );
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted && activeRequest.current === controller)
-          setIsBooting(false);
+    const expire = () => {
+      // Cancelling and dropping every instance query prevents another user's
+      // cached Harbor data from appearing after the next sign-in.
+      void client.cancelQueries();
+      client.removeQueries({
+        predicate: (query) =>
+          query.queryKey[0] !== "session" || query.queryKey[1] !== "current",
       });
-    return () => controller.abort();
-  }, [refresh, startRequest]);
-
-  useEffect(() => () => activeRequest.current?.abort(), []);
+      client.setQueryData<Session | null>(sessionKeys.current, null);
+    };
+    sessionEvents.addEventListener("expired", expire);
+    return () => {
+      sessionEvents.removeEventListener("expired", expire);
+      logoutController.current?.abort();
+    };
+  }, [client]);
 
   async function handleAuthenticated(current: Session) {
-    const controller = startRequest();
-    activeSession.current = current;
-    setSession(current);
-    setConsoleData(undefined);
-    setSessionError("");
+    logoutController.current?.abort();
+    await client.cancelQueries();
+    client.removeQueries({
+      predicate: (query) =>
+        query.queryKey[0] !== "session" || query.queryKey[1] !== "current",
+    });
+    client.setQueryData(sessionKeys.current, current);
     navigate("overview");
-    setIsBooting(false);
-    await refresh(current, controller);
+    // The observer renders errors. Authentication itself has already succeeded.
+    await client.prefetchQuery({
+      queryKey: sessionKeys.console(current.connection_id),
+      queryFn: ({ signal }) => loadConsoleData(signal),
+    });
   }
 
   async function handleRefresh() {
-    const currentSession = activeSession.current;
-    if (!currentSession || refreshRequest.current) return;
-    const controller = startRequest();
-    refreshRequest.current = controller;
-    setIsRefreshing(true);
-    await refresh(currentSession, controller);
-    if (activeRequest.current === controller && !controller.signal.aborted) {
-      refreshRequest.current = undefined;
-      setIsRefreshing(false);
-    }
+    const current = client.getQueryData<Session | null>(sessionKeys.current);
+    if (!current || isLoggingOut.current) return;
+    const queryKey = sessionKeys.console(current.connection_id);
+    if (client.isFetching({ queryKey, exact: true })) return;
+    // refetchQueries reports failures to the active query's error state.
+    await client.refetchQueries({ queryKey, exact: true });
   }
 
   async function handleLogout() {
-    const controller = startRequest();
-    activeSession.current = undefined;
-    await sessionApi.logout(controller.signal).catch(() => null);
-    if (controller.signal.aborted || activeRequest.current !== controller)
-      return;
-    setSession(undefined);
-    setConsoleData(undefined);
-    setSessionError("");
+    if (isLoggingOut.current) return;
+    isLoggingOut.current = true;
+    const controller = new AbortController();
+    logoutController.current = controller;
+    try {
+      await client.cancelQueries();
+      await logoutMutation.mutateAsync(controller.signal);
+      if (controller.signal.aborted) return;
+      client.removeQueries({
+        predicate: (query) =>
+          query.queryKey[0] !== "session" || query.queryKey[1] !== "current",
+      });
+      client.setQueryData<Session | null>(sessionKeys.current, null);
+    } finally {
+      isLoggingOut.current = false;
+    }
   }
 
   function updateIdentity(identity: HarborIdentity) {
-    if (
-      !session ||
-      activeSession.current?.connection_id !== session.connection_id
-    )
-      return;
-    setConsoleData((current) => (current ? { ...current, identity } : current));
+    const current = client.getQueryData<Session | null>(sessionKeys.current);
+    if (!current || current.connection_id !== session?.connection_id) return;
+    client.setQueryData<ConsoleData>(
+      sessionKeys.console(current.connection_id),
+      (previous) => (previous ? { ...previous, identity } : previous),
+    );
   }
+
+  const bootstrapError =
+    sessionQuery.error instanceof ApiError && sessionQuery.error.status === 401
+      ? undefined
+      : sessionQuery.error;
+  const failure = logoutMutation.error ?? consoleQuery.error ?? bootstrapError;
   return {
     session,
-    consoleData,
-    sessionError,
-    isBooting,
-    isRefreshing,
+    consoleData: session ? consoleQuery.data : undefined,
+    sessionError: failure ? errorText(failure) : "",
+    isBooting: sessionQuery.isLoading || (!!session && consoleQuery.isLoading),
+    isRefreshing:
+      !!session && consoleQuery.isFetching && !consoleQuery.isLoading,
     authenticate: handleAuthenticated,
     refresh: handleRefresh,
     logout: handleLogout,

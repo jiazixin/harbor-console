@@ -1,4 +1,5 @@
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
+import styles from "./shared-ui.module.css";
 
 const modalStack: symbol[] = [];
 let previousLocks: boolean[] = [];
@@ -18,7 +19,9 @@ export function useModal({
   initialFocusSelector?: string | null;
 }) {
   const closeRef = useRef(onClose);
-  closeRef.current = onClose;
+  useLayoutEffect(() => {
+    closeRef.current = onClose;
+  });
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -31,11 +34,13 @@ export function useModal({
     const roots = [document.documentElement, document.body];
     if (modalStack.length === 0) {
       previousLocks = roots.map((root) =>
-        root.classList.contains("overlay-open"),
+        root.classList.contains(styles.overlayOpen),
       );
     }
     modalStack.push(token);
-    roots.forEach((root) => root.classList.add("overlay-open"));
+    roots.forEach((root) => {
+      root.classList.add(styles.overlayOpen);
+    });
     const isTopmost = () => modalStack.at(-1) === token;
     const focusable = () =>
       Array.from(
@@ -83,13 +88,18 @@ export function useModal({
         (event.shiftKey ? index === 0 : index === elements.length - 1)
       ) {
         event.preventDefault();
-        const next =
-          index < 0
-            ? event.shiftKey
-              ? elements.length - 1
-              : 0
-            : (index + (event.shiftKey ? -1 : 1) + elements.length) %
-              elements.length;
+        const next = (() => {
+          if (index < 0) {
+            if (event.shiftKey) {
+              return elements.length - 1;
+            }
+            return 0;
+          }
+          return (
+            (index + (event.shiftKey ? -1 : 1) + elements.length) %
+            elements.length
+          );
+        })();
         (elements[next] ?? dialog).focus({ preventScroll: true });
       }
     };
@@ -120,7 +130,7 @@ export function useModal({
       modalStack.splice(modalStack.indexOf(token), 1);
       if (modalStack.length === 0) {
         roots.forEach((root, index) => {
-          if (!previousLocks[index]) root.classList.remove("overlay-open");
+          if (!previousLocks[index]) root.classList.remove(styles.overlayOpen);
         });
       }
       if (wasTopmost && opener?.isConnected)

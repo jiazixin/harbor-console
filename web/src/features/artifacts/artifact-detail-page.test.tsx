@@ -1,17 +1,11 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { controlApi } from "../../app/api-client";
-import { parseHashRoute } from "../../app/hash-router";
-import { LocaleProvider } from "../../app/locale-context";
+import { parseConsoleRoute } from "../../app/console-route";
 import type { HarborArtifact, Session } from "../../app/models";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
+import { setupUser } from "../../test/user";
 import type { ArtifactDetailAction } from "./artifact-detail-data";
 import { ArtifactDetailPage } from "./artifact-detail-page";
 
@@ -49,10 +43,10 @@ function renderPage(hash: string) {
   const navigate = vi.fn();
   const onAction = vi.fn<(action: ArtifactDetailAction) => void>();
   render(
-    <LocaleProvider>
+    <TestProviders>
       <IconSprite />
       <ArtifactDetailPage
-        route={parseHashRoute(hash)}
+        route={parseConsoleRoute(hash)}
         session={session}
         refreshing={false}
         navigate={navigate}
@@ -60,7 +54,7 @@ function renderPage(hash: string) {
         onAction={onAction}
         onNotice={vi.fn()}
       />
-    </LocaleProvider>,
+    </TestProviders>,
   );
   return { navigate, onAction };
 }
@@ -72,6 +66,7 @@ afterEach(() => {
 
 describe("ArtifactDetailPage", () => {
   it("loads the exact artifact contract and preserves header actions", async () => {
+    const user = setupUser();
     const data = vi.spyOn(controlApi, "data").mockResolvedValue(artifact);
     const { onAction } = renderPage(
       `#/projects/platform/repositories/platform%2Fgateway/artifacts/${encodeURIComponent(digest)}`,
@@ -97,25 +92,26 @@ describe("ArtifactDetailPage", () => {
         with_accessory: true,
         with_immutable_status: true,
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "扫描日志" }));
+    await user.click(screen.getByRole("button", { name: "扫描日志" }));
     expect(onAction).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "scan-log",
         project: "platform",
         repository: "platform/gateway",
         reportId: "demo-report",
-      }),
+      }) as unknown,
     );
-    fireEvent.click(screen.getByRole("button", { name: "复制制品" }));
+    await user.click(screen.getByRole("button", { name: "复制制品" }));
     expect(onAction).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "copy", artifact }),
+      expect.objectContaining({ kind: "copy", artifact }) as unknown,
     );
   });
 
   it("loads paginated tags with the exact secondary request", async () => {
+    const user = setupUser();
     vi.spyOn(controlApi, "data").mockResolvedValue(artifact);
     const list = vi.spyOn(controlApi, "list").mockResolvedValue({
       items: artifact.tags ?? [],
@@ -137,15 +133,16 @@ describe("ArtifactDetailPage", () => {
         sort: "-push_time",
         with_immutable_status: true,
       },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
-    fireEvent.click(screen.getByRole("button", { name: "上一页" }));
+    await user.click(screen.getByRole("button", { name: "上一页" }));
     expect(navigate).toHaveBeenCalledWith(
       `projects/platform/repositories/platform%2Fgateway/artifacts/${encodeURIComponent(digest)}?tab=tags`,
     );
   });
 
   it("loads project and global label choices without failing the whole page", async () => {
+    const user = setupUser();
     const data = vi
       .spyOn(controlApi, "data")
       .mockImplementation((operation) =>
@@ -174,21 +171,21 @@ describe("ArtifactDetailPage", () => {
     expect(data).toHaveBeenCalledWith(
       "project",
       { project: "platform" },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
     expect(list).toHaveBeenCalledWith(
       "labels",
       { scope: "g", page: 1, page_size: 100, sort: "name" },
-      expect.any(AbortSignal),
+      expect.any(AbortSignal) as unknown,
     );
-    fireEvent.click(screen.getByRole("button", { name: "绑定标签" }));
-    await waitFor(() =>
+    await user.click(screen.getByRole("button", { name: "绑定标签" }));
+    await waitFor(() => {
       expect(onAction).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: "attach-label",
           labels: [expect.objectContaining({ id: 42 })],
-        }),
-      ),
-    );
+        }) as unknown,
+      );
+    });
   });
 });

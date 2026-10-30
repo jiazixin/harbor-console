@@ -1,10 +1,12 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, replicationTable, test } from "./fixtures";
 
 async function enterDemo(page: Page) {
   await page.goto("/#/overview");
-  await expect(page.locator(".app-shell")).toBeVisible();
-  await expect(page.locator("main h1")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: /主导航|Main navigation/ }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 }
 
 async function navigate(page: Page, route: string) {
@@ -12,7 +14,9 @@ async function navigate(page: Page, route: string) {
     location.hash = `#/${value}`;
   }, route);
   await expect(
-    page.locator("main .loading-state, main .route-loading"),
+    page.locator(
+      "main .hc_8b938f52_loadingState, main .hc_8b938f52_routeLoading",
+    ),
   ).toHaveCount(0);
 }
 
@@ -32,7 +36,10 @@ test("modal keeps keyboard focus, handles portaled selects and restores its open
   await expect(close).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(submit).toBeFocused();
-  const select = dialog.locator(".unified-select-trigger").first();
+  const select = dialog.getByRole("button", {
+    name: "项目配额单位",
+    exact: true,
+  });
   await select.focus();
   await page.keyboard.press("ArrowDown");
   const menu = page.getByRole("listbox");
@@ -54,7 +61,7 @@ test("modal keeps keyboard focus, handles portaled selects and restores its open
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(opener).toBeFocused();
-  await expect(page.locator("html")).not.toHaveClass(/overlay-open/);
+  await expect(page.locator("html")).not.toHaveClass(/overlayOpen/);
 });
 
 test("global search wraps keyboard focus across dynamic results", async ({
@@ -66,12 +73,26 @@ test("global search wraps keyboard focus across dynamic results", async ({
   const dialog = page.getByRole("dialog", { name: "全局搜索" });
   const search = dialog.getByRole("searchbox");
   await search.fill("platform");
-  await expect(dialog.locator(".search-result").first()).toBeVisible();
-  await dialog.locator(".search-result").last().focus();
+  await expect(
+    dialog
+      .getByRole("button")
+      .filter({ has: page.locator("strong") })
+      .first(),
+  ).toBeVisible();
+  await dialog
+    .getByRole("button")
+    .filter({ has: page.locator("strong") })
+    .last()
+    .focus();
   await page.keyboard.press("Tab");
   await expect(search).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(dialog.locator(".search-result").last()).toBeFocused();
+  await expect(
+    dialog
+      .getByRole("button")
+      .filter({ has: page.locator("strong") })
+      .last(),
+  ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(opener).toBeFocused();
 });
@@ -81,18 +102,18 @@ test("tab motion preserves page identity; reduced motion disables all animation"
 }) => {
   await enterDemo(page);
   await navigate(page, "replication");
-  await expect(page.locator(".replication-policy-table")).toBeVisible();
-  await page
-    .locator("main .page-header")
-    .evaluate((element) => element.setAttribute("data-stable-header", "true"));
-  await page
-    .locator("main .content-transition")
-    .evaluate((element) => element.setAttribute("data-stable-content", "true"));
+  await expect(replicationTable(page, "policies")).toBeVisible();
+  await page.locator("main .hc_8b938f52_pageHeader").evaluate((element) => {
+    element.setAttribute("data-stable-header", "true");
+  });
+  await page.locator("main .content-transition").evaluate((element) => {
+    element.setAttribute("data-stable-content", "true");
+  });
   await page.evaluate(() => {
     document.documentElement.style.setProperty("--motion-standard", "1500ms");
   });
   await page.getByRole("link", { name: "执行记录", exact: true }).click();
-  await expect(page.locator(".replication-execution-table")).toBeVisible();
+  await expect(replicationTable(page, "executions")).toBeVisible();
   await expect(page.locator('[data-stable-header="true"]')).toHaveCount(1);
   await expect(page.locator('[data-stable-content="true"]')).toHaveCount(1);
   expect(
@@ -109,14 +130,14 @@ test("tab motion preserves page identity; reduced motion disables all animation"
     )
     .toBe(0);
   await page.getByRole("link", { name: "复制策略", exact: true }).click();
-  await expect(page.locator(".replication-policy-table")).toBeVisible();
+  await expect(replicationTable(page, "policies")).toBeVisible();
   expect(
     await page
       .locator("main")
       .evaluate((element) => element.getAnimations({ subtree: true }).length),
   ).toBe(0);
   await navigate(page, "projects");
-  await expect(page.locator("main h1")).toHaveText("项目中心");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("项目中心");
   expect(
     await page
       .locator("main")
@@ -128,24 +149,26 @@ test("refresh feedback follows request lifetime without replaying route motion",
   page,
 }) => {
   await enterDemo(page);
-  await expect(page.locator("main h1")).toBeVisible();
-  const refresh = page.locator("main .refresh-button");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const refresh = page.locator("main .hc_8b938f52_refreshButton");
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route("**/api/dashboard", async (route) => {
+  await page.route("**/api/dashboards/current", async (route) => {
     await gate;
     await route.continue();
   });
   await page
-    .locator("main .motion-route-enter")
-    .evaluate((element) => element.setAttribute("data-stable-route", "true"));
+    .locator("main .hc_9a652fa2_motionRouteEnter")
+    .evaluate((element) => {
+      element.setAttribute("data-stable-route", "true");
+    });
   await refresh.click();
   await expect(refresh).toHaveAttribute("aria-busy", "true");
   expect(
     await refresh
-      .locator(".icon")
+      .locator(".hc_8b938f52_icon")
       .evaluate((element) => getComputedStyle(element).animationName),
   ).toBe("motion-spin");
   release();
@@ -153,7 +176,7 @@ test("refresh feedback follows request lifetime without replaying route motion",
   await expect(page.locator('[data-stable-route="true"]')).toHaveCount(1);
   expect(
     await refresh
-      .locator(".icon")
+      .locator(".hc_8b938f52_icon")
       .evaluate((element) => getComputedStyle(element).animationName),
   ).toBe("none");
 });
@@ -178,7 +201,7 @@ for (const locale of ["zh-CN", "en-US"]) {
       "administration/configuration",
     ]) {
       await navigate(page, route);
-      await expect(page.locator("main h1")).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth - innerWidth,

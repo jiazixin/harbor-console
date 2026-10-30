@@ -1,78 +1,247 @@
+import { readApiErrorBody } from "./api-errors";
 import type {
-  ApiErrorPayload,
   ConnectRequest,
-  ControlDataResponse,
   ControlList,
   ControlListResponse,
   Dashboard,
+  HarborArtifact,
   HarborIdentity,
   HarborInstanceCollection,
   HarborPermission,
-  Session,
-  SearchResults,
-  HarborArtifact,
   ProjectSummary,
   PublicCatalogRequest,
   RepositorySummary,
+  SearchResults,
+  Session,
 } from "./models";
-import { readStoredLocale } from "./locale-context";
-import { translateServerMessage } from "./server-messages";
+import { sessionEvents } from "./session-events";
 
-type QueryValue = boolean | number | string | null | undefined;
+export type QueryValue = boolean | number | string | null | undefined;
 
+export type ApiErrorInit = {
+  status: number; // HTTP status; 0 for client-side failures
+  code: string; // server error.code, or a client code from 代码规范.md §5.3
+  requestId: string; // X-Request-ID; empty when unavailable
+  details?: Record<string, unknown>;
+  retryAfterMs?: number; // parsed Retry-After
+  canRetry?: boolean;
+};
+
+/**
+ * A failed API request. message is English developer text; the user text in
+ * the current locale comes from errorText in errors.ts.
+ */
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
+  readonly status: number;
+  readonly code: string;
+  readonly requestId: string;
+  readonly details: Record<string, unknown>;
+  readonly retryAfterMs: number | undefined;
+  readonly canRetry: boolean;
+
+  constructor(message: string, init: ApiErrorInit) {
     super(message);
     this.name = "ApiError";
+    this.status = init.status;
+    this.code = init.code;
+    this.requestId = init.requestId;
+    this.details = init.details ?? {};
+    this.retryAfterMs = init.retryAfterMs;
+    this.canRetry = init.canRetry ?? true;
   }
+}
+
+export type ApiOptions = {
+  method?: string;
+  body?: unknown;
+  signal?: AbortSignal;
+  headers?: Record<string, string>;
+  /** The public catalog calls anonymous endpoints without the session cookie. */
+  credentials?: RequestCredentials;
+};
+
+// Every endpoint answers within the upstream budget (30 s by default); a
+// request still open after this is treated as lost.
+const requestTimeoutMs = 60_000;
+const maxResponseBytes = 8 << 20;
+
+function parseRetryAfter(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
 }
 
 async function parseResponse(response: Response): Promise<unknown> {
   if (response.status === 204) return null;
   const contentType = response.headers.get("content-type") ?? "";
-  return contentType.includes("application/json")
-    ? response.json()
-    : response.text();
+  if (!/^application\/json(?:\s*;|$)/i.test(contentType)) {
+    throw new Error("response content type is not application/json");
+  }
+  if (!response.body) throw new Error("response body is missing");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let size = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxResponseBytes) {
+        await reader.cancel("response exceeds size limit");
+        throw new Error("response exceeds size limit");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode()) as unknown;
+  } finally {
+    reader.releaseLock();
+  }
 }
 
-function errorMessage(payload: unknown, status: number): string {
-  if (typeof payload === "string" && payload) return payload;
-  if (payload && typeof payload === "object") {
-    const value = payload as ApiErrorPayload;
-    if (value.details) return value.details;
-    if (value.error) return value.error;
-  }
-  return readStoredLocale() === "en-US"
-    ? `Request failed (${String(status)})`
-    : `请求失败（${String(status)}）`;
-}
-
-export async function request<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
-  const headers = new Headers(init.headers);
-  if (init.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-  const response = await fetch(path, {
-    ...init,
-    credentials: init.credentials ?? "same-origin",
-    headers,
+/** Maps a failed fetch: a caller's cancel stays a native AbortError. */
+function clientFailure(
+  error: unknown,
+  signal: AbortSignal | undefined,
+  timeout: AbortSignal,
+) {
+  if (signal?.aborted) return error;
+  if (timeout.aborted)
+    return new ApiError("request timed out", {
+      status: 0,
+      code: "timeout",
+      requestId: "",
+    });
+  return new ApiError("network request failed", {
+    status: 0,
+    code: "network_unavailable",
+    requestId: "",
   });
-  const payload = await parseResponse(response);
-  if (!response.ok)
-    throw new ApiError(
-      translateServerMessage(
-        errorMessage(payload, response.status),
-        readStoredLocale(),
-      ),
-      response.status,
-    );
+}
+
+/**
+ * Sends a request to the console server; the response is asserted to be T.
+ * Queries retry through TanStack Query, so this wrapper does not retry.
+ */
+export async function api<T>(
+  path: string,
+  options: ApiOptions = {},
+): Promise<T> {
+  const {
+    method = "GET",
+    body,
+    signal,
+    headers = {},
+    credentials = "same-origin",
+  } = options;
+  if (!path.startsWith("/api/")) {
+    throw new ApiError("request path must be a console API path", {
+      status: 0,
+      code: "invalid_argument",
+      requestId: "",
+      canRetry: false,
+    });
+  }
+  const canRetry =
+    method === "GET" || new Headers(headers).has("Idempotency-Key");
+  const timeout = AbortSignal.timeout(requestTimeoutMs);
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method,
+      credentials,
+      redirect: "error",
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      headers: {
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...headers,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (error: unknown) {
+    const failure = clientFailure(error, signal, timeout);
+    if (failure instanceof ApiError) {
+      throw new ApiError(failure.message, {
+        status: failure.status,
+        code: failure.code,
+        requestId: failure.requestId,
+        canRetry,
+      });
+    }
+    throw failure;
+  }
+  const requestId = response.headers.get("X-Request-ID") ?? "";
+  let payload: unknown;
+  try {
+    payload = await parseResponse(response);
+  } catch {
+    if (signal?.aborted) signal.throwIfAborted();
+    if (timeout.aborted)
+      throw new ApiError("response read timed out", {
+        status: 0,
+        code: "timeout",
+        requestId,
+        canRetry,
+      });
+    throw new ApiError("response is not readable", {
+      status: response.status,
+      code: "invalid_response",
+      requestId,
+      canRetry,
+    });
+  }
+  if (!response.ok) {
+    const failure = readApiErrorBody(payload);
+    if (response.status === 401 && failure?.code === "unauthenticated") {
+      sessionEvents.dispatchEvent(new Event("expired"));
+    }
+    throw new ApiError(failure?.message || `HTTP ${String(response.status)}`, {
+      status: response.status,
+      code: failure?.code ?? "",
+      requestId,
+      details: failure?.details,
+      retryAfterMs: parseRetryAfter(response.headers.get("Retry-After")),
+      canRetry,
+    });
+  }
   return payload as T;
+}
+
+/**
+ * Converts the console's page model to the API's offset paging; other
+ * parameters pass through.
+ */
+function toOffsetPaging(
+  parameters: Record<string, QueryValue>,
+): Record<string, QueryValue> {
+  const { page, page_size: pageSize, ...rest } = parameters;
+  if (page === undefined && pageSize === undefined) return rest;
+  const limit = Math.max(1, Number(pageSize ?? 20));
+  return {
+    ...rest,
+    offset: (Math.max(1, Number(page ?? 1)) - 1) * limit,
+    limit,
+  };
+}
+
+/** Maps an offset-paged API list back to the console's page model. */
+function toControlList<T>(
+  response: ControlListResponse<T>,
+  fallbackLimit: number,
+): ControlList<T> {
+  // An empty unpaged list reports a limit of 0.
+  const reported = response.limit ?? 0;
+  const limit = Math.max(1, reported > 0 ? reported : fallbackLimit);
+  return {
+    items: response.items ?? [],
+    pagination: {
+      page: Math.floor(Math.max(0, response.offset ?? 0) / limit) + 1,
+      page_size: limit,
+      total: Math.max(0, response.total ?? 0),
+    },
+  };
 }
 
 function controlPath(
@@ -80,12 +249,12 @@ function controlPath(
   parameters: Record<string, QueryValue> = {},
 ): string {
   const query = new URLSearchParams();
-  Object.entries(parameters).forEach(([key, value]) => {
+  Object.entries(toOffsetPaging(parameters)).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       query.set(key, String(value));
     }
   });
-  return `/api/control/${operation}${query.size ? `?${query}` : ""}`;
+  return `/api/operations/${operation}${query.size ? `?${query}` : ""}`;
 }
 
 export const controlApi = {
@@ -94,41 +263,31 @@ export const controlApi = {
     parameters: Record<string, QueryValue> = {},
     signal?: AbortSignal,
   ): Promise<ControlList<T>> => {
-    const response = await request<ControlListResponse<T>>(
+    const response = await api<ControlListResponse<T>>(
       controlPath(operation, parameters),
       { signal },
     );
-    return {
-      items: response.items ?? [],
-      pagination: {
-        page: Math.max(1, response.pagination?.page ?? 1),
-        page_size: Math.max(1, response.pagination?.page_size ?? 20),
-        total: Math.max(0, response.pagination?.total ?? 0),
-      },
-    };
+    return toControlList(response, Number(parameters.page_size ?? 20));
   },
+  /** Reads one Harbor resource; a response without a body is undefined. */
   data: async <T>(
     operation: string,
     parameters: Record<string, QueryValue> = {},
     signal?: AbortSignal,
   ): Promise<T | undefined> => {
-    const response = await request<ControlDataResponse<T>>(
-      controlPath(operation, parameters),
-      { signal },
-    );
-    return response.data;
-  },
-  mutate: <T>(
-    operation: string,
-    parameters: Record<string, QueryValue>,
-    method: "DELETE" | "PATCH" | "POST" | "PUT",
-    payload?: unknown,
-    signal?: AbortSignal,
-  ) =>
-    request<T>(controlPath(operation, parameters), {
-      method,
-      body: payload === undefined ? undefined : JSON.stringify(payload),
+    const response = await api<T | null>(controlPath(operation, parameters), {
       signal,
+    });
+    return response ?? undefined;
+  },
+  mutate: <T>(input: ControlWriteOptions) =>
+    api<T>(controlPath(input.operation, input.parameters), {
+      method: input.method,
+      body: input.payload,
+      signal: input.signal,
+      headers: input.idempotencyKey
+        ? { "Idempotency-Key": input.idempotencyKey }
+        : undefined,
     }),
 };
 
@@ -140,12 +299,25 @@ export async function loadAllControlItems<T>(
   const items: T[] = [];
   let page = 1;
 
-  for (;;) {
+  const maxCollectionItems = 10_000;
+  const collectionPageSize = 100;
+  for (
+    let pageIndex = 0;
+    pageIndex < maxCollectionItems / collectionPageSize;
+    pageIndex += 1
+  ) {
     const collection = await controlApi.list<T>(
       operation,
-      { ...parameters, page, page_size: 100 },
+      { ...parameters, page, page_size: collectionPageSize },
       signal,
     );
+    if (collection.items.length > collectionPageSize)
+      throw new ApiError("collection page exceeds limit", {
+        status: 0,
+        code: "invalid_response",
+        requestId: "",
+        canRetry: false,
+      });
     items.push(...collection.items);
 
     if (
@@ -156,25 +328,33 @@ export async function loadAllControlItems<T>(
     }
     page += 1;
   }
+  throw new ApiError("collection exceeds item limit", {
+    status: 0,
+    code: "collection_too_large",
+    requestId: "",
+    canRetry: false,
+  });
 }
 
 export const sessionApi = {
   current: (signal?: AbortSignal) =>
-    request<Session>("/api/session", { signal }),
+    api<Session>("/api/sessions/current", { signal }),
   connect: (input: ConnectRequest, signal?: AbortSignal) =>
-    request<Session>("/api/connect", {
+    api<Session>("/api/sessions", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: input,
+      headers: { "Idempotency-Key": crypto.randomUUID() },
       signal,
     }),
   demo: (signal?: AbortSignal) =>
-    request<Session>("/api/demo", {
+    api<Session>("/api/demo-sessions", {
       method: "POST",
-      body: "{}",
+      body: {},
+      headers: { "Idempotency-Key": crypto.randomUUID() },
       signal,
     }),
   logout: (signal?: AbortSignal) =>
-    request<null>("/api/session", { method: "DELETE", signal }),
+    api<null>("/api/sessions/current", { method: "DELETE", signal }),
 };
 
 async function publicCatalogList<T>(
@@ -182,23 +362,17 @@ async function publicCatalogList<T>(
   input: PublicCatalogRequest,
   signal?: AbortSignal,
 ): Promise<ControlList<T>> {
-  const response = await request<ControlListResponse<T>>(
+  const { page, page_size: pageSize, ...rest } = input;
+  const response = await api<ControlListResponse<T>>(
     `/api/public/${resource}`,
     {
       method: "POST",
-      body: JSON.stringify(input),
+      body: { ...rest, offset: (page - 1) * pageSize, limit: pageSize },
       credentials: "omit",
       signal,
     },
   );
-  return {
-    items: response.items ?? [],
-    pagination: {
-      page: Math.max(1, response.pagination?.page ?? input.page),
-      page_size: Math.max(1, response.pagination?.page_size ?? input.page_size),
-      total: Math.max(0, response.pagination?.total ?? 0),
-    },
-  };
+  return toControlList(response, pageSize);
 }
 
 export const publicCatalogApi = {
@@ -212,27 +386,27 @@ export const publicCatalogApi = {
 
 export const instanceApi = {
   list: (signal?: AbortSignal) =>
-    request<HarborInstanceCollection>("/api/instances", { signal }),
+    api<HarborInstanceCollection>("/api/instances", { signal }),
   add: (input: ConnectRequest, signal?: AbortSignal) =>
-    request<Session>("/api/instances", {
+    api<Session>("/api/instances", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: input,
       signal,
     }),
   addDemo: (signal?: AbortSignal) =>
-    request<Session>("/api/instances/demo", {
+    api<Session>("/api/instances/demo", {
       method: "POST",
-      body: "{}",
+      body: {},
       signal,
     }),
   switch: (id: string, signal?: AbortSignal) =>
-    request<Session>("/api/instances/current", {
+    api<Session>("/api/instances/current", {
       method: "PUT",
-      body: JSON.stringify({ id }),
+      body: { id },
       signal,
     }),
   remove: (id: string, signal?: AbortSignal) =>
-    request<Session>(`/api/instances/${encodeURIComponent(id)}`, {
+    api<Session>(`/api/instances/${encodeURIComponent(id)}`, {
       method: "DELETE",
       signal,
     }),
@@ -240,30 +414,41 @@ export const instanceApi = {
 
 export const searchApi = {
   search: (term: string, signal?: AbortSignal) =>
-    request<SearchResults>(`/api/search?q=${encodeURIComponent(term)}`, {
+    api<SearchResults>(`/api/search-results?q=${encodeURIComponent(term)}`, {
       signal,
     }),
 };
 
 export const dashboardApi = {
   load: (signal?: AbortSignal) =>
-    request<Dashboard>("/api/dashboard", { signal }),
+    api<Dashboard>("/api/dashboards/current", { signal }),
 };
 
 export const identityApi = {
   current: async (signal?: AbortSignal) => {
-    const response = await request<ControlDataResponse<HarborIdentity>>(
-      "/api/control/current-user",
-      { signal },
-    );
-    return response.data;
+    return api<HarborIdentity>("/api/operations/current-user", { signal });
   },
   permissions: async (signal?: AbortSignal) => {
     const query = new URLSearchParams({ scope: "/", relative: "true" });
-    const response = await request<ControlListResponse<HarborPermission>>(
-      `/api/control/current-permissions?${query}`,
+    const response = await api<ControlListResponse<HarborPermission>>(
+      `/api/operations/current-permissions?${query}`,
       { signal },
     );
     return response.items ?? [];
   },
 };
+
+export type ControlWriteOptions = {
+  operation: string;
+  parameters: Record<string, QueryValue>;
+  method: "DELETE" | "PATCH" | "POST" | "PUT";
+  payload?: unknown;
+  signal?: AbortSignal;
+  idempotencyKey?: string;
+};
+
+/** Same-repository response boundary for TanStack's unknown mutation result. */
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- TanStack stores unknown; the API boundary restores the requested response type.
+export function controlResult<T>(response: unknown): T {
+  return response as T;
+}

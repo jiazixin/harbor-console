@@ -1,0 +1,11 @@
+@layer ui-base {
+  .iconDefs {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.iconDefs {
+}

@@ -1,3 +1,5 @@
+// Package config loads the service configuration from YAML and field-level
+// environment overrides.
 package config
 
 import (
@@ -5,34 +7,38 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"os"
-	"path"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
+// Duration is a time.Duration decoded from Go duration strings such as "10s".
 type Duration time.Duration
 
+// UnmarshalYAML decodes a Go duration string.
 func (d *Duration) UnmarshalYAML(node *yaml.Node) error {
 	value, err := time.ParseDuration(strings.TrimSpace(node.Value))
 	if err != nil {
-		return fmt.Errorf("无效时长 %q: %w", node.Value, err)
+		return fmt.Errorf("parse duration %q: %w", node.Value, err)
 	}
 	*d = Duration(value)
 	return nil
 }
 
+// Config is the complete service configuration.
 type Config struct {
 	Server  Server  `yaml:"server"`
-	Health  Health  `yaml:"health"`
 	Logging Logging `yaml:"logging"`
 }
 
+// Server holds the HTTP listener settings.
 type Server struct {
 	Listen            string   `yaml:"listen"`
 	Port              int      `yaml:"port"`
@@ -43,10 +49,7 @@ type Server struct {
 	ShutdownTimeout   Duration `yaml:"shutdown_timeout"`
 }
 
-type Health struct {
-	URI string `yaml:"uri"`
-}
-
+// Logging holds the application and access log settings.
 type Logging struct {
 	Level           string `yaml:"level"`
 	Format          string `yaml:"format"`
@@ -54,8 +57,26 @@ type Logging struct {
 	LogHealthChecks bool   `yaml:"log_health_checks"`
 }
 
-type environmentLookup func(string) (string, bool)
+// Source describes where configuration comes from.
+type Source struct {
+	Path      string                      // selected file
+	Explicit  bool                        // chosen by --config or CONFIG_FILE
+	WorkDir   string                      // base for relative paths when no file is used
+	LookupEnv func(string) (string, bool) // os.LookupEnv in production
+}
 
+// FieldError reports an invalid configuration field by its YAML path.
+type FieldError struct {
+	Field   string // e.g. "server.port"
+	Message string // e.g. "must be between 1 and 65535"
+}
+
+// Error implements error.
+func (e *FieldError) Error() string {
+	return e.Field + ": " + e.Message
+}
+
+// Default returns the built-in configuration used when no file is present.
 func Default() Config {
 	return Config{
 		Server: Server{
@@ -67,7 +88,6 @@ func Default() Config {
 			IdleTimeout:       Duration(90 * time.Second),
 			ShutdownTimeout:   Duration(10 * time.Second),
 		},
-		Health: Health{URI: "/health"},
 		Logging: Logging{
 			Level:     "info",
 			Format:    "json",
@@ -76,105 +96,117 @@ func Default() Config {
 	}
 }
 
-func Load() (Config, error) {
-	configPath, explicitlyConfigured := os.LookupEnv("CONFIG_FILE")
-	if !explicitlyConfigured {
-		configPath = "configs/config.local.yaml"
+// Load reads src.Path over the built-in defaults, applies field environment
+// overrides and validates the result. A missing file is an error only when
+// src.Explicit is set; every field has a built-in default.
+func Load(src Source) (Config, error) {
+	cfg := Default()
+	// Surrounding whitespace in a selected path is not significant.
+	src.Path = strings.TrimSpace(src.Path)
+	if src.Explicit && src.Path == "" {
+		return Config{}, errors.New("config file path must not be empty")
 	}
-	return loadRuntimeConfig(strings.TrimSpace(configPath), explicitlyConfigured, os.LookupEnv)
-}
-
-// LoadFile selects an explicit YAML file while retaining field environment overrides.
-func LoadFile(path string) (Config, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return Config{}, fmt.Errorf("配置文件路径不能为空")
-	}
-	return loadRuntimeConfig(path, true, os.LookupEnv)
-}
-
-func loadRuntimeConfig(configPath string, requireFile bool, lookup environmentLookup) (Config, error) {
-	config := Default()
-	if requireFile && strings.TrimSpace(configPath) == "" {
-		return Config{}, fmt.Errorf("环境变量 CONFIG_FILE 不能为空")
-	}
-	if configPath != "" {
-		content, err := os.ReadFile(configPath)
-		if err != nil {
-			if !requireFile && errors.Is(err, os.ErrNotExist) {
-				content = nil
-			} else {
-				return Config{}, fmt.Errorf("读取配置文件 %s: %w", configPath, err)
-			}
-		}
-		if len(content) > 0 {
-			decoder := yaml.NewDecoder(bytes.NewReader(content))
-			decoder.KnownFields(true)
-			if err := decoder.Decode(&config); err != nil {
-				return Config{}, fmt.Errorf("解析配置文件 %s: %w", configPath, err)
-			}
-			var extra any
-			if err := decoder.Decode(&extra); err != io.EOF {
-				if err == nil {
-					return Config{}, fmt.Errorf("解析配置文件 %s: 只允许一个 YAML 文档", configPath)
-				}
-				return Config{}, fmt.Errorf("解析配置文件 %s: %w", configPath, err)
-			}
+	if src.Path != "" {
+		if err := decodeFile(&cfg, src); err != nil {
+			return Config{}, err
 		}
 	}
+	lookup := src.LookupEnv
 	if lookup == nil {
-		lookup = os.LookupEnv
+		lookup = func(string) (string, bool) { return "", false }
 	}
-	if err := applyEnvironmentOverrides(&config, lookup); err != nil {
+	if err := applyEnvironmentOverrides(&cfg, lookup); err != nil {
 		return Config{}, err
 	}
-	if err := config.Validate(); err != nil {
+	cfg.normalize()
+	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
-	return config, nil
+	return cfg, nil
 }
 
-func applyEnvironmentOverrides(config *Config, lookup environmentLookup) error {
-	if value, ok := environmentValue(lookup, "LISTEN"); ok {
-		config.Server.Listen = value
+func decodeFile(cfg *Config, src Source) error {
+	name := src.Path
+	if !filepath.IsAbs(name) && src.WorkDir != "" {
+		name = filepath.Join(src.WorkDir, name)
 	}
-	if value, ok := environmentValue(lookup, "PORT"); ok {
+	file, err := os.Open(name)
+	if err != nil {
+		if !src.Explicit && errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("read config file: %w", err)
+	}
+	// Reading to EOF reports read failures; Close only releases a read-only descriptor.
+	defer file.Close()
+	const maxConfigBytes = 1 << 20
+	content, err := io.ReadAll(io.LimitReader(file, maxConfigBytes+1))
+	if err != nil {
+		return fmt.Errorf("read config file: %w", err)
+	}
+	if len(content) > maxConfigBytes {
+		return errors.New("config file exceeds 1 MiB")
+	}
+	if len(content) == 0 {
+		return nil
+	}
+	decoder := yaml.NewDecoder(bytes.NewReader(content))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(cfg); err != nil {
+		return fmt.Errorf("parse config file %q: %w", src.Path, err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return fmt.Errorf("parse config file %q: only one YAML document is allowed", src.Path)
+		}
+		return fmt.Errorf("parse config file %q: %w", src.Path, err)
+	}
+	return nil
+}
+
+// envPrefix starts every environment override; nested YAML fields join their
+// section and field with "__" (HARBOR_CONSOLE_SERVER__PORT).
+const envPrefix = "HARBOR_CONSOLE_"
+
+func applyEnvironmentOverrides(cfg *Config, lookup func(string) (string, bool)) error {
+	if value, ok := environmentValue(lookup, "SERVER__LISTEN"); ok {
+		cfg.Server.Listen = value
+	}
+	if value, ok := environmentValue(lookup, "SERVER__PORT"); ok {
 		port, err := strconv.Atoi(value)
 		if err != nil {
-			return fmt.Errorf("环境变量 PORT 必须是整数: %w", err)
+			return fmt.Errorf("parse environment variable %sSERVER__PORT: %w", envPrefix, err)
 		}
-		config.Server.Port = port
+		cfg.Server.Port = port
 	}
-	if value, ok := environmentValue(lookup, "HEALTH_URI"); ok {
-		config.Health.URI = value
+	if value, ok := environmentValue(lookup, "LOGGING__LEVEL"); ok {
+		cfg.Logging.Level = value
 	}
-	if value, ok := environmentValue(lookup, "LOG_LEVEL"); ok {
-		config.Logging.Level = value
+	if value, ok := environmentValue(lookup, "LOGGING__FORMAT"); ok {
+		cfg.Logging.Format = value
 	}
-	if value, ok := environmentValue(lookup, "LOG_FORMAT"); ok {
-		config.Logging.Format = value
-	}
-	if err := overrideBoolean(lookup, "ACCESS_LOG", &config.Logging.AccessLog); err != nil {
+	if err := overrideBoolean(lookup, "LOGGING__ACCESS_LOG", &cfg.Logging.AccessLog); err != nil {
 		return err
 	}
-	if err := overrideBoolean(lookup, "LOG_HEALTH_CHECKS", &config.Logging.LogHealthChecks); err != nil {
+	if err := overrideBoolean(lookup, "LOGGING__LOG_HEALTH_CHECKS", &cfg.Logging.LogHealthChecks); err != nil {
 		return err
 	}
 	durations := []struct {
 		name   string
 		target *Duration
 	}{
-		{name: "READ_HEADER_TIMEOUT", target: &config.Server.ReadHeaderTimeout},
-		{name: "READ_TIMEOUT", target: &config.Server.ReadTimeout},
-		{name: "WRITE_TIMEOUT", target: &config.Server.WriteTimeout},
-		{name: "IDLE_TIMEOUT", target: &config.Server.IdleTimeout},
-		{name: "SHUTDOWN_TIMEOUT", target: &config.Server.ShutdownTimeout},
+		{name: "SERVER__READ_HEADER_TIMEOUT", target: &cfg.Server.ReadHeaderTimeout},
+		{name: "SERVER__READ_TIMEOUT", target: &cfg.Server.ReadTimeout},
+		{name: "SERVER__WRITE_TIMEOUT", target: &cfg.Server.WriteTimeout},
+		{name: "SERVER__IDLE_TIMEOUT", target: &cfg.Server.IdleTimeout},
+		{name: "SERVER__SHUTDOWN_TIMEOUT", target: &cfg.Server.ShutdownTimeout},
 	}
 	for _, item := range durations {
 		if value, ok := environmentValue(lookup, item.name); ok {
 			duration, err := time.ParseDuration(value)
 			if err != nil {
-				return fmt.Errorf("环境变量 %s 必须是 Go 时长，例如 10s: %w", item.name, err)
+				return fmt.Errorf("parse environment variable %s%s: %w", envPrefix, item.name, err)
 			}
 			*item.target = Duration(duration)
 		}
@@ -182,69 +214,68 @@ func applyEnvironmentOverrides(config *Config, lookup environmentLookup) error {
 	return nil
 }
 
-func environmentValue(lookup environmentLookup, key string) (string, bool) {
-	value, ok := lookup(key)
+func environmentValue(lookup func(string) (string, bool), key string) (string, bool) {
+	value, ok := lookup(envPrefix + key)
 	if !ok {
 		return "", false
 	}
 	return strings.TrimSpace(value), true
 }
 
-func overrideBoolean(lookup environmentLookup, key string, target *bool) error {
+func overrideBoolean(lookup func(string) (string, bool), key string, target *bool) error {
 	value, ok := environmentValue(lookup, key)
 	if !ok {
 		return nil
 	}
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
-		return fmt.Errorf("环境变量 %s 必须是 true 或 false: %w", key, err)
+		return fmt.Errorf("parse environment variable %s%s: %w", envPrefix, key, err)
 	}
 	*target = parsed
 	return nil
 }
 
-func (config *Config) Validate() error {
-	config.Server.Listen = strings.TrimSpace(config.Server.Listen)
-	config.Health.URI = strings.TrimSpace(config.Health.URI)
-	config.Logging.Level = strings.ToLower(strings.TrimSpace(config.Logging.Level))
-	config.Logging.Format = strings.ToLower(strings.TrimSpace(config.Logging.Format))
+// normalize trims text fields and lowercases enumerations after decoding.
+func (c *Config) normalize() {
+	c.Server.Listen = strings.TrimSpace(c.Server.Listen)
+	c.Logging.Level = strings.ToLower(strings.TrimSpace(c.Logging.Level))
+	c.Logging.Format = strings.ToLower(strings.TrimSpace(c.Logging.Format))
+}
 
-	if config.Server.Port < 1 || config.Server.Port > 65535 {
-		return fmt.Errorf("server.port 必须在 1 到 65535 之间")
+// Validate reports the first invalid field as a *FieldError. It does not
+// modify c; Load normalizes values before validating.
+func (c Config) Validate() error {
+	if c.Server.Port < 1 || c.Server.Port > 65535 {
+		return &FieldError{Field: "server.port", Message: "must be between 1 and 65535"}
 	}
-	if listen := config.Server.Listen; listen != "" && net.ParseIP(listen) == nil && strings.ContainsAny(listen, ":/ \t\r\n[]") {
-		return fmt.Errorf("server.listen 必须是主机名或不带端口的 IP 地址")
+	if listen := c.Server.Listen; listen != "" && net.ParseIP(listen) == nil && strings.ContainsAny(listen, ":/ \t\r\n[]") {
+		return &FieldError{Field: "server.listen", Message: "must be a host name or an IP address without a port"}
 	}
 	durations := []struct {
 		name  string
 		value Duration
 	}{
-		{name: "server.read_header_timeout", value: config.Server.ReadHeaderTimeout},
-		{name: "server.read_timeout", value: config.Server.ReadTimeout},
-		{name: "server.write_timeout", value: config.Server.WriteTimeout},
-		{name: "server.idle_timeout", value: config.Server.IdleTimeout},
-		{name: "server.shutdown_timeout", value: config.Server.ShutdownTimeout},
+		{name: "server.read_header_timeout", value: c.Server.ReadHeaderTimeout},
+		{name: "server.read_timeout", value: c.Server.ReadTimeout},
+		{name: "server.write_timeout", value: c.Server.WriteTimeout},
+		{name: "server.idle_timeout", value: c.Server.IdleTimeout},
+		{name: "server.shutdown_timeout", value: c.Server.ShutdownTimeout},
 	}
 	for _, item := range durations {
 		if time.Duration(item.value) <= 0 {
-			return fmt.Errorf("%s 必须大于 0", item.name)
+			return &FieldError{Field: item.name, Message: "must be greater than 0"}
 		}
 	}
-	if config.Health.URI == "" || !strings.HasPrefix(config.Health.URI, "/") || config.Health.URI == "/" || path.Clean(config.Health.URI) != config.Health.URI || strings.ContainsAny(config.Health.URI, "?#") {
-		return fmt.Errorf("health.uri 必须是规范的绝对路径，例如 /health")
+	if !slices.Contains([]string{"debug", "info", "warn", "error"}, c.Logging.Level) {
+		return &FieldError{Field: "logging.level", Message: "must be debug, info, warn or error"}
 	}
-	if config.Health.URI == "/api" || strings.HasPrefix(config.Health.URI, "/api/") {
-		return fmt.Errorf("health.uri 不能与 /api 路由冲突")
-	}
-	if !slices.Contains([]string{"debug", "info", "warn", "error"}, config.Logging.Level) {
-		return fmt.Errorf("logging.level 必须是 debug、info、warn 或 error")
-	}
-	if !slices.Contains([]string{"json", "logfmt"}, config.Logging.Format) {
-		return fmt.Errorf("logging.format 必须是 json 或 logfmt")
+	if !slices.Contains([]string{"json", "logfmt"}, c.Logging.Format) {
+		return &FieldError{Field: "logging.format", Message: "must be json or logfmt"}
 	}
 	return nil
 }
 
-func (config Config) Address() string {
-	return net.JoinHostPort(config.Server.Listen, strconv.Itoa(config.Server.Port))
+// Address returns the host:port the HTTP server listens on.
+func (c Config) Address() string {
+	return net.JoinHostPort(c.Server.Listen, strconv.Itoa(c.Server.Port))
 }

@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -25,20 +24,20 @@ func validateLDAPUserImport(body map[string]any) error {
 	}
 	users, ok := body["ldap_uid_list"].([]any)
 	if !ok || len(users) == 0 || len(users) > 100 {
-		return errors.New("ldap_uid_list 必须包含 1 到 100 个 LDAP 用户标识")
+		return invalidField("ldap_uid_list", "invalid_count", "must contain 1 to 100 LDAP user IDs")
 	}
 	seen := make(map[string]struct{}, len(users))
-	for _, raw := range users {
+	for index, raw := range users {
 		uid, ok := raw.(string)
 		uid = strings.TrimSpace(uid)
 		if !ok {
-			return errors.New("LDAP 用户标识必须是字符串")
+			return invalidField(fmt.Sprintf("ldap_uid_list.%d", index), "not_string", "must be a string")
 		}
-		if err := validateResourceName(uid, "LDAP 用户标识", 255, true); err != nil {
+		if err := validateResourceName(resourceNameValidation{value: uid, path: fmt.Sprintf("ldap_uid_list.%d", index), maximum: 255, allowSpaces: true}); err != nil {
 			return err
 		}
 		if _, exists := seen[uid]; exists {
-			return errors.New("ldap_uid_list 不能包含重复用户")
+			return invalidField("ldap_uid_list", "duplicate", "must not contain duplicate users")
 		}
 		seen[uid] = struct{}{}
 	}
@@ -49,11 +48,11 @@ func validateLDAPGroupSearchQuery(query url.Values) error {
 	name := strings.TrimSpace(query.Get("groupname"))
 	dn := strings.TrimSpace(query.Get("groupdn"))
 	if name != "" && dn != "" {
-		return errors.New("groupname 与 groupdn 只能选择一个")
+		return invalidField("groupname", "exactly_one_of", "only one of groupname and groupdn may be set")
 	}
 	for key, value := range map[string]string{"groupname": name, "groupdn": dn} {
 		if len(value) > 1024 || strings.ContainsAny(value, "\r\n\x00") {
-			return fmt.Errorf("%s 包含无效字符或长度过长", key)
+			return invalidField(key, "invalid_text", "contains invalid characters or is too long")
 		}
 	}
 	return nil
@@ -63,11 +62,11 @@ func validateOIDCPing(body map[string]any) error {
 	if err := validateAllowedFields(body, "url", "verify_cert"); err != nil {
 		return err
 	}
-	if err := validateHTTPURL(body["url"], "OIDC 地址"); err != nil {
+	if err := validateHTTPURL(body["url"], "url"); err != nil {
 		return err
 	}
 	if _, ok := body["verify_cert"].(bool); !ok {
-		return errors.New("verify_cert 必须是布尔值")
+		return invalidField("verify_cert", "not_boolean", "must be a boolean")
 	}
 	return nil
 }

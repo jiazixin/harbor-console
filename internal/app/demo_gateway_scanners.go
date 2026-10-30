@@ -3,77 +3,73 @@ package app
 import (
 	"fmt"
 	"net/http"
-	"net/url"
-	"time"
+
+	"harbor-console/internal/timefmt"
 )
 
-func (state *demoState) handleScannerControl(
-	w http.ResponseWriter,
-	method, operation string,
-	query url.Values,
-	body map[string]any,
-) (handled bool, status int, data any, errStatus int, errMessage string) {
+func (ds *demoState) handleScannerControl(w http.ResponseWriter, request demoControlRequest) (handled bool, status int, data any, errStatus int, errMessage string) {
+	method, operation, query, body := request.method, request.operation, request.query, request.body
 	handled = true
 	status = http.StatusOK
 
 	switch operation {
 	case "scanners":
 		if method == http.MethodGet {
-			state.writeList(w, filterMaps(state.scanners, demoQueryString(query.Get("q"), "name"), "name"), query)
+			ds.writeList(w, filterMaps(ds.scanners, demoQueryString(query.Get("q"), "name"), "name"), query)
 			return
 		}
-		state.nextScannerID++
+		ds.nextScannerID++
 		scanner := cloneMap(body)
-		scanner["uuid"] = fmt.Sprintf("00000000-0000-4000-8000-%012d", state.nextScannerID)
+		scanner["uuid"] = fmt.Sprintf("00000000-0000-4000-8000-%012d", ds.nextScannerID)
 		scanner["health"] = "healthy"
 		scanner["is_default"] = false
-		scanner["create_time"] = time.Now().UTC().Format(time.RFC3339)
+		scanner["create_time"] = ds.now().UTC().Format(timefmt.Layout)
 		delete(scanner, "access_credential")
-		state.scanners = append(state.scanners, scanner)
+		ds.scanners = append(ds.scanners, scanner)
 		status, data = http.StatusCreated, scanner
 
 	case "scanner":
-		index, found := findMap(state.scanners, "uuid", query.Get("id"))
+		index, found := findMap(ds.scanners, "uuid", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "扫描器不存在"
+			errStatus, errMessage = http.StatusNotFound, "scanner not found"
 			break
 		}
 		if method == http.MethodGet {
-			data = state.scanners[index]
+			data = ds.scanners[index]
 		} else if method == http.MethodPut {
-			uuid, isDefault := state.scanners[index]["uuid"], state.scanners[index]["is_default"]
+			uuid, isDefault := ds.scanners[index]["uuid"], ds.scanners[index]["is_default"]
 			for key, value := range body {
 				if key != "access_credential" || stringValue(value) != "" {
-					state.scanners[index][key] = value
+					ds.scanners[index][key] = value
 				}
 			}
-			state.scanners[index]["uuid"], state.scanners[index]["is_default"] = uuid, isDefault
-			state.scanners[index]["health"] = "healthy"
-			state.scanners[index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
-			data = state.scanners[index]
+			ds.scanners[index]["uuid"], ds.scanners[index]["is_default"] = uuid, isDefault
+			ds.scanners[index]["health"] = "healthy"
+			ds.scanners[index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
+			data = ds.scanners[index]
 		} else if method == http.MethodPatch {
-			for itemIndex := range state.scanners {
-				state.scanners[itemIndex]["is_default"] = itemIndex == index && body["is_default"] == true
+			for itemIndex := range ds.scanners {
+				ds.scanners[itemIndex]["is_default"] = itemIndex == index && body["is_default"] == true
 			}
-			data = state.scanners[index]
+			data = ds.scanners[index]
 		} else {
-			if state.scanners[index]["is_default"] == true {
-				errStatus, errMessage = http.StatusPreconditionFailed, "默认扫描器不能直接删除"
+			if ds.scanners[index]["is_default"] == true {
+				errStatus, errMessage = http.StatusPreconditionFailed, "the default scanner cannot be deleted"
 				break
 			}
-			state.scanners = append(state.scanners[:index], state.scanners[index+1:]...)
+			ds.scanners = append(ds.scanners[:index], ds.scanners[index+1:]...)
 		}
 
 	case "scanner-ping":
 		data = map[string]any{"health": "healthy"}
 
 	case "scanner-metadata":
-		index, found := findMap(state.scanners, "uuid", query.Get("id"))
+		index, found := findMap(ds.scanners, "uuid", query.Get("id"))
 		if !found {
-			errStatus, errMessage = http.StatusNotFound, "扫描器不存在"
+			errStatus, errMessage = http.StatusNotFound, "scanner not found"
 			break
 		}
-		scanner := state.scanners[index]
+		scanner := ds.scanners[index]
 		data = map[string]any{
 			"scanner": map[string]any{"name": scanner["name"], "vendor": scanner["vendor"], "version": scanner["version"]},
 			"capabilities": []any{
@@ -82,7 +78,7 @@ func (state *demoState) handleScannerControl(
 			},
 			"properties": map[string]any{
 				"harbor.scanner-adapter/scanner-type":                      "os-package-vulnerability",
-				"harbor.scanner-adapter/vulnerability-database-updated-at": "2026-07-30T00:00:00Z",
+				"harbor.scanner-adapter/vulnerability-database-updated-at": "2026-07-30T00:00:00.000Z",
 			},
 		}
 

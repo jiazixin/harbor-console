@@ -11,9 +11,9 @@ import (
 
 func TestGatewayRejectsPathTraversalBeforeHarbor(t *testing.T) {
 	for _, target := range []string{
-		"/api/control/project?project=..",
-		"/api/control/artifact?project=platform&repository=team%2F..%2Fother&reference=stable",
-		"/api/control/artifact?project=platform&repository=gateway&reference=..",
+		"/api/operations/project?project=..",
+		"/api/operations/artifact?project=platform&repository=team%2F..%2Fother&reference=stable",
+		"/api/operations/artifact?project=platform&repository=gateway&reference=..",
 		"/api/resources/repositories?project=..",
 		"/api/resources/artifacts?project=platform&repository=platform%2F",
 	} {
@@ -22,10 +22,10 @@ func TestGatewayRejectsPathTraversalBeforeHarbor(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			current := createTestSession(t, application, mockClient(func(*http.Request) (int, string) {
+			current := createTestSession(t, testSessionOptions{application: application, client: mockClient(func(*http.Request) (int, string) {
 				t.Fatal("invalid path reached Harbor")
 				return http.StatusInternalServerError, `{}`
-			}), false)
+			}), demo: false})
 			request := httptest.NewRequest(http.MethodGet, target, nil)
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			response := httptest.NewRecorder()
@@ -61,11 +61,11 @@ func TestGatewayRejectsFractionalIDsAndUnsupportedAccessFields(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			current := createTestSession(t, application, mockClient(func(*http.Request) (int, string) {
+			current := createTestSession(t, testSessionOptions{application: application, client: mockClient(func(*http.Request) (int, string) {
 				t.Fatal("invalid numeric or access-control field reached Harbor")
 				return http.StatusInternalServerError, `{}`
-			}), false)
-			request := httptest.NewRequest(test.method, "/api/control/"+test.path, strings.NewReader(test.body))
+			}), demo: false})
+			request := jsonRequest(test.method, "/api/operations/"+test.path, strings.NewReader(test.body))
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			response := httptest.NewRecorder()
 			application.routes().ServeHTTP(response, request)
@@ -99,7 +99,7 @@ func TestPublicCatalogRejectsPathTraversalBeforeHarbor(t *testing.T) {
 			return http.StatusInternalServerError, `{}`
 		})
 	}
-	request := httptest.NewRequest(http.MethodPost, "/api/public/repositories", strings.NewReader(`{"url":"https://harbor.test","project":".."}`))
+	request := jsonRequest(http.MethodPost, "/api/public/repositories", strings.NewReader(`{"url":"https://harbor.test","project":".."}`))
 	response := httptest.NewRecorder()
 	application.routes().ServeHTTP(response, request)
 	if response.Code != http.StatusBadRequest {
@@ -114,10 +114,10 @@ func TestResourceRejectsInvalidPaginationBeforeHarbor(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			current := createTestSession(t, application, mockClient(func(*http.Request) (int, string) {
+			current := createTestSession(t, testSessionOptions{application: application, client: mockClient(func(*http.Request) (int, string) {
 				t.Fatal("invalid pagination reached Harbor")
 				return http.StatusInternalServerError, `{}`
-			}), false)
+			}), demo: false})
 			request := httptest.NewRequest(http.MethodGet, "/api/resources/projects?"+query, nil)
 			request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 			response := httptest.NewRecorder()
@@ -134,7 +134,7 @@ func TestResourceUsesNumericProjectAsName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	current := createTestSession(t, application, mockClient(func(request *http.Request) (int, string) {
+	current := createTestSession(t, testSessionOptions{application: application, client: mockClient(func(request *http.Request) (int, string) {
 		if request.URL.Path != "/api/v2.0/projects/123/repositories" || request.Header.Get("X-Is-Resource-Name") != "true" {
 			t.Fatalf("resource request treated a numeric project name as an ID: %s %v", request.URL.Path, request.Header)
 		}
@@ -142,7 +142,7 @@ func TestResourceUsesNumericProjectAsName(t *testing.T) {
 			t.Fatal("resource default page size changed")
 		}
 		return http.StatusOK, `[]`
-	}), false)
+	}), demo: false})
 	request := httptest.NewRequest(http.MethodGet, "/api/resources/repositories?project=123", nil)
 	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: current.ID})
 	response := httptest.NewRecorder()

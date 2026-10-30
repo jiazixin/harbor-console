@@ -1,14 +1,20 @@
 package app
 
 import (
-	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
-	"sort"
-	"time"
+	"slices"
+
+	"harbor-console/internal/timefmt"
 )
 
+type sessionSnapshotKey struct{}
+
 func (a *app) currentSession(r *http.Request) (*session, bool) {
+	if current, ok := r.Context().Value(sessionSnapshotKey{}).(*session); ok {
+		return current, true
+	}
 	sessionID, ok := sessionIDFromRequest(r)
 	if !ok {
 		return nil, false
@@ -21,7 +27,7 @@ func sessionIDFromRequest(r *http.Request) (string, bool) {
 	if err != nil || cookie.Value == "" {
 		return "", false
 	}
-	return cookie.Value, true
+	return sessionDigest(cookie.Value), true
 }
 
 func (a *app) setSessionCookie(w http.ResponseWriter, r *http.Request, id string) {
@@ -38,7 +44,7 @@ func sessionInfo(current *session) map[string]any {
 		"username":       current.Username,
 		"demo":           current.Demo,
 		"instance_count": len(current.Instances),
-		"expires_at":     current.ExpiresAt.UTC().Format(time.RFC3339),
+		"expires_at":     timefmt.Time(current.ExpiresAt),
 	}
 }
 
@@ -47,9 +53,7 @@ func instancesInfo(current *session) map[string]any {
 	for _, connection := range current.Instances {
 		items = append(items, connection)
 	}
-	sort.SliceStable(items, func(left, right int) bool {
-		return items[left].AddedAt.Before(items[right].AddedAt)
-	})
+	slices.SortStableFunc(items, func(left, right *harborConnection) int { return left.AddedAt.Compare(right.AddedAt) })
 	payload := make([]map[string]any, 0, len(items))
 	for _, connection := range items {
 		payload = append(payload, map[string]any{
@@ -58,16 +62,14 @@ func instancesInfo(current *session) map[string]any {
 			"username":      connection.Username,
 			"demo":          connection.Demo,
 			"active":        connection.ID == current.ActiveInstance,
-			"added_at":      connection.AddedAt.UTC().Format(time.RFC3339),
+			"added_at":      timefmt.Time(connection.AddedAt),
 		})
 	}
-	return map[string]any{"active_id": current.ActiveInstance, "items": payload, "expires_at": current.ExpiresAt.UTC().Format(time.RFC3339)}
+	return map[string]any{"active_id": current.ActiveInstance, "items": payload, "expires_at": timefmt.Time(current.ExpiresAt)}
 }
 
-func randomID() (string, error) {
-	buffer := make([]byte, 32)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(buffer), nil
+// sessionDigest is the only representation of a session token kept in storage.
+func sessionDigest(token string) string {
+	digest := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(digest[:])
 }

@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
+import { setupUser } from "../test/user";
 import { UnifiedSelect } from "./unified-select";
 
 afterEach(() => {
@@ -52,11 +52,12 @@ function SelectFixture() {
 }
 
 describe("UnifiedSelect", () => {
-  it("updates the shared trigger and submitted form value", () => {
+  it("updates the shared trigger and submitted form value", async () => {
+    const user = setupUser();
     render(<SelectFixture />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Frequency" }));
-    fireEvent.click(screen.getByRole("option", { name: "Hourly" }));
+    await user.click(screen.getByRole("button", { name: "Frequency" }));
+    await user.click(screen.getByRole("option", { name: "Hourly" }));
 
     expect(screen.getByRole("button", { name: "Frequency" })).toHaveTextContent(
       "Hourly",
@@ -66,20 +67,23 @@ describe("UnifiedSelect", () => {
     );
   });
 
-  it("supports keyboard opening, navigation, and focus restoration", () => {
+  it("supports keyboard opening, navigation, and focus restoration", async () => {
+    const user = setupUser();
     render(<SelectFixture />);
     const trigger = screen.getByRole("button", { name: "Frequency" });
 
-    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    trigger.focus();
+    await user.keyboard("{ArrowDown}");
     const selected = screen.getByRole("option", { name: "Daily" });
     selected.focus();
-    fireEvent.keyDown(selected, { key: "Escape" });
+    await user.keyboard("{Escape}");
 
     expect(trigger).toHaveFocus();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
-  it("portals the menu and flips it above a trigger near the viewport bottom", () => {
+  it("portals the menu and flips it above a trigger near the viewport bottom", async () => {
+    const user = setupUser();
     vi.spyOn(document.documentElement, "clientWidth", "get").mockReturnValue(
       1280,
     );
@@ -89,14 +93,14 @@ describe("UnifiedSelect", () => {
     vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(96);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
       function (this: HTMLElement) {
-        return this.classList.contains("unified-select-trigger")
+        return this.classList.contains("hc_8b938f52_unifiedSelectTrigger")
           ? elementRect({ top: 700, left: 1040, width: 120, height: 42 })
           : elementRect({ top: 0, left: 0, width: 0, height: 0 });
       },
     );
 
     render(<SelectFixture />);
-    fireEvent.click(screen.getByRole("button", { name: "Frequency" }));
+    await user.click(screen.getByRole("button", { name: "Frequency" }));
 
     const menu = screen.getByRole("listbox", { name: "Frequency" });
     expect(menu.parentElement).toBe(document.body);
@@ -106,7 +110,8 @@ describe("UnifiedSelect", () => {
     expect(Number.parseFloat(menu.style.width)).toBe(120);
   });
 
-  it("repositions an open menu when its trigger moves", () => {
+  it("repositions an open menu when its trigger moves", async () => {
+    const user = setupUser();
     let triggerTop = 100;
     vi.spyOn(document.documentElement, "clientWidth", "get").mockReturnValue(
       1280,
@@ -117,18 +122,19 @@ describe("UnifiedSelect", () => {
     vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(96);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
       function (this: HTMLElement) {
-        return this.classList.contains("unified-select-trigger")
+        return this.classList.contains("hc_8b938f52_unifiedSelectTrigger")
           ? elementRect({ top: triggerTop, left: 20, width: 140, height: 42 })
           : elementRect({ top: 0, left: 0, width: 0, height: 0 });
       },
     );
 
     render(<SelectFixture />);
-    fireEvent.click(screen.getByRole("button", { name: "Frequency" }));
+    await user.click(screen.getByRole("button", { name: "Frequency" }));
     const menu = screen.getByRole("listbox", { name: "Frequency" });
     expect(menu).toHaveAttribute("data-placement", "bottom");
 
     triggerTop = 700;
+    // Scrolling is not a user-event interaction.
     fireEvent.scroll(window);
     expect(menu).toHaveAttribute("data-placement", "top");
   });
@@ -146,7 +152,8 @@ describe("UnifiedSelect", () => {
     expect(screen.getByRole("button", { name: "Empty" })).toBeDisabled();
   });
 
-  it("focuses an available option when the selected option becomes disabled", () => {
+  it("focuses an available option when the selected option becomes disabled", async () => {
+    const user = setupUser();
     render(
       <UnifiedSelect
         ariaLabel="Adapter"
@@ -158,9 +165,8 @@ describe("UnifiedSelect", () => {
         onChange={vi.fn()}
       />,
     );
-    fireEvent.keyDown(screen.getByRole("button", { name: "Adapter" }), {
-      key: "ArrowDown",
-    });
+    screen.getByRole("button", { name: "Adapter" }).focus();
+    await user.keyboard("{ArrowDown}");
     expect(screen.getByRole("option", { name: "Harbor" })).toHaveFocus();
   });
 });

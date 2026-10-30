@@ -1,0 +1,44 @@
+@layer ui-collections {
+  .projectSelectTable :global(.hc_8b938f52_selectionCell),
+  :global(.hc_32cb3c2a_repositorySelectTable)
+    :global(.hc_8b938f52_selectionCell) {
+    width: 44px;
+    padding-inline: 12px 5px;
+    text-align: center;
+  }
+}
+@layer ui-collections {
+  .projectSelectTable :global(.hc_8b938f52_selectionCell) input,
+  :global(.hc_32cb3c2a_repositorySelectTable)
+    :global(.hc_8b938f52_selectionCell)
+    input,
+  :global(.hc_32cb3c2a_repositoryCardSelect) input {
+    width: 15px;
+    height: 15px;
+    display: block;
+    margin: 0 auto;
+    accent-color: var(--orange);
+  }
+}
+@layer ui-collections {
+  .projectSelectTable tr:global(.hc_8b938f52_selectedRow) > td,
+  :global(.hc_32cb3c2a_repositorySelectTable)
+    tr:global(.hc_8b938f52_selectedRow)
+    > td {
+    background: color-mix(in srgb, var(--orange-soft) 44%, var(--surface));
+  }
+}
+@layer ui-collections {
+  .projectSelectTable .projectRepositoryCount {
+    width: 5ch;
+    min-width: 5ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+}
+/* Export modifier tokens used by composed controls. */
+.projectSelectTable {
+}
+.projectRepositoryCount {
+}

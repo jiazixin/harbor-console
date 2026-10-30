@@ -1,49 +1,49 @@
 import { useCallback, useMemo, useState } from "react";
-
-import { formatDate, formatNumber } from "../../app/formatters";
-import type { ConsoleRoute } from "../../app/hash-router";
+import type { ConsoleRoute } from "../../app/console-route";
 import { useLocale } from "../../app/locale-context";
 import type { Locale, RepositorySummary, Session } from "../../app/models";
-import { Pagination } from "../../components/data-table";
-import { ErrorView } from "../../components/feedback";
-import { Icon } from "../../components/icons";
-import {
-  Breadcrumb,
-  DemoBanner,
-  PageHeader,
-  RefreshButton,
-  StatCell,
-} from "../../components/page-elements";
+import { displayTimeZone } from "../../app/preferences";
+import { Breadcrumb } from "../../components/breadcrumb";
+import { DemoBanner } from "../../components/demo-banner";
+import { ErrorView } from "../../components/error-view";
+import { Icon } from "../../components/icon";
+import { PageHeader } from "../../components/page-header";
+import { Pagination } from "../../components/pagination";
+import { RefreshButton } from "../../components/refresh-button";
+import uiStyles0 from "../../components/shared-ui.module.css";
+import { StatCell } from "../../components/stat-cell";
+import { createClassNames } from "../../lib/css/class-names";
+import { formatDate, formatNumber } from "../../lib/format/formatters";
+import { ArtifactBatchToolbar } from "./artifact-batch-toolbar";
+import { ArtifactFilterForm } from "./artifact-filter-form";
 import { repositoryDisplayName } from "./artifact-utils";
 import { ArtifactTable } from "./repository-artifact-table";
-import {
-  ArtifactBatchToolbar,
-  type ArtifactBatchWorker,
-  ArtifactFilterForm,
-} from "./repository-artifact-toolbars";
+import { type ArtifactBatchWorker } from "./repository-artifact-toolbars-support";
 import {
   parseRepositoryRoute,
-  type RepositoryArtifactAction,
-  type RepositoryRouteState,
   repositoryPath,
   useRepositoryData,
+  type RepositoryArtifactAction,
+  type RepositoryRouteState,
 } from "./repository-artifacts-data";
 
 export type { RepositoryArtifactAction } from "./repository-artifacts-data";
+
+type RepositoryStatsProps = {
+  repository: RepositorySummary;
+  project: string;
+  artifactTotal: number;
+};
 
 function RepositoryStats({
   repository,
   project,
   artifactTotal,
-}: {
-  repository: RepositorySummary;
-  project: string;
-  artifactTotal: number;
-}) {
+}: RepositoryStatsProps) {
   const { locale, t } = useLocale();
   return (
     <section
-      className="overview-stats project-stats"
+      className={resolveClasses("overview-stats project-stats")}
       aria-label={t("仓库统计")}
     >
       <StatCell
@@ -60,8 +60,15 @@ function RepositoryStats({
       />
       <StatCell
         label={t("最近更新")}
-        value={formatDate(repository.update_time, locale, false)}
-        foot={formatDate(repository.update_time, locale)}
+        value={formatDate(repository.update_time, {
+          locale: locale,
+          timeZone: displayTimeZone(),
+          includeTime: false,
+        })}
+        foot={formatDate(repository.update_time, {
+          locale: locale,
+          timeZone: displayTimeZone(),
+        })}
         icon="refresh"
       />
       <StatCell
@@ -83,6 +90,19 @@ function repositorySubtitle(repository: RepositorySummary, locale: Locale) {
     : `${artifacts} 个制品 · ${pulls} 次拉取`;
 }
 
+type RepositoryDetailPageProps = {
+  route: ConsoleRoute;
+  session: Session;
+  refreshing: boolean;
+  navigate: (path: string) => void;
+  onRefresh: () => Promise<void>;
+  onShowPushCommand: (project: string, repository: string) => void;
+  onEditRepository: (project: string, repository: RepositorySummary) => void;
+  onDeleteRepository: (project: string, repository: RepositorySummary) => void;
+  onArtifactAction: (action: RepositoryArtifactAction) => void;
+  onNotice: (message: string, error?: boolean) => void;
+};
+
 export function RepositoryDetailPage({
   route,
   session,
@@ -94,22 +114,11 @@ export function RepositoryDetailPage({
   onDeleteRepository,
   onArtifactAction,
   onNotice,
-}: {
-  route: ConsoleRoute;
-  session: Session;
-  refreshing: boolean;
-  navigate: (path: string) => void;
-  onRefresh: () => Promise<void>;
-  onShowPushCommand: (project: string, repository: string) => void;
-  onEditRepository: (project: string, repository: RepositorySummary) => void;
-  onDeleteRepository: (project: string, repository: RepositorySummary) => void;
-  onArtifactAction: (action: RepositoryArtifactAction) => void;
-  onNotice: (message: string, error?: boolean) => void;
-}) {
+}: RepositoryDetailPageProps) {
   const { locale, t } = useLocale();
   const routeKey = `${route.path}?${route.query.toString()}`;
   // The path and query capture every route field, so parsing reruns only on navigation.
-  const routeState = useMemo(() => parseRepositoryRoute(route), [routeKey]);
+  const routeState = (() => parseRepositoryRoute(route))();
   const { data, loading, error, reload } = useRepositoryData(routeState);
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -132,13 +141,12 @@ export function RepositoryDetailPage({
     () => data?.artifacts.items ?? [],
     [data?.artifacts.items],
   );
-  const selectedArtifacts = useMemo(
-    () => artifacts.filter((artifact) => selected.has(artifact.digest)),
-    [artifacts, selected],
-  );
+  const selectedArtifacts = (() =>
+    artifacts.filter((artifact) => selected.has(artifact.digest)))();
 
-  const updateRoute = (updates: Partial<RepositoryRouteState>) =>
+  const updateRoute = (updates: Partial<RepositoryRouteState>) => {
     navigate(repositoryPath(routeState, updates));
+  };
 
   async function runBatch(title: string, worker: ArtifactBatchWorker) {
     if (!selectedArtifacts.length) return;
@@ -158,15 +166,16 @@ export function RepositoryDetailPage({
     reload();
   }
 
-  const toggleArtifact = (digest: string) =>
+  const toggleArtifact = (digest: string) => {
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(digest)) next.delete(digest);
       else next.add(digest);
       return next;
     });
+  };
 
-  const togglePage = () =>
+  const togglePage = () => {
     setSelected((current) => {
       const next = new Set(current);
       const allSelected = artifacts.every((artifact) =>
@@ -178,6 +187,7 @@ export function RepositoryDetailPage({
       }
       return next;
     });
+  };
 
   const displayName = repositoryDisplayName(
     routeState.project,
@@ -206,10 +216,10 @@ export function RepositoryDetailPage({
           actions={<RefreshButton refreshing onRefresh={() => undefined} />}
         />
         {session.demo ? <DemoBanner /> : null}
-        <section className="table-shell">
-          <div className="loading-state">
+        <section className={resolveClasses("table-shell")}>
+          <div className={resolveClasses("loading-state")}>
             <div>
-              <span className="spinner" />
+              <span className={resolveClasses("spinner")} />
             </div>
           </div>
         </section>
@@ -242,27 +252,31 @@ export function RepositoryDetailPage({
               onRefresh={() => void refreshPage()}
             />
             <button
-              className="button button-small"
+              className={resolveClasses("button button-small")}
               type="button"
-              onClick={() =>
-                onShowPushCommand(routeState.project, repository.name)
-              }
+              onClick={() => {
+                onShowPushCommand(routeState.project, repository.name);
+              }}
             >
               <Icon name="upload" />
               <span>{t("推送指引")}</span>
             </button>
             <button
-              className="button button-small"
+              className={resolveClasses("button button-small")}
               type="button"
-              onClick={() => onEditRepository(routeState.project, repository)}
+              onClick={() => {
+                onEditRepository(routeState.project, repository);
+              }}
             >
               <Icon name="edit" />
               <span>{t("编辑仓库")}</span>
             </button>
             <button
-              className="button button-small button-danger"
+              className={resolveClasses("button button-small button-danger")}
               type="button"
-              onClick={() => onDeleteRepository(routeState.project, repository)}
+              onClick={() => {
+                onDeleteRepository(routeState.project, repository);
+              }}
             >
               <Icon name="trash" />
               <span>{t("删除")}</span>
@@ -271,16 +285,21 @@ export function RepositoryDetailPage({
         }
       />
       {session.demo ? <DemoBanner /> : null}
+      {data.labelErrors.length ? (
+        <ErrorView message={data.labelErrors.join(" · ")} retry={reload} />
+      ) : null}
       <RepositoryStats
         repository={repository}
         project={routeState.project}
         artifactTotal={data.artifacts.pagination.total}
       />
-      <section className="table-shell">
+      <section className={resolveClasses("table-shell")}>
         <ArtifactFilterForm
           filters={routeState}
           labels={data.labels}
-          onApply={(filters) => updateRoute({ page: 1, ...filters })}
+          onApply={(filters) => {
+            updateRoute({ page: 1, ...filters });
+          }}
         />
         <ArtifactBatchToolbar
           project={routeState.project}
@@ -291,7 +310,7 @@ export function RepositoryDetailPage({
           onRunBatch={(title, worker) => void runBatch(title, worker)}
           onArtifactAction={onArtifactAction}
         />
-        <div className="table-scroll">
+        <div className={resolveClasses("table-scroll")}>
           <ArtifactTable
             artifacts={artifacts}
             project={routeState.project}
@@ -305,9 +324,41 @@ export function RepositoryDetailPage({
         </div>
         <Pagination
           pagination={data.artifacts.pagination}
-          onPageChange={(page) => updateRoute({ page })}
+          onPageChange={(page) => {
+            updateRoute({ page });
+          }}
         />
       </section>
     </>
   );
 }
+
+const resolveClasses = createClassNames({
+  breadcrumb: uiStyles0.breadcrumb,
+  icon: uiStyles0.icon,
+  "page-header": uiStyles0.pageHeader,
+  "refresh-button": uiStyles0.refreshButton,
+  "stat-cell": uiStyles0.statCell,
+  "artifact-batch-toolbar": uiStyles0.artifactBatchToolbar,
+  "overview-stats": uiStyles0.overviewStats,
+  "table-shell": uiStyles0.tableShell,
+  "loading-state": uiStyles0.loadingState,
+  spinner: uiStyles0.spinner,
+  button: uiStyles0.button,
+  "button-small": uiStyles0.buttonSmall,
+  "button-danger": uiStyles0.buttonDanger,
+  "table-scroll": uiStyles0.tableScroll,
+  "harbor-banner-warning": uiStyles0.harborBannerWarning,
+  "harbor-banner-success": uiStyles0.harborBannerSuccess,
+  "harbor-banner-info": uiStyles0.harborBannerInfo,
+  "harbor-banner-danger": uiStyles0.harborBannerDanger,
+  clickable: uiStyles0.clickable,
+  "overlay-open": uiStyles0.overlayOpen,
+  "log-level-trace": uiStyles0.logLevelTrace,
+  "log-level-debug": uiStyles0.logLevelDebug,
+  "log-level-log": uiStyles0.logLevelLog,
+  "log-level-info": uiStyles0.logLevelInfo,
+  "log-level-warn": uiStyles0.logLevelWarn,
+  "log-level-error": uiStyles0.logLevelError,
+  "log-level-fatal": uiStyles0.logLevelFatal,
+});

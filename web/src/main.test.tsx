@@ -1,14 +1,14 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import { RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import {
   ApiError,
   dashboardApi,
   identityApi,
   sessionApi,
 } from "./app/api-client";
-import { LocaleProvider } from "./app/locale-context";
-import { ReactApplication } from "./app/react-application";
+import { createConsoleRouter } from "./app/router";
+import { TestProviders } from "./test/test-providers";
 
 afterEach(() => {
   cleanup();
@@ -20,12 +20,16 @@ afterEach(() => {
 describe("React application root", () => {
   it("renders the connection screen when no session is active", async () => {
     vi.spyOn(sessionApi, "current").mockRejectedValue(
-      new ApiError("Unauthorized", 401),
+      new ApiError("Unauthorized", {
+        status: 401,
+        code: "unauthenticated",
+        requestId: "",
+      }),
     );
     render(
-      <LocaleProvider>
-        <ReactApplication />
-      </LocaleProvider>,
+      <TestProviders>
+        <RouterProvider router={createConsoleRouter()} />
+      </TestProviders>,
     );
 
     expect(
@@ -51,9 +55,9 @@ describe("React application root", () => {
     vi.spyOn(identityApi, "current").mockResolvedValue({ username: "admin" });
     vi.spyOn(identityApi, "permissions").mockResolvedValue([]);
     render(
-      <LocaleProvider>
-        <ReactApplication />
-      </LocaleProvider>,
+      <TestProviders>
+        <RouterProvider router={createConsoleRouter()} />
+      </TestProviders>,
     );
 
     expect(

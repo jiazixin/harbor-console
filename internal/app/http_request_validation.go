@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -11,49 +10,33 @@ import (
 func validateHarborURL(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return "", errors.New("请输入 Harbor 实例地址")
+		return "", invalidField("url", "required", "is required")
 	}
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Host == "" {
-		return "", errors.New("地址必须是完整的 http:// 或 https:// URL")
+		return "", invalidField("url", "invalid_url", "must be a complete http:// or https:// URL")
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return "", errors.New("仅支持 http 和 https 协议")
+		return "", invalidField("url", "invalid_url", "must use http or https")
 	}
 	if parsed.User != nil {
-		return "", errors.New("请在独立字段中输入用户名和密码")
+		return "", invalidField("url", "url_has_credentials", "must not contain credentials")
 	}
 	if parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", errors.New("地址不能包含查询参数或片段")
+		return "", invalidField("url", "url_has_query", "must not contain a query or fragment")
 	}
 	// Harbor Console joins this value with official API paths. A path prefix
 	// would make every request target a different reverse-proxy namespace and
 	// can silently turn a valid-looking URL into a broken connection.
 	if parsed.Path != "" && parsed.Path != "/" {
-		return "", errors.New("Harbor 地址必须是实例根地址，不能包含路径前缀")
+		return "", invalidField("url", "url_has_path", "must be the instance root without a path")
 	}
 	if parsed.RawPath != "" && parsed.RawPath != "/" {
-		return "", errors.New("Harbor 地址必须是实例根地址，不能包含路径前缀")
+		return "", invalidField("url", "url_has_path", "must be the instance root without a path")
 	}
 	parsed.Path = ""
 	parsed.RawPath = ""
 	return parsed.String(), nil
-}
-
-func sameOrigin(r *http.Request) bool {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return true
-	}
-	parsed, err := url.Parse(origin)
-	if err != nil {
-		return false
-	}
-	expectedScheme := "http"
-	if requestIsTLS(r) {
-		expectedScheme = "https"
-	}
-	return strings.EqualFold(parsed.Scheme, expectedScheme) && strings.EqualFold(parsed.Host, r.Host)
 }
 
 func clientIP(r *http.Request) string {

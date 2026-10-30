@@ -1,8 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { LocaleProvider } from "../../app/locale-context";
-import { IconSprite } from "../../components/icons";
+import { IconSprite } from "../../components/icon-sprite";
+import { TestProviders } from "../../test/test-providers";
 import { SystemPage } from "./system-page";
 
 afterEach(() => {
@@ -20,7 +19,7 @@ describe("system page", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     render(
-      <LocaleProvider>
+      <TestProviders>
         <IconSprite />
         <SystemPage
           session={{
@@ -46,7 +45,7 @@ describe("system page", () => {
           refreshing={false}
           onRefresh={vi.fn()}
         />
-      </LocaleProvider>,
+      </TestProviders>,
     );
 
     expect(await screen.findByText("实例信息")).toBeVisible();
@@ -55,7 +54,7 @@ describe("system page", () => {
     expect(screen.getByText("连接会话")).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/resources/volumes",
-      expect.objectContaining({ credentials: "same-origin" }),
+      expect.objectContaining({ credentials: "same-origin" }) as unknown,
     );
   });
 });

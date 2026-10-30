@@ -1,0 +1,170 @@
+/* Remote registries page styles. */
+.registryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.registryItem {
+  min-width: 0;
+  padding: 20px;
+}
+
+.registryItem + .registryItem {
+  border-left: 1px solid var(--line);
+}
+
+.registryListShell {
+  margin-top: 18px;
+}
+
+.registryListToolbar {
+  flex-wrap: wrap;
+}
+
+.registryListToolbar :global(.hc_8b938f52_viewModeToggle) {
+  height: var(--control-height-compact);
+}
+
+.registryListTable {
+  table-layout: fixed;
+}
+
+.registryListTable :is(th, td):nth-child(1) {
+  width: 108px;
+}
+
+.registryListTable :is(th, td):nth-child(2) {
+  width: 240px;
+}
+
+.registryListTable :is(th, td):nth-child(3) {
+  width: 150px;
+}
+
+.registryListTable :is(th, td):nth-child(5) {
+  width: 132px;
+}
+
+.registryTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.registryIcon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-panel);
+  background: var(--orange-soft);
+  color: var(--orange-strong);
+}
+
+.registryItem h3 {
+  margin: 16px 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.registryUrl {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registryMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+@media (max-width: 1080px) {
+  .registryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .registryItem:nth-child(3) {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .registryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .registryItem + .registryItem,
+  .registryItem:nth-child(3) {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+}
+
+.registryActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-control);
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.controlRegistryGrid .registryMeta {
+  margin-top: 16px;
+}
+
+.registryAdapterGrid {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.registryAdapterGrid :global(.hc_8b938f52_field) small {
+  color: var(--ink-faint);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.registryAdapterGrid input[readonly] {
+  color: var(--ink-soft);
+  background: var(--surface-subtle);
+}
+
+.credentialFileInput {
+  min-height: 126px;
+}
+
+:global(.hc_8b938f52_controlDialog) .registryInsecureRow {
+  margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+  .controlRegistryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .controlRegistryGrid {
+    grid-template-columns: 1fr;
+  }
+}

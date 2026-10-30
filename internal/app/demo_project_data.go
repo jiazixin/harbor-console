@@ -1,6 +1,8 @@
 package app
 
-import "time"
+import (
+	"harbor-console/internal/timefmt"
+)
 
 func projectID(projects []map[string]any, name string) any {
 	if index, found := findMap(projects, "name", name); found {
@@ -9,10 +11,11 @@ func projectID(projects []map[string]any, name string) any {
 	return 0
 }
 
-func updateDemoRepoCount(projects []map[string]any, project string, count int) {
+func (ds *demoState) updateRepoCount(project string) {
+	projects, count := ds.projects, len(ds.repositories[project])
 	if index, found := findMap(projects, "name", project); found {
 		projects[index]["repo_count"] = count
-		projects[index]["update_time"] = time.Now().UTC().Format(time.RFC3339)
+		projects[index]["update_time"] = ds.now().UTC().Format(timefmt.Layout)
 	}
 }
 
