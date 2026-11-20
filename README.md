@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/jiazixin/harbor-console/actions/workflows/ci.yml"><img src="https://github.com/jiazixin/harbor-console/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/jiazixin/harbor-console/releases/latest"><img src="https://img.shields.io/github/v/release/jiazixin/harbor-console?sort=semver" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Go-1.27.3-00ADD8?logo=go&logoColor=white" alt="Go 1.27.3">
+  <img src="https://img.shields.io/badge/Go-1.27.4-00ADD8?logo=go&logoColor=white" alt="Go 1.27.4">
   <img src="https://img.shields.io/badge/Harbor-v2.15.x-60B932" alt="Harbor v2.15.x">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
 </p>
@@ -44,7 +44,7 @@ Harbor Console 为 Harbor 管理员提供统一的工作区，覆盖项目、仓
 | --- | --- |
 | Harbor | v2.15.x |
 | 预编译版本 | Linux、macOS 或 Windows，amd64 / arm64 |
-| 从源码构建 | Go 1.27.3+；Node.js 22.23.4+（22 系列）、24.22.1+（24 系列）或 26.12.1+；npm |
+| 从源码构建 | Go 1.27.4+；Node.js 22.23.4+（22 系列）、24.22.1+（24 系列）或 26.12.1+；npm |
 | 容器镜像 | Docker 或其他 OCI 镜像构建工具 |
 
 ## 快速开始

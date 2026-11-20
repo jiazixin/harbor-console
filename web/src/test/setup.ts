@@ -34,7 +34,9 @@ Object.defineProperty(window, "matchMedia", {
     onchange: null,
     addEventListener: () => undefined,
     removeEventListener: () => undefined,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- MediaQueryList requires implementing the legacy method in DOM typings.
     addListener: () => undefined,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- MediaQueryList requires implementing the legacy method in DOM typings.
     removeListener: () => undefined,
     dispatchEvent: () => false,
   }),

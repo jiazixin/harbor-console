@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/jiazixin/harbor-console/actions/workflows/ci.yml"><img src="https://github.com/jiazixin/harbor-console/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/jiazixin/harbor-console/releases/latest"><img src="https://img.shields.io/github/v/release/jiazixin/harbor-console?sort=semver" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Go-1.27.3-00ADD8?logo=go&logoColor=white" alt="Go 1.27.3">
+  <img src="https://img.shields.io/badge/Go-1.27.4-00ADD8?logo=go&logoColor=white" alt="Go 1.27.4">
   <img src="https://img.shields.io/badge/Harbor-v2.15.x-60B932" alt="Harbor v2.15.x">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
 </p>
@@ -44,7 +44,7 @@ Harbor Console gives Harbor administrators one consistent workspace for projects
 | --- | --- |
 | Harbor | v2.15.x |
 | Prebuilt binaries | Linux, macOS or Windows on amd64 / arm64 |
-| Building from source | Go 1.27.3+, Node.js 22.23.4+ (22.x), 24.22.1+ (24.x) or 26.12.1+, npm |
+| Building from source | Go 1.27.4+, Node.js 22.23.4+ (22.x), 24.22.1+ (24.x) or 26.12.1+, npm |
 | Container image | Docker or another OCI builder |
 
 ## Quick Start
